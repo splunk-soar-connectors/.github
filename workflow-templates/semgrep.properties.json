@@ -1,0 +1,8 @@
+{
+    "name": "Semgrep",
+    "description": "Latest Semgrep workflow for app repos.",
+    "iconName": "shield_green_icon",
+    "categories": [
+        "Python"
+    ]
+}

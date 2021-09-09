@@ -1,0 +1,14 @@
+name: Semgrep
+on: 
+  pull_request:
+    branches:
+      - next
+      - main
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+     - uses: 'phantomcyber/dev-cicd-tools/github-actions/semgrep@main'
+       with: 
+        SEMGREP_DEPLOYMENT_ID: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
+        SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
