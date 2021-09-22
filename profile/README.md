@@ -18,7 +18,7 @@ If you'd like to join our community chat, head over to [https://my.phantom.us](h
 ---
 
 ## Reporting Issues
-If you've found a problem with an app but don't want to contribute a fix, that's ok! All you need to do is go to the [Issues](https://github.com/splunk-soar-apps/phawslambda/issues) section of the app repo and click 'New Issue'. This will show our conviniently set-up Issue templates. 
+If you've found a problem with an app but don't want to contribute a fix, that's ok! All you need to do is go to the [Issues](https://github.com/splunk-soar-apps/phawslambda/issues) section of the app repo and click 'New Issue'. The page that appears will show our convenient issue templates. 
 
 ![Issues Templates](../.github/Images/Github-Issue-Templates.png)
 
@@ -44,7 +44,7 @@ If you would like to contribute to our Apps directly, please have a look at our 
 
 ## Legal and License
 
-All SOAR Apps in this repository are licensed under the Apache 2.0 license. Please see [LICENSE](https://github.com/splunk-soar-apps/.github/blob/main/LICENSE) file and [CONTRIBUTING](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONTRIBUTING.md) documentation for further details.
+All SOAR Apps in this GitHub organization are licensed under the Apache 2.0 license. Please see [LICENSE](https://github.com/splunk-soar-apps/.github/blob/main/LICENSE) file and [CONTRIBUTING](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONTRIBUTING.md) documentation for further details.
 
 Certain SOAR Apps may include third-party open source subcomponents with separate copyright notices and license.  Your use of the source code for these subcomponents is subject to the terms and conditions of the corresponding license(s) contained in the respective subcomponent directory or source file(s).
 

@@ -76,7 +76,7 @@ By default we provide various automated checks you can leverage to test your cha
 - Click the "Checks" tab at the top of the pull request. **OR**
 - Click the "Details" link next to the list of checks that shows up at the bottom of the pull request. If the tests passed, this list will be hidden, so you will first need to click the "Show all checks" link.
 
-Currently, some our automated checks are internal to Splunk and their details cannot be publicly viewed. The details for the following checks *can be* publicly accessed. 
+Currently, some our automated checks are internal to Splunk and their details cannot be publicly viewed. The details for the following checks *can* be publicly accessed. 
  - **Linting** - [Flake8](http://flake8.pycqa.org/en/latest/) and [isort](https://pycqa.github.io/isort/) to ensure common Python coding standards are maintained.
  - **Semgrep** - a [static analysis tool](https://semgrep.dev/) to find potential vulnerabilitilies in app code.
  - **Static Tests** - common test suites that we run for each app repo. The "Details" link of this check will be a Google Drive link to the test results. A comment will also be posted in the PR with the same link by ```phantom-apps-bot```.
