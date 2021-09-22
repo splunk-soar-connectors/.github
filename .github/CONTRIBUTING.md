@@ -23,7 +23,7 @@ To successfully contribute, you should spend a little time familiarizing yoursel
 - [Coding & Conventions](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONVENTIONS.md) - How we expect to see code formatted and apps named
 - [Certified vs Standard App](https://github.com/splunk-soar-apps/.github/blob/main/.github/CERTIFIED_V_UNCERTIFIED.md) definitions and differences
 - [Typical developer workflow](https://github.com/splunk-soar-apps/.github/blob/main/.github/DEV_WORKFLOW.md) - Configuring your dev environment
-<!-- - [Testing Details](https://github.com/splunk-soar-apps/.github/blob/next/.github/TESTING.md) - How we test apps & playbooks -->
+<!-- - [Testing Details](https://github.com/splunk-soar-apps/.github/blob/main/.github/TESTING.md) - How we test apps & playbooks -->
 
 
 ## Step-by-Step Guide Available
@@ -40,13 +40,13 @@ are looking to contribute to
 1. Make your changes on your branch
 1. Thoroughly test your changes. See the [Automated Checks](#automated-checks) section for information about basic automated checks we provide for all apps.
 1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
-1. Open a [pull request](https://help.github.com/articles/using-pull-requests/) to the [next](https://github.com/splunk-soar-apps/phawslambda/tree/next) branch of the app repo, giving edit access to the maintainers of the repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-apps/.github/blob/main/.github/pull_request_template.md).
+1. Open a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo, giving edit access to the maintainers of the repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-apps/.github/blob/main/.github/pull_request_template.md).
 
 *****Important Notes:**
 
 1. **Please make sure to check the 'Allow edits and access to secrets by maintainers' box during your PR submission so that a Splunk>Phantom developer can aid in the PR process.**
 
-1. **Any pull-request to the [main](https://github.com/splunk-soar-apps/phawslambda/tree/main) branch of an app repo will not be accepted**
+1. **Any pull-request to the ```main``` branch of an app repo will not be accepted**
 
 1. **A Splunk>Phantom developer may wish to create a new branch and ask you to perform your pull-request there for specific types of changes.**
 
@@ -56,14 +56,14 @@ are looking to contribute to
 
 If you've created a brand new App and wish to contribute it, the steps to do so are as follows.
 
-1. Create a new [issue](https://github.com/Splunk-SOAR-Apps/phawslambda/issues/new?assignees=&labels=&template=new_repo_request.md&title=) in our ```.github``` repo to request a new repository to be created for your app.
+1. Create a new [issue](https://github.com/Splunk-SOAR-Apps/.github/issues/new?assignees=&labels=&template=new_repo_request.md&title=) in our ```.github``` repo to request a new repository to be created for your app.
 1. [Fork](https://guides.github.com/activities/forking/) the project
-1. Create a branch (following our [Conventions](https://github.com/splunk-soar-apps/.github/blob/next/.github/CONVENTIONS.md)))
+1. Create a branch (following our [Conventions](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONVENTIONS.md)))
 1. Push your app code to the branch you created. 
 1. **Thoroughly** test your code for the new App. See the [Automated Checks](#automated-checks) section for information about basic automated checks we provide for all apps.
     <!-- 1. Ensure your new app has a [TESTING](https://about:blank) document for the community and our developers. -->
-1. Add your name to the contributors list in the app JSON! [Example](https://github.com/splunk-soar-apps/.github/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
-1. Perform a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-apps/.github/blob/next/.github/pull_request_template.md).
+1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
+1. Perform a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-apps/.github/blob/main/.github/pull_request_template.md).
 
 **Note: Any pull-request to the ```main``` branch of the app repo will not be accepted**
 

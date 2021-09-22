@@ -18,7 +18,7 @@ If you'd like to join our community chat, head over to [https://my.phantom.us](h
 ---
 
 ## Reporting Issues
-If you've found a problem with an app but don't want to contribute a fix, that's ok! All you need to do is go to the [Issues](https://github.com/splunk-soar-apps/phawslambda/issues) section of the app repo and click 'New Issue'. The page that appears will show our convenient issue templates. 
+If you've found a problem with an app but don't want to contribute a fix, that's ok! All you need to do is go to the [Issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/creating-an-issue) section of the app repo and click 'New Issue'. The page that appears will show our convenient issue templates. 
 
 ![Issues Templates](../.github/Images/Github-Issue-Templates.png)
 

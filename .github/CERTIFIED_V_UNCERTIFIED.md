@@ -1,6 +1,6 @@
 # Certified and Uncertified Apps
 
-You may have noticed the Certified banner that shows up next to some Phantom Apps.  This document explains what goes into that icon.  
+You may have noticed the Certified banner that shows up next to some Splunk SOAR Apps.  This document explains what goes into that icon.  
 
 ![Certified App Logo](Images/certified-app-logo.png)  | Uncertified App
 ------------- | -------------
@@ -19,7 +19,7 @@ Regular Regression Testing |
 A code review is conducted by the SOAR Apps team.  
 
 ### Security Review
-A security review is conducted by a Splunk Security team. The security review ensures no malicious code, libraries, or other content is published through the Phantom app listings.
+A security review is conducted by a Splunk Security team. The security review ensures no malicious code, libraries, or other content is published through the SOAR app listings.
 
 ### Content Review
 A content review is conducted by the SOAR Apps team.  Common checks include:
