@@ -20,11 +20,11 @@ If you'd like to join our community chat, head over to [https://my.phantom.us](h
 ## Reporting Issues
 If you've found a problem with an app but don't want to contribute a fix, that's ok! All you need to do is go to the [Issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/creating-an-issue) section of the app repo and click 'New Issue'. The page that appears will show our convenient issue templates. 
 
-![Issues Templates](../.github/Images/Github-Issue-Templates.png)
+![Issues Templates](https://github.com/splunk-soar-connectors/.github/blob/main/.github/Images/Github-Issue-Templates.png)
 
 All you have to do is fill out the form...
 
-![Bug Report](../.github/Images/Github-Bug-Template.png) 
+![Bug Report](https://github.com/splunk-soar-connectors/.github/blob/main/.github/Images/Github-Bug-Template.png) 
 
 ...and it'll get reviewed and priortized by our developers and maybe even someone in our community.
 
@@ -38,14 +38,14 @@ Have a feature or an app you'd like to see in SOAR? Head over to the [Splunk Ide
 ---
 
 ## Contributing
-If you would like to contribute to our Apps directly, please have a look at our [Contribution Guide](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONTRIBUTING.md)
+If you would like to contribute to our Apps directly, please have a look at our [Contribution Guide](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONTRIBUTING.md)
 
 ---
 
 ## Legal and License
 
-All SOAR Apps in this GitHub organization are licensed under the Apache 2.0 license. Please see [LICENSE](https://github.com/splunk-soar-apps/.github/blob/main/LICENSE) file and [CONTRIBUTING](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONTRIBUTING.md) documentation for further details.
+All SOAR Apps in this GitHub organization are licensed under the Apache 2.0 license. Please see [LICENSE](https://github.com/splunk-soar-connectors/.github/blob/main/LICENSE) file and [CONTRIBUTING](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONTRIBUTING.md) documentation for further details.
 
 Certain SOAR Apps may include third-party open source subcomponents with separate copyright notices and license.  Your use of the source code for these subcomponents is subject to the terms and conditions of the corresponding license(s) contained in the respective subcomponent directory or source file(s).
 
-Some App directories within this repository include binary (non-source code) blobs obtained from https://pypi.org. These files are subject to separate license terms and conditions, which can be found in the corresponding project subdirectory located therein.
+Some repositories within this organization include binary (non-source code) blobs obtained from https://pypi.org. These files are subject to separate license terms and conditions, which can be found in the corresponding project subdirectory located therein.
