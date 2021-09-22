@@ -1,4 +1,4 @@
-# Splunk> Phantom
+# Splunk> SOAR
 Welcome! This repository contains the community health files and workflow templates
 for the ```splunk-soar-apps``` organization.
 
