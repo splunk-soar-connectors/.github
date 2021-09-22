@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Contribute a brand new app under a new repository!
+about: Create a report to help us improve
 title: ''
 labels: ''
 assignees: ''
@@ -8,10 +8,29 @@ assignees: ''
 ---
 
 **Name of the app**
-The name of app your are contributing.
+The app this issue relates to.
 
-**Integration**
-The technology that your app integrates with.
+**Describe the bug**
+A clear and concise description of what the bug is.
 
-**About**
-Description of what the app does.
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+**Expected behavior**
+A clear and concise description of what you expected to happen.
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+**Phantom Version (please complete the following information):**
+ - OVA, Unprivileged Install, or RPM?
+ - If not OVA, OS Version?
+ - Hypervisor (if applicable)?
+ - App Version?
+
+**Additional context**
+Add any other context about the problem here.

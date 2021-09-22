@@ -1,5 +1,5 @@
 ## Intro for Developers
-When contributing to a new project, sometimes getting your development environment set-up just right can be tedious. This document will descrbe one (or more) ways to get your enviornment configured. This document describes the ways in which Splunk>Phantom's developers have their workstations configured.
+When contributing to a new project, sometimes getting your development environment set-up just right can be tedious. This document will describe one (or more) ways to get your environment configured. This document describes the ways in which Splunk>Phantom's developers have their workstations configured.
 
 **NOTE: This is not a guide on _how_ to develop Phantom apps (you can find that [here](https://my.phantom.us/4.5/docs/appdev/overview)), rather it represents how you might configure your workstation to allow for rapid code->deploy->test cycle.**
 

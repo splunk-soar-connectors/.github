@@ -1,7 +1,7 @@
-# Conventions in use by Phantom GitHub Repository
+# Conventions in use by ```splunk-soar-apps``` repositories
 
 ## Code and Style
-The Phantom Apps team utilizes Python for its Apps. Consequently, we have standardized on [PEP8](https://www.python.org/dev/peps/pep-0008/) style. Additionally, in our automated testing we the [Flake8](http://flake8.pycqa.org/en/latest/) linter.
+The SOAR Apps team utilizes Python for its Apps. Consequently, we have standardized on [PEP8](https://www.python.org/dev/peps/pep-0008/) style. Additionally, as part of our automated checks, we run the [Flake8](http://flake8.pycqa.org/en/latest/) and [isort](https://pycqa.github.io/isort/) linters. The linting configuration used for our apps can be found [here](https://github.com/phantomcyber/dev-cicd-tools/blob/main/lint-configs/tox.ini).
 
 We would ask that you follow these guidelines when developing your App to ensure consistency without our platform.
 
