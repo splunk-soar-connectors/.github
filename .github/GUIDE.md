@@ -1,17 +1,11 @@
 # Step-by-Step Guide for Contributing to a Splunk SOAR App
 
-## Step 1: Create a GitHub Issue
-
-1. If one does not already exist, create an Issue (otherwise we'll use the existing one)
-1. GitHub will prompt you to either create a **Bug report** or **Feature request**. Choose whichever applies to you
-1. Fill out the issue with as many details as you see fit
-
-## Step 2: Fork the app repo
+## Step 1: Fork the app repo
 
 1. This will create a copy of the app repo under your GitHub account
 1. With your fork, you will be able to make changes or additions and open up pull requests to the original repo
 
-## Step 3: Clone your forked repo locally
+## Step 2: Clone your forked repo locally
 
 1. Clone your forked apps repo locally using HTTPS or SSH (see [cloning-a-repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) for more details)
 1. The example below uses SSH to clone a forked repo
@@ -28,7 +22,7 @@
   $ git pull upstream next
   ``` 
   
-## Step 4: Actually making a contribution
+## Step 3: Make your changes
 
 1. Now that you have cloned your fork and synced up with the main upstream repo, you are ready to start working!
 1. Perform the following commands to start working on your issue:
@@ -42,7 +36,8 @@
   $ git commit -m "Commit message here"
   $ git push origin your-branch
   ``` 
- ## Step 5: Finally, create a **Pull Request** on GitHub
+
+## Step 4: Finally, create a Pull Request on GitHub
  
  1. The final step is to create a pull request from `your-username/app-repo-fork:your-branch` into `splunk-soar-apps/app-repo:next` for the Splunk>SOAR Engineering team to review your code changes and provide feedback
  1. In order for the Splunk>SOAR team to properly aid you in the PR process, please make sure to check the 'Allow edits and access to secrets by maintainers' box which is shown in the image below.
