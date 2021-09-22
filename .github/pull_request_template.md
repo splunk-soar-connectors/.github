@@ -1,7 +1,7 @@
 
 Please ensure your pull request (PR) adheres to the following guidelines:
 
-- Please refer to our contributing documentation for any questions on submitting a pull request, link: [Contribution Guide](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONTRIBUTING.md)
+- Please refer to our contributing documentation for any questions on submitting a pull request, link: [Contribution Guide](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONTRIBUTING.md)
 
 ## Pull Request Checklist
 

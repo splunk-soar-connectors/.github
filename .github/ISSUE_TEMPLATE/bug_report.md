@@ -26,7 +26,7 @@ A clear and concise description of what you expected to happen.
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
 
-**Phantom Version (please complete the following information):**
+**Splunk SOAR Version (please complete the following information):**
  - OVA, Unprivileged Install, or RPM?
  - If not OVA, OS Version?
  - Hypervisor (if applicable)?

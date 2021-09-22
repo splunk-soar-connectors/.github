@@ -9,7 +9,7 @@ assignees: ''
 
 **Name of the app**
 The name of app your are contributing. Please ensure the app name
-follows our [naming convention](https://github.com/splunk-soar-apps/.github/blob/next/.github/CONVENTIONS.md).
+follows our [naming convention](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONVENTIONS.md).
 
 **Integration**
 The technology that your app integrates with.

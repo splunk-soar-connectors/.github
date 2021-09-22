@@ -1,10 +1,10 @@
-# Contributing to Phantom
+# Contributing to Splunk SOAR
 
-Thank you for considering spending your time contributing to Phantom Apps. Whether you're interested in bug-hunting, documentation, or creating entirely new apps, this document will help and guide you through the process.
+Thank you for considering spending your time contributing to Splunk SOAR. Whether you're interested in bug-hunting, documentation, or creating entirely new apps, this document will help and guide you through the process.
 
 If you've stumbled upon the site but don't know who or what we are, please check out the links below:
-- [Splunk > Phantom](https://www.splunk.com/en_us/software/splunk-security-orchestration-and-automation.html) - Home Page of Phantom
-- [Phantom Community](https://my.phantom.us) - Phantom Community site
+- [Splunk > SOAR](https://www.splunk.com/en_us/software/splunk-security-orchestration-and-automation.html) - Home Page of Splunk SOAR
+- [Phantom Community](https://my.phantom.us) - Splunk SOAR (formerly known as Phantom) Community site
 
 ---
 
@@ -20,14 +20,14 @@ Make sure you have a [GitHub Account](https://www.github.com)
 ## Project Details
 To successfully contribute, you should spend a little time familiarizing yourself with the following key topics.
 
-- [Coding & Conventions](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONVENTIONS.md) - How we expect to see code formatted and apps named
-- [Certified vs Standard App](https://github.com/splunk-soar-apps/.github/blob/main/.github/CERTIFIED_V_UNCERTIFIED.md) definitions and differences
-- [Typical developer workflow](https://github.com/splunk-soar-apps/.github/blob/main/.github/DEV_WORKFLOW.md) - Configuring your dev environment
-<!-- - [Testing Details](https://github.com/splunk-soar-apps/.github/blob/main/.github/TESTING.md) - How we test apps & playbooks -->
+- [Coding & Conventions](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONVENTIONS.md) - How we expect to see code formatted and apps named
+- [Certified vs Standard App](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CERTIFIED_V_UNCERTIFIED.md) definitions and differences
+- [Typical developer workflow](https://github.com/splunk-soar-connectors/.github/blob/main/.github/DEV_WORKFLOW.md) - Configuring your dev environment
+<!-- - [Testing Details](https://github.com/splunk-soar-connectors/.github/blob/main/.github/TESTING.md) - How we test apps & playbooks -->
 
 
 ## Step-by-Step Guide Available
-If you are not familiar with a fork-and-branch Git workflow, or just feel a bit rusty on your Git knowledge, please check out our [step-by-step contribution guide](https://github.com/splunk-soar-apps/.github/blob/next/.github/GUIDE.md) which has actual command line examples
+If you are not familiar with a fork-and-branch Git workflow, or just feel a bit rusty on your Git knowledge, please check out our [step-by-step contribution guide](https://github.com/splunk-soar-connectors/.github/blob/main/.github/GUIDE.md) which has actual command line examples
 
 
 # High Level Contribution Overview
@@ -40,15 +40,15 @@ are looking to contribute to
 1. Make your changes on your branch
 1. Thoroughly test your changes. See the [Automated Checks](#automated-checks) section for information about basic automated checks we provide for all apps.
 1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
-1. Open a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo, giving edit access to the maintainers of the repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-apps/.github/blob/main/.github/pull_request_template.md).
+1. Open a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo, giving edit access to the maintainers of the repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md).
 
 *****Important Notes:**
 
-1. **Please make sure to check the 'Allow edits and access to secrets by maintainers' box during your PR submission so that a Splunk>Phantom developer can aid in the PR process.**
+1. **Please make sure to check the 'Allow edits and access to secrets by maintainers' box during your PR submission so that a Splunk>SOAR developer can aid in the PR process.**
 
 1. **Any pull-request to the ```main``` branch of an app repo will not be accepted**
 
-1. **A Splunk>Phantom developer may wish to create a new branch and ask you to perform your pull-request there for specific types of changes.**
+1. **A Splunk>SOAR developer may wish to create a new branch and ask you to perform your pull-request there for specific types of changes.**
 
 1. **One issue per branch. We will not accept any Pull Requests that affect more than one App or addresses more than one Issue at a time (unless the issue is a duplicate - discretion of our development team).**
 
@@ -56,18 +56,18 @@ are looking to contribute to
 
 If you've created a brand new App and wish to contribute it, the steps to do so are as follows.
 
-1. Create a new [issue](https://github.com/Splunk-SOAR-Apps/.github/issues/new?assignees=&labels=&template=new_repo_request.md&title=) in our ```.github``` repo to request a new repository to be created for your app.
+1. Create a new [issue](https://github.com/splunk-soar-connectors/.github/issues/new?assignees=&labels=&template=new_repo_request.md&title=) in our ```.github``` repo to request a new repository to be created for your app.
 1. [Fork](https://guides.github.com/activities/forking/) the project
-1. Create a branch (following our [Conventions](https://github.com/splunk-soar-apps/.github/blob/main/.github/CONVENTIONS.md)))
+1. Create a branch (following our [Conventions](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONVENTIONS.md)))
 1. Push your app code to the branch you created. 
 1. **Thoroughly** test your code for the new App. See the [Automated Checks](#automated-checks) section for information about basic automated checks we provide for all apps.
     <!-- 1. Ensure your new app has a [TESTING](https://about:blank) document for the community and our developers. -->
 1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
-1. Perform a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-apps/.github/blob/main/.github/pull_request_template.md).
+1. Perform a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md).
 
 **Note: Any pull-request to the ```main``` branch of the app repo will not be accepted**
 
-**Note: A Splunk>Phantom developer may wish to create a new branch and ask you to perform your pull-request there for specific types of changes.**
+**Note: A Splunk>SOAR developer may wish to create a new branch and ask you to perform your pull-request there for specific types of changes.**
 
 ## Automated Checks
 By default we provide various automated checks you can leverage to test your changes automatically. These checks will be run whenever you push new commits to your pull request branch. The overall pass/fail result will appear as a green checkmark or red "x" to the right of commit in the pull request page. To view the detailed report you can do **ANY** of the following:
