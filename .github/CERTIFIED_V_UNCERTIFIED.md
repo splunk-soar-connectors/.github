@@ -44,4 +44,4 @@ Certified apps build on top of all tests done for an uncertified app.  The main 
 For a Certified app, the SOAR QA team tests every action exposed by the app against a working version of the product.  
 
 ### Regular Regression Testing
-As part of the Certified app testing process, the SOAR QA team produces a Phantom Playbook that tests for app functionality.  This test is in turn used to perform regular regression testing of all Certified SOAR Apps.
+As part of the Certified app testing process, the SOAR QA team produces a SOAR Playbook that tests for app functionality.  This test is in turn used to perform regular regression testing of all Certified SOAR Apps.
