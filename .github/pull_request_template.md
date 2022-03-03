@@ -24,6 +24,16 @@ Please ensure your pull request (PR) adheres to the following guidelines:
 - [ ] Documentation
 - [ ] Other (please describe): 
 
+## Security Considerations (REQUIRED)
+- If you are exposing any endpoints using a [REST handler](https://docs.splunk.com/Documentation/SOAR/current/DevelopApps/RESTHandlers), 
+  please document them in the `readme.html`.
+- Are you introducing any new cryptography modules? For what purpose?
+- If this is a new connector, or you are adding new actions
+    - Please document in the `readme.html` all methods (eg, OAuth) used to authenticate 
+      with the service that the connector is integrating with.
+    - If any actions are unable to run on SOAR Cloud, please document this in the `readme.html`.
+  
+
 ## Release Notes (REQUIRED)
 - Provide release notes as part of the PR submission which describe high level points about the changes for the upcoming GA release.
 
