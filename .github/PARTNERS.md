@@ -7,11 +7,11 @@ permissions to the connector's repo in GitHub - allowing them to review and merg
 # Reviewing Pull Requests
 As a partner of a repo, you will be able to review and merge its pull requests. 
 When reviewing a PR, please ensure that all automated checks are passing before merging the PR. 
-Otherwise, please wait for a member of the Connectors team to review any failing checks 
+Otherwise, please notify a member of the Connectors team to review any failing checks 
 that you may be unsure of how to resolve.
 
 # Contributing Changes
-As a partner of a repo, you will be given read/write access allowing you to clone and push to remote branches. 
+As a partner of a repo, you will be given read/write access to clone and push to remote branches. 
 Please take the following steps to contribute a change and have it published to Splunkbase!
   1. Clone the `next` branch of the repo (`next` should be the branch checked out by default).
   1. Install [pre-commit](https://pre-commit.com/#install) on your system, if not already installed, 
@@ -21,11 +21,11 @@ Please take the following steps to contribute a change and have it published to 
   1. Remember to add your name to the contributors list in the app JSON! [Example](https://github.com/splunk-soar-connectors/smime/blob/next/smime.json#L14)
   1. Push your `feature` branch to the remote repo, and ensure all automated checks are passing for your 
      branch to prevent any delays in the publishing process.
-     1. If you want another pair of eyes :eyes: to review your change, open a pull request merging `feature` to `next`, and wait for someone from the Connectors team or another partner of the repo to review your PR.
+     1. If you want another pair of eyes :eyes: to review your change, open a pull request merging `feature` to `next`, and notify the Connectors team or another partner of the repo to review your PR.
      1. Otherwise, directly merge your `feature` branch to `next`!
   1. Shortly after merging your change to `next`, a [pull request](https://github.com/splunk-soar-connectors/office365/pull/28) 
      should be opened by `splunk-soar-connectors-bot` merging `next` --> `main`. This pull request will also contain auto-generated released notes from the notes you appended earlier to `unreleased.md`. If the expected PR is not opened, you can manually run the [`start-release`](https://github.com/splunk-soar-connectors/office365/actions/workflows/start-release.yml) action configured for your repo.
-  1. Please review the PR and ensure all checks pass before merging to `main to prevent any 
+  1. Please review the PR and ensure all checks pass before merging to `main` to prevent any 
      delays in the publishing process. Feel free to create an issue in the repo if you require any assistance.
   ![](Images/automated_checks.png)
   1. After merging to `main`,  wait for the `App Release` commit status to appear next to its head 
