@@ -32,6 +32,11 @@ Please ensure your pull request (PR) adheres to the following guidelines:
       with the service that the connector is integrating with.
     - [ ] If any actions are unable to run on SOAR Cloud, please document this in the `readme.html`.
 - [ ] Are you introducing any new cryptography modules? If yes, please elaborate their purpose:
+- [ ] Are you are accessing the file system? If yes, please verify that you are only accessing paths returned through 
+the [Vault](https://docs.splunk.com/Documentation/SOARonprem/5.2.1/DevelopApps/AppDevAPIRef#Vault) API.
+- [ ] Are you are marking code to be ignored by Semgrep with [`nosemgrep`](https://semgrep.dev/docs/ignoring-files-folders-code/#ignoring-code-through-nosemgrep)?
+If yes, please provide justification in an additional comment next to the ignored code.
+
   
 
 ## Release Notes (REQUIRED)
