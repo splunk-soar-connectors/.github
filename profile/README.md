@@ -18,7 +18,7 @@ If you'd like to join our community chat, head over to [https://my.phantom.us](h
 ---
 
 ## Reporting Issues
-If you've found a problem with an app but don't want to contribute a fix, that's ok! All you need to do is go to the [Issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/creating-an-issue) section of the app repo and click 'New Issue'. The page that appears will show our convenient issue templates. 
+If you've found a problem with an app but don't want to contribute a fix, that's ok! All you need to do is go to the [Issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/creating-an-issue) section of the app repo and click 'New Issue'. The page that appears will show our convenient issue templates. However, if the app *doesn't* have an Issues page, that means you need to submit a bug report via [Splunk Support](https://splunkcommunities.force.com/customers/apex/SubmitCase).
 
 ![Issues Templates](https://github.com/splunk-soar-connectors/.github/blob/main/.github/Images/Github-Issue-Templates.png)
 
