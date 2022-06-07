@@ -46,7 +46,7 @@ jobs:
     if: always() && needs.manual_review.result == 'failure'
     runs-on: ubuntu-latest
     steps:
-      - uses: 'phantomcyber/dev-cicd-tools/github-actions/resume-release@review-release'
+      - uses: 'phantomcyber/dev-cicd-tools/github-actions/resume-release@main'
         with:
           approved: false
           task_token: ${{ github.event.inputs.task_token }}
