@@ -8,12 +8,11 @@ This [GitHub organization](https://docs.github.com/en/organizations/collaboratin
 For more information on SOAR, please have a look at our pages:
 
 - [Splunk> SOAR product page](https://www.splunk.com/en_us/software/splunk-security-orchestration-and-automation.html)
-- [Splunk> SOAR community page](https://my.phantom.us)
 - [SOAR Buyer's Guide](https://www.splunk.com/en_us/form/the-soar-buyers-guide.html)
 
 
-### SOAR Community
-If you'd like to join our community chat, head over to [https://my.phantom.us](https://my.phantom.us) to sign up for a free account and you'll be invited to our Slack community. 
+### Splunk Slack Community
+If you'd like to chat with fellow Splunk SOAR users, [fill out our splunk-usergroups registration form](https://splk.it/slack) and you'll be invited to our Slack community. Check out channels like `#soar`, `#soar_app_dev`, and `#soar-app-changes`.
 
 ---
 
@@ -26,14 +25,14 @@ All you have to do is fill out the form...
 
 ![Bug Report](https://github.com/splunk-soar-connectors/.github/blob/main/.github/Images/Github-Bug-Template.png) 
 
-...and it'll get reviewed and priortized by our developers and maybe even someone in our community.
+...and our community will be able to help review and propose fixes.
 
-Of course before you do this, you should definitely check if there is already an open issue and if so, add a thumbs-up reaction to it so we can get a sense of how to prioritize it.
+Of course, you should definitely check if there is already an open issue and if so, add a thumbs-up reaction to it for visiblity.
 
 ---
 
 ## Feature Requests
-Have a feature or an app you'd like to see in SOAR? Head over to the [Splunk Ideas](https://ideas.splunk.com) portal to make your voice heard!
+Have a feature or an app you'd like to see in SOAR? Head over to the [Splunk Ideas](https://ideas.splunk.com) portal to make your voice heard! Voting and sharing new ideas is a great way for us to see what's in demand.
 
 ---
 
