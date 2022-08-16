@@ -33,4 +33,4 @@ Please take the following steps to contribute a change and have it published to 
      - If the commit status shows up as failed :x:, please create an issue in the repo to get assistance 
        from the Connectors team. 
   ![](Images/app_release_status.png)
-  1. Find your updated app [on Slunkbase](https://splunkbase.splunk.com/apps/#/product/soar/)!
+  1. Find your updated app [on Splunkbase](https://splunkbase.splunk.com/apps/#/product/soar/)!
