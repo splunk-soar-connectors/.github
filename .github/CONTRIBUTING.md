@@ -21,7 +21,7 @@ Make sure you have a [GitHub Account](https://www.github.com)
 To successfully contribute, you should spend a little time familiarizing yourself with the following key topics.
 
 - [Coding & Conventions](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONVENTIONS.md) - How we expect to see code formatted and apps named
-- [Certified vs Standard App](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CERTIFIED_V_UNCERTIFIED.md) definitions and differences
+- [Various Types of Apps](https://github.com/splunk-soar-connectors/.github/blob/main/.github/TYPES_OF_SUPPORT.md) definitions and differences
 - [Typical developer workflow](https://github.com/splunk-soar-connectors/.github/blob/main/.github/DEV_WORKFLOW.md) - Configuring your dev environment
 <!-- - [Testing Details](https://github.com/splunk-soar-connectors/.github/blob/main/.github/TESTING.md) - How we test apps & playbooks -->
 
