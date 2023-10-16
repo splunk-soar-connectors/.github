@@ -8,7 +8,7 @@ Please ensure your pull request (PR) adheres to the following guidelines:
 #### Please check if your PR fulfills the following requirements:
 - [ ] Testing of all the changes has been performed (for bug fixes / features)
 - [ ] The manual_readme_content.md has been reviewed and added / updated if needed (for bug fixes / features)
-- [ ] Use the following format for the PR description: `<App Name>: <PR Type> - <PR Description>`
+- [ ] Use the following format for the PR description: `<PR Type> - <PR Description>`
 - [ ] Provide release notes as part of the PR submission which describe high level points about the changes for the upcoming GA release.
 - [ ] Verify all checks are passing.
 - [ ] Do NOT use the `next` branch of the forked repo. Create separate feature branch for raising the PR.
