@@ -10,4 +10,4 @@ jobs:
       - name: 'Auto-assign issue'
         uses: pozil/auto-assign-issue@v1.1.0
         with:
-          assignees: grokas-splunk,ishans-crest,alexa-phantom,coh-splunk,tapishj-splunk
+          assignees: grokas-splunk,ishans-crest,phantom-jacob,coh-splunk,tapishj-splunk
