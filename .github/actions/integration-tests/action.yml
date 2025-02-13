@@ -1,9 +1,83 @@
-name: "Integration Tests"
-description: "Runs integration tests on the app"
+name: 'Integration Tests'
+description: 'Runs integration tests on the pull request'
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
-    - name: Run Integration Tests
-      run: |
-        echo "Running integration tests"
+    - name: Clone necessary repositories
+      env:
+        GITLAB_API_TOKEN: ${{ secrets.GITLAB_API_TOKEN }}
       shell: bash
+      run: |
+        git clone "https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom/appscript.git"
+        git clone "https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+    - name: Checkout app test branch to use
+      env:
+        APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
+      shell: bash
+      run: |
+        cd app-tests
+        if ! git checkout origin/$APP_TESTS_BRANCH &> /dev/null; then
+          echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to next."
+          git checkout next
+        fi
+        echo "Current directory: $(pwd)"
+    - name: Checkout App Repo
+      uses: actions/checkout@v4
+      with:
+        path: $APP_REPO
+        ref: ${{ github.ref }}
+    - name: Install jq
+      run: sudo apt-get install jq
+    - name: Setup app in SOAR instance
+      shell: bash
+      env:
+        PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }} 
+        PHANTOM_INSTANCE_IP_FIPS: PHANTOM_INSTANCE_IP_FIPS
+        AWS_PHANTOM_USERNAME: ${{ secrets.AWS_PHANTOM_USERNAME }}
+        AWS_PHANTOM_PASSWORD: ${{ secrets.AWS_PHANTOM_PASSWORD }}
+        PHANTOM_USERNAME: ${{ secrets.PHANTOM_USERNAME }}
+        PHANTOM_PASSWORD: ${{ secrets.PHANTOM_PASSWORD }}
+        AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+        AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+      run: |
+        cd $APP_REPO
+        echo "Current directory: $(pwd)"
+        app_json=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
+        if [[ $(echo "$app_json" | wc -l | sed 's/ //g') -ne 1 ]]; then
+          echo "Could not determine app JSON from $app_json"
+          exit 1
+        fi
+        app_json=$(echo "$app_json" | tail -n 1)
+        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' ]]; then
+          echo "Detected FIPS Compliant Connector"
+          export PHANTOM_INSTANCE_IP=$PHANTOM_INSTANCE_IP_FIPS
+        fi
+        echo "PUBLISHER=$(jq -r '.publisher' "$app_json")" >> $GITHUB_ENV
+        echo "Publisher: $PUBLISHER"
+        python ../appscript/compile_app_py3.py -dxr "$PHANTOM_INSTANCE_IP" "$PHANTOM_USERNAME" "$PHANTOM_PASSWORD"
+        if [[ "$APP_REPO" == *"aws"* ]]; then
+          python ../appscript/compile_app_py3.py -dxr "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" "$AWS_PHANTOM_USERNAME" "$AWS_PHANTOM_PASSWORD"
+          python ../appscript/compile_app_py3.py -dxr "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" "$AWS_PHANTOM_USERNAME" "$AWS_PHANTOM_PASSWORD"
+        fi
+    - name: Run app tests
+      shell: bash
+      env:
+        NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
+        VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+        VAULT_NAMESPACE: ${{ vars.VAULT_NAMESPACE }}
+        VAULT_ROLE: ${{ vars.VAULT_ROLE }}
+      run: |
+        cd app-tests
+        if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
+          echo "Failed to authenticate with Vault!"
+          exit 1
+        fi
+        if [[ -d suite/apps/"$APP_REPO" ]]; then
+          pytest suite/apps/"$APP_REPO" --color=yes --reruns=$NUM_TEST_RETRIES
+        elif [[ "$PUBLISHER" == 'Splunk' ]]; then
+          echo "ERROR - expected to find test suite for Splunk supported app $APP_REPO"
+          exit 1
+        fi
+    - name: Clean Up
+      if: always()
+      run: vault token revoke -self || exit 0
