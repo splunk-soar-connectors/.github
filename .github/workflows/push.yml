@@ -24,8 +24,6 @@ jobs:
     steps:
       - name: Check out actions repo
         uses: actions/checkout@v4
-        with:
-          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,8 +39,6 @@ jobs:
     steps:
       - name: Check out actions repo
         uses: actions/checkout@v4
-        with:
-          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -58,8 +54,6 @@ jobs:
     steps:
       - name: Check out actions repo
         uses: actions/checkout@v4
-        with:
-          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -79,8 +73,6 @@ jobs:
     steps:
       - name: Check out actions repo
         uses: actions/checkout@v4
-        with:
-          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -96,8 +88,6 @@ jobs:
     steps:
       - name: Check out actions repo
         uses: actions/checkout@v4
-        with:
-          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
 
       - name: Set up Python
         uses: actions/setup-python@v5
