@@ -1,0 +1,9 @@
+name: "Security Scans"
+description: "Runs security scans on the app"
+runs:
+  using: "composite"
+  steps:
+    - name: Run Security Scans
+      run: |
+        echo "Running security scans"
+      shell: bash

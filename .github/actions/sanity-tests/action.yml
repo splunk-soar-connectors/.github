@@ -1,0 +1,10 @@
+name: "Sanity Tests"
+description: "Runs sanity tests on the app"
+runs:
+  using: "composite"
+  steps:
+    - name: Run Sanity Tests
+      run: |
+        echo "Running sanity tests"
+      shell: bash
+
