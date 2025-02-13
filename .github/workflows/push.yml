@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: pre-commit
     steps:
-      - name: Check out app repo
+      - name: Check out actions repo
         uses: actions/checkout@v4
         with:
           repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: pre-commit
     steps:
-      - name: Check out app repo
+      - name: Check out actions repo
         uses: actions/checkout@v4
         with:
           repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: [build, compile]
     steps:
-      - name: Check out app repo
+      - name: Check out actions repo
         uses: actions/checkout@v4
         with:
           repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: [build, compile]
     steps:
-      - name: Check out app repo
+      - name: Check out actions repo
         uses: actions/checkout@v4
         with:
           repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, compile]
     steps:
-      - name: Check out app repo
+      - name: Check out actions repo
         uses: actions/checkout@v4
         with:
           repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
