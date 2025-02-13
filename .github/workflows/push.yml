@@ -7,13 +7,8 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Pre-commit
         uses: splunk-soar-connectors/.github/.github/actions/pre-commit@main
@@ -22,13 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: pre-commit
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Build Application
         uses: splunk-soar-connectors/.github/.github/actions/build-app@main
@@ -37,13 +27,8 @@ jobs:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: pre-commit
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Compile Application
         uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
@@ -52,13 +37,8 @@ jobs:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: [build, compile]
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Run Sanity Tests
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
@@ -67,13 +47,8 @@ jobs:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: [build, compile]
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Run Integration Tests
         uses: splunk-soar-connectors/.github/.github/actions/integration-tests@main
@@ -82,13 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, compile]
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Run Security Scans
         uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
