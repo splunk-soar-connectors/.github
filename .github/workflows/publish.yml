@@ -18,4 +18,4 @@ jobs:
           python-version: '3.9'
 
       - name: Publish
-        uses: splunk-soar-connectors/.github/.github/actions/publish@main
+        uses: splunk-soar-connectors/.github/actions/publish@main

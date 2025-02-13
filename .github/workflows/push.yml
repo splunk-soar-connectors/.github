@@ -18,7 +18,7 @@ jobs:
           python-version: '3.9'
 
       - name: Pre-commit
-        uses: splunk-soar-connectors/.github/.github/actions/pre-commit@main
+        uses: splunk-soar-connectors/.github/actions/pre-commit@main
 
   build:
     runs-on: ubuntu-latest
