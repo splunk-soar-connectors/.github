@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out actions repo
-        uses: actions/checkout@v4s
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
