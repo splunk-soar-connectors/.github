@@ -72,7 +72,9 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
 
   integration-test:
-    runs-on: codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+    runs-on: 
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: [build, compile]
     env:
       APP_REPO: ${{ github.event.repository.name }}
