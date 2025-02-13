@@ -7,14 +7,15 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-          cache: pip
-
-      - name: Check out app repo
-        uses: actions/checkout@v4
 
       - name: Publish
-        uses: ./.github/actions/publish
+        uses: splunk-soar-connectors/.github/.github/actions/publish@main

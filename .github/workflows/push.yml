@@ -7,8 +7,10 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out app repo
+      - name: Check out actions repo
         uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -16,79 +18,89 @@ jobs:
           python-version: '3.9'
 
       - name: Pre-commit
-        uses: ./.github/actions/pre-commit
+        uses: splunk-soar-connectors/.github/.github/actions/pre-commit@main
 
   build:
     runs-on: ubuntu-latest
     needs: pre-commit
     steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Check out app repo
-        uses: actions/checkout@v4
-
       - name: Build Application
-        uses: ./.github/actions/build-app
+        uses: splunk-soar-connectors/.github/.github/actions/build-app@main
 
   compile:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: pre-commit
     steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Check out app repo
-        uses: actions/checkout@v4
-
       - name: Compile Application
-        uses: ./.github/actions/compile-app
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
 
   sanity-test:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: [build, compile]
     steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Check out app repo
-        uses: actions/checkout@v4
-
       - name: Run Sanity Tests
-        uses: ./.github/actions/sanity-tests
+        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
 
   integration-test:
     runs-on: ubuntu-latest # This will be Codebuild
     needs: [build, compile]
     steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Check out app repo
-        uses: actions/checkout@v4
-
       - name: Run Integration Tests
-        uses: ./.github/actions/integration-tests
+        uses: splunk-soar-connectors/.github/.github/actions/integration-tests@main
   
   security-scans:
     runs-on: ubuntu-latest
     needs: [build, compile]
     steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Check out app repo
-        uses: actions/checkout@v4
-
       - name: Run Security Scans
-        uses: ./.github/actions/security-scans
+        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
