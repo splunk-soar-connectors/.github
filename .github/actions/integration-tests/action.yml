@@ -3,13 +3,15 @@ description: 'Runs integration tests on the pull request'
 runs:
   using: 'composite'
   steps:
-    - name: Clone necessary repositories
-      env:
-        GITLAB_API_TOKEN: ${{ secrets.GITLAB_API_TOKEN }}
+    - name: Execute pwd
       shell: bash
       run: |
-        git clone "https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom/appscript.git"
-        git clone "https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+        echo "Current directory: $(pwd)"
+    - name: Clone necessary repositories
+      shell: bash
+      run: |
+        git clone https://oauth2:${GITLAB_API_TOKEN}@cd.splunkdev.com/phantom/appscript.git
+        git clone https://oauth2:${GITLAB_API_TOKEN}@cd.splunkdev.com/phantom-apps/app-tests.git
     - name: Checkout app test branch to use
       env:
         APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
@@ -27,18 +29,10 @@ runs:
         path: $APP_REPO
         ref: ${{ github.ref }}
     - name: Install jq
+      shell: bash
       run: sudo apt-get install jq
     - name: Setup app in SOAR instance
       shell: bash
-      env:
-        PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }} 
-        PHANTOM_INSTANCE_IP_FIPS: PHANTOM_INSTANCE_IP_FIPS
-        AWS_PHANTOM_USERNAME: ${{ secrets.AWS_PHANTOM_USERNAME }}
-        AWS_PHANTOM_PASSWORD: ${{ secrets.AWS_PHANTOM_PASSWORD }}
-        PHANTOM_USERNAME: ${{ secrets.PHANTOM_USERNAME }}
-        PHANTOM_PASSWORD: ${{ secrets.PHANTOM_PASSWORD }}
-        AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-        AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
       run: |
         cd $APP_REPO
         echo "Current directory: $(pwd)"
@@ -61,11 +55,6 @@ runs:
         fi
     - name: Run app tests
       shell: bash
-      env:
-        NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
-        VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-        VAULT_NAMESPACE: ${{ vars.VAULT_NAMESPACE }}
-        VAULT_ROLE: ${{ vars.VAULT_ROLE }}
       run: |
         cd app-tests
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
@@ -79,5 +68,6 @@ runs:
           exit 1
         fi
     - name: Clean Up
+      shell: bash
       if: always()
       run: vault token revoke -self || exit 0

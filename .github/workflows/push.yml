@@ -70,17 +70,28 @@ jobs:
     needs: [build, compile]
     env:
       APP_REPO: ${{ github.event.repository.name }}
+      PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }} 
+      PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_IP_FIPS }}
+      AWS_PHANTOM_USERNAME: ${{ secrets.AWS_PHANTOM_USERNAME }}
+      AWS_PHANTOM_PASSWORD: ${{ secrets.AWS_PHANTOM_PASSWORD }}
+      PHANTOM_USERNAME: ${{ secrets.PHANTOM_USERNAME }}
+      PHANTOM_PASSWORD: ${{ secrets.PHANTOM_PASSWORD }}
+      AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+      AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+      NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
+      VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+      VAULT_NAMESPACE: ${{ vars.VAULT_NAMESPACE }}
+      VAULT_ROLE: ${{ vars.VAULT_ROLE }}
+      GITLAB_API_TOKEN: ${{ secrets.GITLAB_API_TOKEN }}
     steps:
       - name: Check out actions repo
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      
+      - name: Run python
+        run: python --version
 
       - name: Run Integration Tests
-        uses: splunk-soar-connectors/.github/.github/actions/integration-tests@main
+        uses: splunk-soar-connectors/.github/.github/actions/integration-tests@tapishj/PAPP-35404
   
   security-scans:
     runs-on: ubuntu-latest
