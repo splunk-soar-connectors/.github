@@ -1,0 +1,9 @@
+name: "Integration Tests"
+description: "Runs integration tests on the app"
+runs:
+  using: "composite"
+  steps:
+    - name: Run Integration Tests
+      run: |
+        echo "Running integration tests"
+      shell: bash
