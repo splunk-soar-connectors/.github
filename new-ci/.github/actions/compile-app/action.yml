@@ -1,9 +1,0 @@
-name: "Compile App"
-description: "Compiles the app on a SOAR instance"
-runs:
-  using: "composite"
-  steps:
-    - name: Compile App
-      run: |
-        echo "Compiling the app on a SOAR instance"
-      shell: bash

@@ -1,9 +1,0 @@
-name: "Pre-commit"
-description: "Runs pre-commit on the pushed code"
-runs:
-  using: "composite"
-  steps:
-    - name: Pre-commit
-      run: |
-        echo "Running pre-commit"
-      shell: bash
