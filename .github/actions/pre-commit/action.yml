@@ -3,11 +3,6 @@ description: "Runs pre-commit on the pushed code"
 runs:
   using: "composite"
   steps:
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9'
-        cache: pip
     
     - name: Install dependencies
       shell: bash
@@ -19,3 +14,9 @@ runs:
       shell: bash
       run: pre-commit run --all-files
       continue-on-error: true # TODO: remove this on real deployment
+
+    - name: Cache pre-commit
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pre-commit
+        key: ${{ runner.os }}-pre-commit-cache
