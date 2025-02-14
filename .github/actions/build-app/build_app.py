@@ -329,10 +329,7 @@ def create_cmdline_parser():
         "app", type=str, help="Repo name or local directory location for app under test"
     )
     argparser.add_argument(
-        "-b",
-        "--branch",
-        default=os.environ.get("CI_COMMIT_REF_NAME", "next"),
-        help="Branch to work on, defaults to $CI_COMMIT_REF_NAME, or next if not present",
+        "branch", type=str, help="Branch to work on"
     )
     argparser.add_argument(
         "-o",
@@ -367,7 +364,7 @@ def main(**kwargs):
     else:
         kwargs["app_repo_name"] = kwargs.pop("app")
     
-    kwargs["app_branch"] = kwargs.pop("app_branch")
+    kwargs["app_branch"] = kwargs.pop("branch")
 
     AppBuilder(**kwargs).run()
 

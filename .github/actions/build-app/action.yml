@@ -8,6 +8,8 @@ runs:
             echo ${{ github.action_path }}
             echo ${{ github.ref_name }}
             echo ${{ github.repository }}
+            echo ${{ github.base_ref }}
+            echo ${{ github.head_ref }}
             ls -lath
       shell: bash
 
@@ -16,5 +18,5 @@ runs:
       shell: bash
 
     - name: Build App
-      run: python ${{ github.action_path }}/build_app.py -b ${{ github.ref_name }} ${{ github.repository }} --dry-run
+      run: python ${{ github.action_path }}/build_app.py -b ${{ github.base_ref }} ${{ github.repository }} --dry-run
       shell: bash
