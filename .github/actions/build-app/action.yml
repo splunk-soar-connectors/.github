@@ -3,18 +3,10 @@ description: "Builds the app"
 runs:
   using: "composite"
   steps:
-    - name: echo
-      run: |
-            echo ${{ github.action_path }}
-            echo ${{ github.ref_name }}
-            echo ${{ github.event.repository.name }}
-            echo ${{ github.head_ref }}
-      shell: bash
-
     - name: Install Requirements
       run: pip install -r ${{ github.action_path }}/requirements.txt
       shell: bash
 
     - name: Build App
-      run: python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.head_ref }} --dry-run
+      run: python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.head_ref }}
       shell: bash

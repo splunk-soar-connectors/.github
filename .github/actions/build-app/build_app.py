@@ -125,12 +125,10 @@ class AppBuilder:
         """
         # Checks to see if the app repo exists in Phantom Apps
         for repo in self.git_api.iter_repos():
-            print(repo["name"])
             if repo["name"] == self.app_repo_name:
                 break
         else:
             raise ValueError(f"Repo {self.app_repo_name} not found in app repo")
-
         # Check to see if branch exists in the app repo's branch listing
         for branch in self.git_api.iter_branches(self.app_repo_name):
             if branch["name"] == self.branch:
