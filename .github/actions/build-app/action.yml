@@ -11,6 +11,7 @@ runs:
 
     - name: Install Requirements
       run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
 
     - name: Build App
       run: python ${{ github.action_path }}/build_app.py
