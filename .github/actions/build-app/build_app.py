@@ -125,6 +125,7 @@ class AppBuilder:
         """
         # Checks to see if the app repo exists in Phantom Apps
         for repo in self.git_api.iter_repos():
+            print(repo["name"])
             if repo["name"] == self.app_repo_name:
                 break
         else:
