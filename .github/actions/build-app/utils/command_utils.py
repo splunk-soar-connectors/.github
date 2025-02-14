@@ -18,3 +18,4 @@ def get_command_output(command, shell=False, quiet_stderr=False):
 def get_command_result(command, shell=False):
     with open(os.devnull, "w") as f:
         return subprocess.call(command, shell=shell, stdout=f, stderr=f)  # want command quiet
+    
