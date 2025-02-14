@@ -6,6 +6,8 @@ runs:
     - name: echo
       run: |
             echo ${{ github.action_path }}
+            echo ${{ github.ref_name }}
+            echo ${{ github.repository }}
             ls -lath
       shell: bash
 
