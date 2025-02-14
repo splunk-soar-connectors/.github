@@ -14,5 +14,5 @@ runs:
       shell: bash
 
     - name: Build App
-      run: python ${{ github.action_path }}/build_app.py
+      run: python ${{ github.action_path }}/build_app.py -b ${{ github.ref_name }} ${{ github.repository }} --dry-run
       shell: bash
