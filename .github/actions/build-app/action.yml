@@ -5,3 +5,4 @@ runs:
   steps:
     - name: Build App
       run: python build_app.py
+      shell: bash
