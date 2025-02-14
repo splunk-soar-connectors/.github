@@ -7,7 +7,7 @@ runs:
       run: |
             echo ${{ github.action_path }}
             echo ${{ github.ref_name }}
-            echo ${{ github.repository }}
+            echo ${{ github.event.repository.name }}
             echo ${{ github.head_ref }}
       shell: bash
 
@@ -16,5 +16,5 @@ runs:
       shell: bash
 
     - name: Build App
-      run: python ${{ github.action_path }}/build_app.py ${{ github.repository }} ${{ github.head_ref }} --dry-run
+      run: python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.head_ref }} --dry-run
       shell: bash
