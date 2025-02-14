@@ -3,6 +3,12 @@ description: "Builds the app"
 runs:
   using: "composite"
   steps:
+    - name: Check out actions repo
+      uses: actions/checkout@v4
+      with:
+        repository: splunk-soar-connectors/.github  # Explicitly check out .github repo for actions
+        path: actions-repo
+
     - name: Build App
-      run: python build_app.py
+      run: python actions-repo/.github/actions/build-app/build_app.py
       shell: bash
