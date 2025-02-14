@@ -4,6 +4,4 @@ runs:
   using: "composite"
   steps:
     - name: Build App
-      run: |
-        echo "Building the app"
-      shell: bash
+      run: python build_app.py
