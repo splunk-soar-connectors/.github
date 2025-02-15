@@ -72,6 +72,7 @@ class AppBuilder:
         self.s3 = boto3.resource("s3")
         self.artifacts_bucket = self.s3.Bucket(APP_ARTIFACTS_BUCKET)
         self.s3_output_path = kwargs.pop("output", None)
+        self.output_dir = kwargs.get("output_dir")
 
         # The following attributes are re-defined in run()
         self.app_code_dir = None
@@ -115,9 +116,9 @@ class AppBuilder:
                 # Create tgz and rpm
                 log("Creating tgz package")
                 tarfile_path = self._create_tar(
-                    self.app_json["package_name"], self.commit_sha, app_parser.excludes
+                    self.app_repo_name, self.commit_sha, app_parser.excludes
                 )
-                self._post_tarfile(tarfile_path)
+                log(tarfile_path)
 
     def _validate_self(self):
         """
@@ -231,13 +232,13 @@ class AppBuilder:
         log("Compiling app with python")
         run_command(compile_cmd)
 
-    def _create_tar(self, app_package_name, commit_sha, excludes):
+    def _create_tar(self, app_repo_name, commit_sha, excludes):
         """
         Creates a tar file of the app's source code and returns it
         """
-        temp_app_dir = tempfile.mkdtemp(prefix=f"{self.app_repo_name}_tgz_")
-        tarfile_name = f"{app_package_name}-{commit_sha}.tgz"
-        tarfile_path = os.path.join(temp_app_dir, tarfile_name)
+        tarfile_name = f"{app_repo_name}.tgz"
+        directory = self.output_dir or self.app_code_dir
+        tarfile_path = os.path.join(directory, tarfile_name)
         exclude_cmds = self._get_tar_excludes(excludes)
         tar_command = f"tar {exclude_cmds} --dereference -zcf {tarfile_path} {os.path.basename(self.app_code_dir)}"
 
@@ -273,22 +274,6 @@ class AppBuilder:
         # Checks if the app's path contains '/' or '..', it should not
         if app_path.startswith(("/", "..")):
             raise Exception("App path starts with '/' or '..'")
-
-    def _post_tarfile(self, tarfile_path):
-        """
-        Posts the given tarball to the configured artifacts bucket in S3
-        """
-        tarfile_name = tarfile_path.split("/")[-1]
-        tarfile_s3_key = f"{self.app_repo_name}/{tarfile_name}"
-        tarfile_s3_uri = f"s3://{self.artifacts_bucket.name}/{tarfile_s3_key}"
-        if self._dry_run:
-            log(f"Dry run: would normally post tarball to {tarfile_s3_uri}")
-        else:
-            log(f"Posting tarball to {tarfile_s3_uri}")
-            self.artifacts_bucket.upload_file(tarfile_path, tarfile_s3_key)
-
-        return tarfile_s3_uri
-
 
 def run_command(cmd, console=False, suppress=False):
     """
@@ -334,6 +319,12 @@ def create_cmdline_parser():
         "-o",
         "--output",
         help="Optional filepath to write the S3 URI of where the built tarball was uploaded",
+    )
+    argparser.add_argument(
+        "--output-dir",
+        type=str,
+        default=".",
+        help="Directory where the tar file will be created",
     )
     argparser.add_argument(
         "--dry-run",

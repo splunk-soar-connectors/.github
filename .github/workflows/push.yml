@@ -21,7 +21,7 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Build Application
-        uses: splunk-soar-connectors/.github/.github/actions/build-app@mnordby/PAPP-35401-minimal
+        uses: splunk-soar-connectors/.github/.github/actions/build-app@tapishj/PAPP-35404-remove-s3
 
   compile:
     runs-on: ubuntu-latest # This will be Codebuild
