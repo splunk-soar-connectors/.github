@@ -1,0 +1,25 @@
+name: 'Sanity Tests Env Variables'
+description: 'Sets the necessary env variables to run sanity tests on a pull request'
+runs:
+  using: 'composite'
+  steps:
+    - name: Install jq
+      shell: bash
+      run: apt-get install jq
+    - name: Set enviornment variables
+      shell: bash
+      run: |
+        app_json=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
+        if [[ $(echo "$app_json" | wc -l | sed 's/ //g') -ne 1 ]]; then
+          echo "Could not determine app JSON from $app_json"
+          exit 1
+        fi
+        app_json=$(echo "$app_json" | tail -n 1)
+        export PHANTOM_CURRENT_IP=$PHANTOM_INSTANCE_CURRENT_VERSION_IP
+        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' ]]; then
+          echo "Detected FIPS Compliant Connector"
+          PHANTOM_CURRENT_IP=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
+        fi
+        echo "PHANTOM_CURRENT_IP=$PHANTOM_CURRENT_IP" >> $GITHUB_ENV
+        echo $PHANTOM_CURRENT_IP
+        echo "PUBLISHER=$(jq -r '.publisher' "$app_json")" >> $GITHUB_ENV

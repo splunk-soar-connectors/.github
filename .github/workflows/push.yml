@@ -40,14 +40,37 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
 
   sanity-test:
-    runs-on: ubuntu-latest # This will be Codebuild
+    runs-on: 
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: [build, compile]
+    env:
+      APP_REPO: ${{ github.event.repository.name }}
+      AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+      AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+      NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
+      VAULT_ROLE: ${{ vars.VAULT_ROLE }}
+      PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+      PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
     steps:
-      - name: Setup Environment
-        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
+      - name: Check out actions repo
+        uses: actions/checkout@v4
+      
+      - name: Set Sanity Tests Env Variables
+        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests-helper@tapishj/PAPP-35403
+      
+      - name: Download app tar file
+        uses: actions/download-artifact@v4
+        with:
+          name: app-tar
+      
+      - name: Ping SOAR
+        run: ping -c 4 10.1.65.241
 
-      - name: Run Sanity Tests
-        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
+      - name: Run Sanity Tests on Current
+        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@tapishj/PAPP-35403
+        env:
+          phantom_ip: ${{ env.PHANTOM_CURRENT_IP }}
 
   integration-test:
     runs-on:

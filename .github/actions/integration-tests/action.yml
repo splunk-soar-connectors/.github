@@ -22,10 +22,10 @@ runs:
         echo "PUBLISHER=$(jq -r '.publisher' "$app_json")" >> $GITHUB_ENV
         echo "Publisher: $PUBLISHER"
         echo PHANTOM_URL="https://$PHANTOM_INSTANCE_IP" >> $GITHUB_ENV
-        python ${{ github.action_path }}/app_rest_installer.py $APP_REPO.tgz "$PHANTOM_INSTANCE_IP" $PHANTOM_USERNAME $PHANTOM_PASSWORD
+        python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$PHANTOM_INSTANCE_IP" $PHANTOM_USERNAME $PHANTOM_PASSWORD
         if [[ "$APP_REPO" == *"aws"* ]]; then
-          python ${{ github.action_path }}/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
-          python ${{ github.action_path }}/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+          python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+          python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
         fi
     - name: Clone necessary repositories
       shell: bash

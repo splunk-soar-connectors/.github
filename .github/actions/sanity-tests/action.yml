@@ -3,7 +3,37 @@ description: "Runs sanity tests on the app"
 runs:
   using: "composite"
   steps:
-    - name: Run Sanity Tests
-      run: |
-        echo "Running sanity tests"
+    - name: Clone necessary repositories
       shell: bash
+      run: |
+        cd ..
+        git clone https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+    - name: Run app tests
+      env:
+        APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
+      shell: bash
+      run: |
+        echo PHANTOM_URL="https://$phantom_ip" >> $GITHUB_ENV
+        python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
+        if [[ "$APP_REPO" == *"aws"* ]]; then
+          python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+          python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+        fi
+        cd ../app-tests
+        if ! git checkout origin/$APP_TESTS_BRANCH &> /dev/null; then
+          echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to next."
+          git checkout next
+        fi
+        if [[ $phantom_ip == "$PHANTOM_INSTANCE_CLOUD_HOST" ]]; then
+          export AUTOMATION_BROKER="$AUTOMATION_BROKER_NAME"
+        fi
+        if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
+          echo "Failed to authenticate with Vault!"
+          exit 1
+        fi
+        if [[ -d suite/apps/"$APP_REPO" ]]; then
+          pytest suite/apps/"$APP_REPO" --color=yes --reruns=$NUM_TEST_RETRIES
+        elif [[ "$PUBLISHER" == 'Splunk' ]]; then
+          echo "ERROR - expected to find test suite for Splunk supported app $APP_REPO"
+          exit 1
+        fi
