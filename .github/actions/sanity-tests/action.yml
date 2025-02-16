@@ -17,9 +17,6 @@ runs:
         APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
       shell: bash
       run: |
-        if [ ${{ env.FIPS_COMPLIANT }} == true ]; then
-          export phantom_ip=$phantom_ip_fips
-        fi
         export PHANTOM_URL="https://$phantom_ip"
         echo $PHANTOM_URL
         python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD

@@ -15,10 +15,10 @@ runs:
           exit 1
         fi
         app_json=$(echo "$app_json" | tail -n 1)
-        export FIPS_COMPLIANT='false'
-        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' ]]; then
+        export PHANTOM_IP_TO_TEST=${{ matrix.ip }}
+        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' && "${{ matrix.version }}" == "current" ]]; then
           echo "Detected FIPS Compliant Connector"
-          FIPS_COMPLIANT='true'
+          PHANTOM_IP_TO_TEST=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
         fi
-        echo "FIPS_COMPLIANT=$FIPS_COMPLIANT" >> $GITHUB_ENV
+        echo "PHANTOM_IP_TO_TEST=$PHANTOM_IP_TO_TEST" >> $GITHUB_ENV
         echo "PUBLISHER=$(jq -r '.publisher' "$app_json")" >> $GITHUB_ENV
