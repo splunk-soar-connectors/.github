@@ -36,7 +36,8 @@ def _is_port_in_use(host, port):
 
     Source: https://stackoverflow.com/a/52872579
     """
-    logging.info(f"Host is {host}")
+    host_type = type(host)
+    logging.info(f"Host is {host} with type {host_type}")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         return sock.connect_ex((host, port)) == 0
 

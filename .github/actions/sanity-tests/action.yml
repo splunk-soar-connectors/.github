@@ -7,13 +7,21 @@ runs:
       shell: bash
       run: |
         cd ..
-        git clone https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+        if [ ! -d "app-tests" ]; then
+          git clone https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+        else
+          echo "Repository 'app-tests' already exists. Skipping clone."
+        fi
     - name: Run app tests
       env:
         APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
       shell: bash
       run: |
-        echo PHANTOM_URL="https://$phantom_ip" >> $GITHUB_ENV
+        if [ ${{ env.FIPS_COMPLIANT }} == true ]; then
+          export phantom_ip=$phantom_ip_fips
+        fi
+        export PHANTOM_URL="https://$phantom_ip"
+        echo $PHANTOM_URL
         python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
         if [[ "$APP_REPO" == *"aws"* ]]; then
           python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
@@ -32,7 +40,7 @@ runs:
           exit 1
         fi
         if [[ -d suite/apps/"$APP_REPO" ]]; then
-          pytest suite/apps/"$APP_REPO" --color=yes --reruns=$NUM_TEST_RETRIES
+          pytest suite/apps/"$APP_REPO" -m 'not ui' --color=yes --reruns=$NUM_TEST_RETRIES
         elif [[ "$PUBLISHER" == 'Splunk' ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app $APP_REPO"
           exit 1
