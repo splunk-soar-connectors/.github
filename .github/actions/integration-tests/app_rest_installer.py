@@ -4,19 +4,16 @@ Installs an app tarball on a target Phantom instance over REST.
 
 import argparse
 import logging
+import os
 import socket
 import sys
-import os
 import tempfile
+from contextlib import contextmanager
 from json import JSONDecodeError
 
 import boto3
-from contextlib import contextmanager
-
 from requests.exceptions import HTTPError
-
 from utils.api import ApiSession
-
 
 NRI_PORT = 9999
 
@@ -56,13 +53,7 @@ def _open_phantom_session(phantom_instance_ip, phantom_username, phantom_passwor
         }
         login_headers = {"referer": login_url}
         session.post(login_url, verify=False, data=login_body, headers=login_headers)
-        session.headers.update(
-            {
-                "cookie": "csrftoken={};sessionid={}".format(
-                    session.cookies["csrftoken"], session.cookies["sessionid"]
-                )
-            }
-        )
+        session.headers.update({"cookie": "csrftoken={};sessionid={}".format(session.cookies["csrftoken"], session.cookies["sessionid"])})
 
         yield session
     finally:
@@ -94,9 +85,7 @@ def main(args):
             logging.error(f"{args.tarball_path} not in direcrory")
 
         with (
-            _open_phantom_session(
-                phantom_ip, args.phantom_username, args.phantom_password
-            ) as session,
+            _open_phantom_session(phantom_ip, args.phantom_username, args.phantom_password) as session,
             open(tarball, "rb") as tarball,
         ):
             install_url = f"{session.base_url}/app_install"

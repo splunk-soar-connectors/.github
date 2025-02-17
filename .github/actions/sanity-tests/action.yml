@@ -7,4 +7,3 @@ runs:
       run: |
         echo "Running sanity tests"
       shell: bash
-

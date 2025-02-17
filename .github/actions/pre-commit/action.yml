@@ -3,13 +3,13 @@ description: "Runs pre-commit on the pushed code"
 runs:
   using: "composite"
   steps:
-    
+
     - name: Install dependencies
       shell: bash
       run: |
         pip install --upgrade pip pre-commit
         pre-commit install
-    
+
     - name: Run pre-commit
       shell: bash
       run: pre-commit run --all-files

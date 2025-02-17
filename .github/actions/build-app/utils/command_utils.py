@@ -1,6 +1,5 @@
-import subprocess
-
 import os
+import subprocess
 
 
 def get_command_output(command, shell=False, quiet_stderr=False):

@@ -2,16 +2,12 @@ import ast
 import json
 import os
 import re
-
 from collections import OrderedDict
 from distutils.version import LooseVersion
 
-from utils.phantom_constants import (
-    APP_EXTS,
-    SKIPPED_MODULE_PATHS,
-)
+from utils import clear_memorization, find_app_json_name, memoize
 from utils.command_utils import get_command_output
-from utils import memoize, clear_memorization, find_app_json_name
+from utils.phantom_constants import APP_EXTS, SKIPPED_MODULE_PATHS
 
 
 class ParserError(Exception):
@@ -77,9 +73,7 @@ class AppParser:
     def filepaths(self):
         # Gets all files in app source that are not hidden or excluded
         files = []
-        safe_excludes = set(
-            f for f in self.excludes if not any(f.endswith(ext) for ext in APP_EXTS)
-        )
+        safe_excludes = set(f for f in self.excludes if not any(f.endswith(ext) for ext in APP_EXTS))
 
         for dirpath, dir_lst, file_lst in os.walk(self._app_code_dir):
             if os.path.basename(dirpath) in self.skipped_module_paths:
@@ -112,9 +106,7 @@ class AppParser:
     @memoize
     def app_json_name(self):
         # Get all json files in top level of app directory to send to finder function
-        json_filenames = [
-            fname for fname in os.listdir(self._app_code_dir) if fname.endswith(".json")
-        ]
+        json_filenames = [fname for fname in os.listdir(self._app_code_dir) if fname.endswith(".json")]
 
         try:
             return find_app_json_name(json_filenames)
@@ -141,17 +133,13 @@ class AppParser:
             connector_filename = self._get_from_json("main_module").rstrip("c")
         except AttributeError:
             raise ParserError(
-                "main_module in app json is of type {}, but should be a string".format(
-                    type(self.app_json["main_module"])
-                )
+                "main_module in app json is of type {}, but should be a string".format(type(self.app_json["main_module"]))
             ) from None
 
         if connector_filename in self.filenames:
             return os.path.join(self._app_code_dir, connector_filename)
 
-        raise ParserError(
-            f'Expected to find connector file "{connector_filename}", but was not found in app files'
-        )
+        raise ParserError(f'Expected to find connector file "{connector_filename}", but was not found in app files')
 
     def _get_from_json(self, key):
         try:

@@ -1,9 +1,6 @@
-import re
-import json
-import re
-import json
 import functools
-
+import json
+import re
 from contextlib import contextmanager
 
 from utils.phantom_constants import APPID_TO_NAME_FILEPATH
@@ -45,6 +42,7 @@ def clear_memorization(func):
     assert isinstance(func.cache, dict)
     func.cache = {}
 
+
 def find_app_json_name(json_filenames):
     """
     Given a list of possible json files and the app repo name, return the name of the file
@@ -71,6 +69,7 @@ def find_app_json_name(json_filenames):
     # There's only one json file in the top level, so it must be the app's json
     return filtered_json_filenames[0]
 
+
 @contextmanager
 def manage_data_file(data_file_name, save=True):
     """
@@ -86,6 +85,7 @@ def manage_data_file(data_file_name, save=True):
     if save:
         with open(data_file_name, "w") as f:
             f.write(json.dumps(data, indent=4, sort_keys=True) + "\n")
+
 
 def validate_app_id(appid, app_name):
     """
