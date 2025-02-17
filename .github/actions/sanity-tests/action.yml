@@ -17,14 +17,11 @@ runs:
         APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
       shell: bash
       run: |
-        echo "The value of publisher is: $PUBLISHER"
         phantom_ip=${{ matrix.ip }}
-        echo "The value of fips compliant is $FIPS_COMPLIANT"
-        if [[ FIPS_COMPLIANT == 'true' && "${{ matrix.version }}" == "current" ]]; then
+        if [[ $FIPS_COMPLIANT == 'true' && "${{ matrix.version }}" == "current" ]]; then
           phantom_ip=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
         fi
         export PHANTOM_URL="https://$phantom_ip"
-        echo $PHANTOM_URL
         python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
         if [[ "$APP_REPO" == *"aws"* ]]; then
           python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD

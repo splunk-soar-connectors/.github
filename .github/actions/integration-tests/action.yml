@@ -3,24 +3,13 @@ description: 'Runs integration tests on the pull request'
 runs:
   using: 'composite'
   steps:
-    - name: Install jq
-      shell: bash
-      run: apt-get install jq
     - name: Setup app in SOAR instance
       shell: bash
       run: |
-        app_json=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
-        if [[ $(echo "$app_json" | wc -l | sed 's/ //g') -ne 1 ]]; then
-          echo "Could not determine app JSON from $app_json"
-          exit 1
-        fi
-        app_json=$(echo "$app_json" | tail -n 1)
-        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' ]]; then
+        if [[ $FIPS_COMPLIANT == 'true' ]]; then
           echo "Detected FIPS Compliant Connector"
           export PHANTOM_INSTANCE_IP=$PHANTOM_INSTANCE_IP_FIPS
         fi
-        echo "PUBLISHER=$(jq -r '.publisher' "$app_json")" >> $GITHUB_ENV
-        echo "Publisher: $PUBLISHER"
         echo PHANTOM_URL="https://$PHANTOM_INSTANCE_IP" >> $GITHUB_ENV
         python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz "$PHANTOM_INSTANCE_IP" $PHANTOM_USERNAME $PHANTOM_PASSWORD
         if [[ "$APP_REPO" == *"aws"* ]]; then
