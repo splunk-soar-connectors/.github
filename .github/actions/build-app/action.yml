@@ -10,5 +10,4 @@ runs:
     - name: Build App
       run: |
         python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.head_ref }} --output-dir=$(pwd)
-        ls
       shell: bash
