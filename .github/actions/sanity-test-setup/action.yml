@@ -5,7 +5,7 @@ runs:
   steps:
     - name: Install jq
       shell: bash
-      run: apt-get install jq
+      run: sudo apt-get install jq
     - name: Set enviornment variables
       shell: bash
       run: |
@@ -15,10 +15,10 @@ runs:
           exit 1
         fi
         app_json=$(echo "$app_json" | tail -n 1)
-        export PHANTOM_IP_TO_TEST=${{ matrix.ip }}
-        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' && "${{ matrix.version }}" == "current" ]]; then
+        FIPS_COMPLIANT='false'
+        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' ]]; then
           echo "Detected FIPS Compliant Connector"
-          PHANTOM_IP_TO_TEST=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
+          FIPS_COMPLIANT='true'
         fi
-        echo "PHANTOM_IP_TO_TEST=$PHANTOM_IP_TO_TEST" >> $GITHUB_ENV
-        echo "PUBLISHER=$(jq -r '.publisher' "$app_json")" >> $GITHUB_ENV
+        echo fips_compliant=$FIPS_COMPLIANT >> $GITHUB_ENV
+        echo publisher=$(jq -r '.publisher' "$app_json") >> $GITHUB_ENV

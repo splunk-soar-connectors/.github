@@ -17,6 +17,12 @@ runs:
         APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
       shell: bash
       run: |
+        echo "The value of publisher is: $PUBLISHER"
+        phantom_ip=${{ matrix.ip }}
+        echo "The value of fips compliant is $FIPS_COMPLIANT"
+        if [[ FIPS_COMPLIANT == 'true' && "${{ matrix.version }}" == "current" ]]; then
+          phantom_ip=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
+        fi
         export PHANTOM_URL="https://$phantom_ip"
         echo $PHANTOM_URL
         python ${{ github.action_path }}/../utils/app_rest_installer.py $APP_REPO.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
@@ -29,7 +35,7 @@ runs:
           echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to next."
           git checkout next
         fi
-        if [[ $phantom_ip == "$PHANTOM_INSTANCE_CLOUD_HOST" ]]; then
+        if [[ ${{ matrix.version }} == "cloud" ]]; then
           export AUTOMATION_BROKER="$AUTOMATION_BROKER_NAME"
         fi
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
@@ -38,7 +44,7 @@ runs:
         fi
         if [[ -d suite/apps/"$APP_REPO" ]]; then
           pytest suite/apps/"$APP_REPO" -m 'not ui' --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [[ "$PUBLISHER" == 'Splunk' ]]; then
+        elif [[ $PUBLISHER == 'Splunk' ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app $APP_REPO"
           exit 1
         fi
