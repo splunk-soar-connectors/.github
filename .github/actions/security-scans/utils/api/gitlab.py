@@ -2,7 +2,6 @@ import os
 
 from utils.api import ApiSession
 from urllib.parse import quote_plus
-from utils.phantom_qa_logging import get_standard_logger
 
 GITLAB_SERVER = "cd.splunkdev.com"
 PH_GRP_NAME = "phantom"
@@ -10,8 +9,6 @@ PH_REPO_NAME = "phantom"
 APP_GRP_NAME = "phantom apps"
 QA_REPO_NAME = "qa"
 GITLAB_API_TOKEN = os.environ.get("GITLAB_API_TOKEN")
-
-logger = get_standard_logger()
 
 SKIPPED_REPOS = {
     "phantom/assets"  # Deprecated repo to be deleted in the future
