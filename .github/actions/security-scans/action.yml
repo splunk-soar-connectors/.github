@@ -17,7 +17,7 @@ runs:
         set -e
         python ${{ github.action_path }}/run_gitlab_pipeline.py 'GitHub Requirements' ${{ inputs.github-requirements-branch }} -t 600 -v "{
           \"APP_REPO_NAME\":\"${{ github.event.repository.name }}\",
-          \"APP_REPO_BRANCH\":\" ${{ github.head_ref }}\",
-          \"APP_REPO_OWNER\":\" ${{ github.repository_owner }}\"
+          \"APP_REPO_BRANCH\":\"${{ github.head_ref }}\",
+          \"APP_REPO_OWNER\":\"${{ github.repository_owner }}\"
         }"
       shell: bash
