@@ -64,4 +64,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
+        uses: splunk-soar-connectors/.github/.github/actions/security-scans@mnordby/PAPP-35405
