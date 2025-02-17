@@ -22,7 +22,7 @@ jobs:
 
       - name: Build Application
         uses: splunk-soar-connectors/.github/.github/actions/build-app@main
-
+      
       - name: Upload app tar file as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -77,7 +77,6 @@ jobs:
           - version: "rhel"
             ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_RHEL_VERSION_IP }}
     env:
-      APP_REPO: ${{ github.event.repository.name }}
       AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
@@ -85,8 +84,7 @@ jobs:
       PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
 
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
       - name: Download app tar file
         uses: actions/download-artifact@v4
@@ -94,10 +92,13 @@ jobs:
           name: app-tar
 
       - name: Run Sanity Tests
-        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@tapishj/PAPP-35403
-        env:
-          FIPS_COMPLIANT: ${{ needs.test-setup.outputs.fips_compliant }}
-          PUBLISHER: ${{ needs.test-setup.outputs.publisher }}
+        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
+        with:
+          fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
+          publisher: ${{ needs.test-setup.outputs.publisher }}
+          phantom_ip: ${{ matrix.ip }}
+          version: ${{ matrix.version }}
+          app_repo: ${{ github.event.repository.name }}
 
   integration-test:
     runs-on:
@@ -105,18 +106,15 @@ jobs:
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: [build, compile, test-setup]
     env:
-      APP_REPO: ${{ github.event.repository.name }}
-      PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }}
+      PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }} 
       PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_IP_FIPS }}
       AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
-      PHANTOM_INSTANCE_CLOUD_HOST: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
       VAULT_ROLE: ${{ vars.VAULT_ROLE }}
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+      
       - name: Download app tar file
         uses: actions/download-artifact@v4
         with:
@@ -124,9 +122,10 @@ jobs:
 
       - name: Run Integration Tests
         uses: splunk-soar-connectors/.github/.github/actions/integration-tests@main
-        env:
-          FIPS_COMPLIANT: ${{ needs.test-setup.outputs.fips_compliant }}
-          PUBLISHER: ${{ needs.test-setup.outputs.publisher }}
+        with:
+          fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
+          publisher: ${{ needs.test-setup.outputs.publisher }}
+          app_repo: ${{ github.event.repository.name }}
   
   security-scans:
     runs-on: ubuntu-latest
