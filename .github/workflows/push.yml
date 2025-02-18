@@ -128,11 +128,11 @@ jobs:
           app_repo: ${{ github.event.repository.name }}
 
   security-scans:
-    runs-on: ubuntu-latest
+    runs-on: 
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: [build, compile]
-    steps:
-      - name: Setup Environment
-        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
+    steps:
       - name: Run Security Scans
         uses: splunk-soar-connectors/.github/.github/actions/security-scans@main

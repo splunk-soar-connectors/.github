@@ -1,9 +1,23 @@
 name: "Security Scans"
 description: "Runs security scans on the app"
+inputs:
+  github-requirements-branch:
+    description: 'Branch of the github requirements repository to check out'
+    required: false
+    default: 'main'
 runs:
   using: "composite"
   steps:
+    - name: Install Requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+
     - name: Run Security Scans
       run: |
-        echo "Running security scans"
+        set -e
+        python ${{ github.action_path }}/run_gitlab_pipeline.py 'GitHub Requirements' ${{ inputs.github-requirements-branch }} -t 600 -v "{
+          \"APP_REPO_NAME\":\"${{ github.event.repository.name }}\",
+          \"APP_REPO_BRANCH\":\"${{ github.head_ref }}\",
+          \"APP_REPO_OWNER\":\"${{ github.repository_owner }}\"
+        }"
       shell: bash
