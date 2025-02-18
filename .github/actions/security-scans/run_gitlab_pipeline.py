@@ -26,7 +26,7 @@ def create_arg_parser():
                                    eg, \'{"key1": "val1", "key2", "val2"}\'""",
     )
     argparser.add_argument(
-        "-t", "--timeout", type=int, default=300, help="Max time in seconds to wait for completion"
+        "-t", "--timeout", type=int, default=1200, help="Max time in seconds to wait for completion"
     )
     argparser.add_argument(
         "-o", "--out", type=str, default="pipeline_run.json", help="File to write run details"
@@ -34,7 +34,7 @@ def create_arg_parser():
     return argparser
 
 
-@backoff.on_predicate(backoff.constant, interval=10, max_time=300, jitter=None)
+@backoff.on_predicate(backoff.constant, interval=10, max_time=1200, jitter=None)
 def _poll_pipeline_completion(gitlab_client, repo_name, pipeline_id):
     run_details = gitlab_client.get_pipeline_run(repo_name, pipeline_id)
     status = run_details["status"]

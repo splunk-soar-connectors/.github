@@ -60,8 +60,5 @@ jobs:
     needs: [build, compile]
 
     steps:
-      - name: Check out actions repo
-        uses: actions/checkout@v4
-
       - name: Run Security Scans
         uses: splunk-soar-connectors/.github/.github/actions/security-scans@mnordby/PAPP-35405
