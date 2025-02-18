@@ -61,4 +61,4 @@ jobs:
 
     steps:
       - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@mnordby/PAPP-35405
+        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
