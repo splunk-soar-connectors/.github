@@ -11,7 +11,7 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Pre-commit
-        uses: splunk-soar-connectors/.github/.github/actions/pre-commit@main
+        uses: splunk-soar-connectors/.github/.github/actions/pre-commit@grokas-maint-update_workflow
 
   build:
     runs-on: ubuntu-latest

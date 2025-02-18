@@ -3,6 +3,10 @@ description: "Runs pre-commit on the pushed code"
 runs:
   using: "composite"
   steps:
+
+    - name: ls
+      shell: bash
+      run: ls -la
     
     - name: Install dependencies
       shell: bash
