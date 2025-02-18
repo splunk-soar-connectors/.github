@@ -49,7 +49,7 @@ jobs:
       - name: Check out actions repo
         uses: actions/checkout@v4
 
-      - name: Set sanity tests enviornment variables
+      - name: Set sanity tests environment variables
         uses: splunk-soar-connectors/.github/.github/actions/test-setup@tapishj/PAPP-35404-remove-s3
 
       - name: Set outputs

@@ -7,7 +7,6 @@ import logging
 import os
 import socket
 import sys
-import os
 from json import JSONDecodeError
 
 from contextlib import contextmanager
@@ -56,11 +55,18 @@ def _open_phantom_session(phantom_instance_ip, phantom_username, phantom_passwor
         }
         login_headers = {"referer": login_url}
         session.post(login_url, verify=False, data=login_body, headers=login_headers)
-        session.headers.update({"cookie": "csrftoken={};sessionid={}".format(session.cookies["csrftoken"], session.cookies["sessionid"])})
+        session.headers.update(
+            {
+                "cookie": "csrftoken={};sessionid={}".format(
+                    session.cookies["csrftoken"], session.cookies["sessionid"]
+                )
+            }
+        )
 
         yield session
     finally:
         session.close()
+
 
 def main(args):
     try:
@@ -76,7 +82,9 @@ def main(args):
             logging.error(f"{args.tarball_path} not in direcrory")
 
         with (
-            _open_phantom_session(phantom_ip, args.phantom_username, args.phantom_password) as session,
+            _open_phantom_session(
+                phantom_ip, args.phantom_username, args.phantom_password
+            ) as session,
             open(tarball, "rb") as tarball,
         ):
             install_url = f"{session.base_url}/app_install"

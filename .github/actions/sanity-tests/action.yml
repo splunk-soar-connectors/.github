@@ -4,7 +4,7 @@ inputs:
   fips_compliant:
     description: "Is the connector fips compliant"
     required: true
-    default: 'false'
+    default: "false"
   publisher:
     description: "Who is the connectors publisher"
     required: true
@@ -31,11 +31,11 @@ runs:
         fi
     - name: Run app tests
       env:
-        APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
+        APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }}
       shell: bash
       run: |
         phantom_ip=${{ inputs.phantom_ip }}
-        if [[ ${{ inputs.fips_compliant }} == 'true' && "${{ inputs.version }}" == "current" ]]; then
+        if [[ ${{ inputs.fips_compliant }} == "true" && "${{ inputs.version }}" == "current" ]]; then
           phantom_ip=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
         fi
         export PHANTOM_URL="https://$phantom_ip"
@@ -57,8 +57,8 @@ runs:
           exit 1
         fi
         if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
-          pytest suite/apps/"${{ inputs.app_repo }}" -m 'not ui' --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [[ ${{ inputs.publisher }} == 'Splunk' ]]; then
+          pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui" --color=yes --reruns=$NUM_TEST_RETRIES
+        elif [[ ${{ inputs.publisher }} == "Splunk" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
