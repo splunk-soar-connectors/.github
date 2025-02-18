@@ -1,10 +1,10 @@
-name: 'Integration Tests'
-description: 'Runs integration tests on the pull request'
+name: "Integration Tests"
+description: "Runs integration tests on the pull request"
 inputs:
   fips_compliant:
     description: "Is the connector fips compliant"
     required: true
-    default: 'false'
+    default: "false"
   publisher:
     description: "Who is the connectors publisher"
     required: true
@@ -12,12 +12,12 @@ inputs:
     description: "Connector repo being tested"
     required: true
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Setup app in SOAR instance
       shell: bash
       run: |
-        if [[ ${{ inputs.fips_compliant }} == 'true' ]]; then
+        if [[ ${{ inputs.fips_compliant }} == "true" ]]; then
           echo "Detected FIPS Compliant Connector"
           export PHANTOM_INSTANCE_IP=$PHANTOM_INSTANCE_IP_FIPS
         fi
@@ -48,7 +48,7 @@ runs:
         fi
         if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
           pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [[ ${{ inputs.publisher }} == 'Splunk' ]]; then
+        elif [[ ${{ inputs.publisher }} == "Splunk" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi

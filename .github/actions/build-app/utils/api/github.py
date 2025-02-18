@@ -65,12 +65,18 @@ class GitHubApi:
 
     def _clone(self, repo_name, local_repo_dir, branch=GITHUB_APP_REPO_BRANCH):
         if self._token:
-            clone_url = "{}/{}".format(f"https://{self._token}@github.com/{self._github_repo_owner}", repo_name)
+            clone_url = "{}/{}".format(
+                f"https://{self._token}@github.com/{self._github_repo_owner}", repo_name
+            )
         else:
             clone_url = f"https://github.com/{self._github_repo_owner}/{repo_name}"
         self._setup_dirpath(local_repo_dir)
         branch_name = branch or GITHUB_APP_REPO_BRANCH
-        print("clone_url: {}, local_repo_dir: {}, branch: {}".format(clone_url.replace(f"{self._token}@", ""), local_repo_dir, branch_name))
+        print(
+            "clone_url: {}, local_repo_dir: {}, branch: {}".format(
+                clone_url.replace(f"{self._token}@", ""), local_repo_dir, branch_name
+            )
+        )
         repo = git.Repo.clone_from(clone_url, to_path=local_repo_dir, branch=branch)
 
         for submodule in repo.submodules:
@@ -91,7 +97,9 @@ class GitHubApi:
                 shutil.rmtree(local_repo_dir)
 
     @contextmanager
-    def clone_and_manage_app_repo(self, repo_name, local_repo_dir="/tmp", branch=GITHUB_APP_REPO_BRANCH):
+    def clone_and_manage_app_repo(
+        self, repo_name, local_repo_dir="/tmp", branch=GITHUB_APP_REPO_BRANCH
+    ):
         """
         This is a wrapper function to call the clone_and_manage method with required parameters depending the mode of the testing.
         """

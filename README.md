@@ -8,5 +8,5 @@ Please see the ```.github``` folder for the following docs.
  - [PR template](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md)
  - [Issue templates](https://github.com/splunk-soar-connectors/.github/tree/main/.github/ISSUE_TEMPLATE)
 
-The ```workflow-templates``` folder contains the [GitHub Action](https://docs.github.com/en/actions) 
+The ```workflow-templates``` folder contains the [GitHub Action](https://docs.github.com/en/actions)
 workflow files for the common CI workflows used by our app repos.

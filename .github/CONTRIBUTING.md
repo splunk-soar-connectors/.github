@@ -61,7 +61,7 @@ If you've created a brand new App and wish to contribute it, the steps to do so 
 1. [Fork](https://guides.github.com/activities/forking/) the project.
 1. Install [pre-commit](https://pre-commit.com/#install) on your system, if not already installed, and then run `pre-commit install` while inside the app repo. _Note: This step is not required, but **strongly** recommended! It will allow you to catch issues before even pushing any code._
 1. Create a branch (following our [Conventions](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONVENTIONS.md)).
-1. Push your app code to the branch you created. 
+1. Push your app code to the branch you created.
 1. **Thoroughly** test your code for the new App. See the [Automated Checks](#automated-checks) section for information about basic automated checks we provide for all apps.
     <!-- 1. Ensure your new app has a [TESTING](https://about:blank) document for the community and our developers. -->
 1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
@@ -78,7 +78,7 @@ By default we provide various automated checks you can leverage to test your cha
 - Click the "Checks" tab at the top of the pull request. **OR**
 - Click the "Details" link next to the list of checks that shows up at the bottom of the pull request. If the tests passed, this list will be hidden, so you will first need to click the "Show all checks" link.
 
-Currently, some our automated checks are internal to Splunk and their details cannot be publicly viewed. The details for the following checks *can* be publicly accessed. 
+Currently, some our automated checks are internal to Splunk and their details cannot be publicly viewed. The details for the following checks *can* be publicly accessed.
  - **Linting** - [Flake8](http://flake8.pycqa.org/en/latest/) and [isort](https://pycqa.github.io/isort/) to ensure common Python coding standards are maintained.
  - **Semgrep** - a [static analysis tool](https://semgrep.dev/) to find potential vulnerabilitilies in app code.
  - **Static Tests** - common test suites that we run for each app repo. The "Details" link of this check will be a Google Drive link to the test results. A comment will also be posted in the PR with the same link by ```phantom-apps-bot```.

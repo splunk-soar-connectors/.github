@@ -6,9 +6,9 @@ When contributing to a new project, sometimes getting your development environme
 ### Local Development with Virtualization and OVA
 Many developers keep a local instance of SOAR running on a virtualization platform such as VMWare or VirtualBox. In this section, we'll look at a configuration using VMWare Fusion (Mac) and a local OVA.
 
-1. Get a local SOAR instance running on your virtualization platform. 
+1. Get a local SOAR instance running on your virtualization platform.
 1. Enable folder-sharing from your workstation to the Virtual Machine. This will enable you to write code with your favorite editor and not have to `scp` the files to the VM as you work on your project.
-    
+
     For example, in the screenshot below we see a shared folder between the VMWare Host and the VM.
 
     ![Shared Folder](Images/DEV_WORKFLOW-shared_folder.png)
@@ -18,4 +18,3 @@ Many developers keep a local instance of SOAR running on a virtualization platfo
     ![Shared Folder](Images/DEV_WORKFLOW-shared_folder_2.png)
 
 1. Now, on your host machine you can use the shared directory for your code repository and compile from there in the VM.
-

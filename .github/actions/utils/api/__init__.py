@@ -18,10 +18,14 @@ class ApiSession(requests.Session):
         requests.packages.urllib3.disable_warnings()
         self.verify = False
 
-        super(ApiSession, self).__init__()
+        super().__init__()
 
         retry_strategy = Retry(
-            total=5, backoff_factor=1, status_forcelist=[408, 409, 500, 502, 503, 504], method_whitelist=["GET", "POST"], raise_on_status=False
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[408, 409, 500, 502, 503, 504],
+            method_whitelist=["GET", "POST"],
+            raise_on_status=False,
         )
         self.mount(self.base_url, HTTPAdapter(max_retries=retry_strategy))
 
@@ -32,6 +36,6 @@ class ApiSession(requests.Session):
         # Port specification on https is often broken
         if url.startswith("https"):
             url = re.sub(r"(\.com):\d+/", r"\1/", url)
-        resp = super(ApiSession, self).request(method, url, **kwargs)
+        resp = super().request(method, url, **kwargs)
         resp.raise_for_status()
         return resp

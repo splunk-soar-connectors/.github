@@ -20,7 +20,11 @@ import git
 from utils import validate_app_id
 from utils.api.github import GitHubApi
 from utils.app_parser import AppParser
-from utils.phantom_constants import APP_ARTIFACTS_BUCKET, BUILD_FILE_EXCLUDES_FILEPATH, GITHUB_API_KEY
+from utils.phantom_constants import (
+    APP_ARTIFACTS_BUCKET,
+    BUILD_FILE_EXCLUDES_FILEPATH,
+    GITHUB_API_KEY,
+)
 
 DIR = os.path.realpath(os.path.dirname(__file__))
 
@@ -112,7 +116,9 @@ class AppBuilder:
 
                 # Create tgz and rpm
                 log("Creating tgz package")
-                tarfile_path = self._create_tar(self.app_repo_name, self.commit_sha, app_parser.excludes)
+                tarfile_path = self._create_tar(
+                    self.app_repo_name, self.commit_sha, app_parser.excludes
+                )
                 log(tarfile_path)
 
     def _validate_self(self):
@@ -146,14 +152,18 @@ class AppBuilder:
                 repo.heads[self.branch].checkout()
             else:
                 repo.heads[self.branch].checkout()
-                repo.head.reset(f"origin/{self.branch}", working_tree=True)  # working_tree causes a hard reset
+                repo.head.reset(
+                    f"origin/{self.branch}", working_tree=True
+                )  # working_tree causes a hard reset
             repo.heads[self.branch].checkout()
             for submodule in repo.submodules:
                 submodule.update(init=True)
             yield repo
 
         else:
-            with self.git_api.clone_and_manage_app_repo(self.app_repo_name, branch=self.branch) as local_repo_location:
+            with self.git_api.clone_and_manage_app_repo(
+                self.app_repo_name, branch=self.branch
+            ) as local_repo_location:
                 log(f"Cloned app to this location: {local_repo_location}")
                 repo = git.Repo(local_repo_location)
                 for submodule in repo.submodules:
@@ -189,7 +199,9 @@ class AppBuilder:
             if req_field not in self.app_json:
                 raise ValueError(f"App json is missing the required field: {req_field}")
             if validator and not validator(self.app_json[req_field], self.app_json["name"]):
-                raise ValueError(f'App json failed validation on required field "{req_field}" with value "{self.app_json[req_field]}"')
+                raise ValueError(
+                    f'App json failed validation on required field "{req_field}" with value "{self.app_json[req_field]}"'
+                )
 
     def _download_build_files(self):
         """
@@ -299,7 +311,9 @@ def create_cmdline_parser():
     """
     help_str = " ".join(line.strip() for line in __doc__.splitlines())
     argparser = argparse.ArgumentParser(description=help_str)
-    argparser.add_argument("app", type=str, help="Repo name or local directory location for app under test")
+    argparser.add_argument(
+        "app", type=str, help="Repo name or local directory location for app under test"
+    )
     argparser.add_argument("branch", type=str, help="Branch to work on")
     argparser.add_argument(
         "-o",
@@ -327,7 +341,9 @@ def main(**kwargs):
     log("Starting script")
 
     if kwargs.get("dry_run", False):
-        log("THIS IS A DRY-RUN. NOTHING WILL BE POSTED TO AWS S3, AND NO VERSION BUMPS WILL BE COMMITTED")
+        log(
+            "THIS IS A DRY-RUN. NOTHING WILL BE POSTED TO AWS S3, AND NO VERSION BUMPS WILL BE COMMITTED"
+        )
 
     # App is already cloned
     if os.path.isdir(kwargs.get("app", "")):
