@@ -7,4 +7,3 @@ runs:
       run: |
         echo "Publishing App"
       shell: bash
-

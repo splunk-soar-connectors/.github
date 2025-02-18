@@ -3,7 +3,11 @@ description: "Builds the app"
 runs:
   using: "composite"
   steps:
+    - name: Install Requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+
     - name: Build App
       run: |
-        echo "Building the app"
+        python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.head_ref }} --output-dir=$(pwd)
       shell: bash

@@ -7,4 +7,3 @@ We would ask that you follow these guidelines when developing your App to ensure
 
 ## App Naming Convention
 Our app repositories are named after the technologies they integrate in lowercase. For example, the repository for our [AWS Lambda](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html) app has the name "awslambda" (in lower case).  If you were going to create a new App for "Awesome API" then you would [request](https://github.com/splunk-soar-connectors/.github/issues/new?assignees=&labels=&template=new_repo_request.md&title=) that a new repo be created under the name `awesomeapi`. Please feel free to look around in the organization to acquaint yourself with this pattern.
-

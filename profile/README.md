@@ -23,7 +23,7 @@ If you've found a problem with an app but don't want to contribute a fix, that's
 
 All you have to do is fill out the form...
 
-![Bug Report](https://github.com/splunk-soar-connectors/.github/blob/main/.github/Images/Github-Bug-Template.png) 
+![Bug Report](https://github.com/splunk-soar-connectors/.github/blob/main/.github/Images/Github-Bug-Template.png)
 
 ...and our community will be able to help review and propose fixes.
 
