@@ -7,13 +7,14 @@ import logging
 import os
 import socket
 import sys
-import tempfile
-from contextlib import contextmanager
+import os
 from json import JSONDecodeError
 
-import boto3
+from contextlib import contextmanager
+
 from requests.exceptions import HTTPError
-from utils.api import ApiSession
+
+from api import ApiSession
 
 NRI_PORT = 9999
 
@@ -35,6 +36,8 @@ def _is_port_in_use(host, port):
 
     Source: https://stackoverflow.com/a/52872579
     """
+    host_type = type(host)
+    logging.info(f"Host is {host} with type {host_type}")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         return sock.connect_ex((host, port)) == 0
 
@@ -58,18 +61,6 @@ def _open_phantom_session(phantom_instance_ip, phantom_username, phantom_passwor
         yield session
     finally:
         session.close()
-
-
-def download_tarball(tarball_link):
-    s3 = boto3.resource("s3")
-    bucket, key = tarball_link.replace("s3://", "").split("/", 1)
-    app_repo_name = key.split("/")[0]
-    tarball_name = key.split("/")[1]
-    dest = os.path.join(tempfile.mkdtemp(prefix=f"app_build_{app_repo_name}"), tarball_name)
-    logging.info(f"Downloading file {tarball_link} to {dest}")
-    s3.Bucket(bucket).download_file(key, dest)
-    return dest
-
 
 def main(args):
     try:

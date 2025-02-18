@@ -1,9 +1,64 @@
 name: "Sanity Tests"
 description: "Runs sanity tests on the app"
+inputs:
+  fips_compliant:
+    description: "Is the connector fips compliant"
+    required: true
+    default: 'false'
+  publisher:
+    description: "Who is the connectors publisher"
+    required: true
+  phantom_ip:
+    description: "Phantom instance the tests are ran on"
+    required: true
+  version:
+    descritpion: "Phantom version being tested"
+    required: true
+  app_repo:
+    description: "Connector repo being tested"
+    required: true
 runs:
   using: "composite"
   steps:
-    - name: Run Sanity Tests
-      run: |
-        echo "Running sanity tests"
+    - name: Clone necessary repositories
       shell: bash
+      run: |
+        cd ..
+        if [ ! -d "app-tests" ]; then
+          git clone https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+        else
+          echo "Repository 'app-tests' already exists. Skipping clone."
+        fi
+    - name: Run app tests
+      env:
+        APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }} 
+      shell: bash
+      run: |
+        phantom_ip=${{ inputs.phantom_ip }}
+        if [[ ${{ inputs.fips_compliant }} == 'true' && "${{ inputs.version }}" == "current" ]]; then
+          phantom_ip=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
+        fi
+        export PHANTOM_URL="https://$phantom_ip"
+        python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
+        if [[ "${{ inputs.app_repo }}" == *"aws"* ]]; then
+          python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+          python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+        fi
+        cd ../app-tests
+        if ! git checkout origin/$APP_TESTS_BRANCH &> /dev/null; then
+          echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to next."
+          git checkout next
+        fi
+        if [[ ${{ inputs.version }} == "cloud" ]]; then
+          export AUTOMATION_BROKER="$AUTOMATION_BROKER_NAME"
+        fi
+        if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
+          echo "Failed to authenticate with Vault!"
+          exit 1
+        fi
+        if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
+          pytest suite/apps/"${{ inputs.app_repo }}" -m 'not ui' --color=yes --reruns=$NUM_TEST_RETRIES
+        elif [[ ${{ inputs.publisher }} == 'Splunk' ]]; then
+          echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
+          exit 1
+        fi

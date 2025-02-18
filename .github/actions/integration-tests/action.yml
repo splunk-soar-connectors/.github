@@ -1,31 +1,31 @@
 name: 'Integration Tests'
 description: 'Runs integration tests on the pull request'
+inputs:
+  fips_compliant:
+    description: "Is the connector fips compliant"
+    required: true
+    default: 'false'
+  publisher:
+    description: "Who is the connectors publisher"
+    required: true
+  app_repo:
+    description: "Connector repo being tested"
+    required: true
 runs:
   using: 'composite'
   steps:
-    - name: Install jq
-      shell: bash
-      run: apt-get install jq
     - name: Setup app in SOAR instance
       shell: bash
       run: |
-        app_json=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
-        if [[ $(echo "$app_json" | wc -l | sed 's/ //g') -ne 1 ]]; then
-          echo "Could not determine app JSON from $app_json"
-          exit 1
-        fi
-        app_json=$(echo "$app_json" | tail -n 1)
-        if [[ "$(jq -r '.fips_compliant // false' "$app_json")" == 'true' ]]; then
+        if [[ ${{ inputs.fips_compliant }} == 'true' ]]; then
           echo "Detected FIPS Compliant Connector"
           export PHANTOM_INSTANCE_IP=$PHANTOM_INSTANCE_IP_FIPS
         fi
-        echo "PUBLISHER=$(jq -r '.publisher' "$app_json")" >> $GITHUB_ENV
-        echo "Publisher: $PUBLISHER"
         echo PHANTOM_URL="https://$PHANTOM_INSTANCE_IP" >> $GITHUB_ENV
-        python ${{ github.action_path }}/app_rest_installer.py $APP_REPO.tgz "$PHANTOM_INSTANCE_IP" $PHANTOM_USERNAME $PHANTOM_PASSWORD
-        if [[ "$APP_REPO" == *"aws"* ]]; then
-          python ${{ github.action_path }}/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
-          python ${{ github.action_path }}/app_rest_installer.py $APP_REPO.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+        python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$PHANTOM_INSTANCE_IP" $PHANTOM_USERNAME $PHANTOM_PASSWORD
+        if [[ "${{ inputs.app_repo }}" == *"aws"* ]]; then
+          python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+          python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
         fi
     - name: Clone necessary repositories
       shell: bash
@@ -46,10 +46,10 @@ runs:
           echo "Failed to authenticate with Vault!"
           exit 1
         fi
-        if [[ -d suite/apps/"$APP_REPO" ]]; then
-          pytest suite/apps/"$APP_REPO" --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [[ "$PUBLISHER" == 'Splunk' ]]; then
-          echo "ERROR - expected to find test suite for Splunk supported app $APP_REPO"
+        if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
+          pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES
+        elif [[ ${{ inputs.publisher }} == 'Splunk' ]]; then
+          echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
     - name: Clean Up
