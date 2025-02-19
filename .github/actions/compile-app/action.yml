@@ -13,10 +13,4 @@ runs:
         python ${{ github.action_path }}/compile_app_in_instance.py ${{ github.event.repository.name }} --app-repo-branch ${{ github.head_ref }} 2>&1 | tee compile_app.out
       shell: bash
 
-    - name: Cat
-      run: |
-        echo "catting"
-        cat compile_app.out
-      shell: bash
-
 

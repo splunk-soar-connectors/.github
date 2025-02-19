@@ -49,8 +49,8 @@ def main():
             print("Compilation failed")
             for version, results in failed:
                 print(version)
-                for messaage in results.get("message"):
-                    for line in messaage.split(","):
+                for message in results.get("message"):
+                    for line in message.split(","):
                         print(line)
             return 1
         else:
