@@ -48,8 +48,10 @@ def compile_app(phantom_version, phantom_client, test_directory):
     error_lines = stderr.readlines()
 
     lines = [ANSI_ESCAPE.sub("", line) for line in lines]
+    print(lines)
     if error_lines:
         error_lines = [ANSI_ESCAPE.sub("", line) for line in error_lines]
+        print(error_lines)
         error_message = ",".join(error_lines).replace("\n", "")
         error_message = OUTPUT.findall(error_message)[:1]
 
