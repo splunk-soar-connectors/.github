@@ -9,7 +9,7 @@ import logging
 import git
 from contextlib import contextmanager
 
-from utils.api.github import GitHubApi
+#from utils.api.github import GitHubApi
 from utils.phantom_constants import GITHUB_API_KEY
 from utils import compile_app
 
@@ -29,7 +29,7 @@ def get_app_code(app_repo, app_repo_branch, local_code_dir, fork_repo_owner):
                 break
         yield local_repo.git_dir
     else:
-        github = GitHubApi(owner_repo=fork_repo_owner, token=GITHUB_API_KEY)
+        github = 1#GitHubApi(owner_repo=fork_repo_owner, token=GITHUB_API_KEY)
         with github.clone_and_manage_app_repo(app_repo, branch=app_repo_branch) as local_repo:
             print(f"Cloned app from GitHub to this location: {local_repo}")
             yield local_repo
@@ -59,6 +59,12 @@ def main():
     local_code_dir = args.local_code_dir
     app_repo_name = args.app_repo
     app_repo_branch = args.app_repo_branch
+    print(app_repo)
+    print(local_code_dir)
+    print(app_repo_name)
+    print(app_repo_branch)
+    print(os.getcwd())
+    print(os.listdir())
 
     with get_app_code(
         app_repo, app_repo_branch, local_code_dir, args.fork_repo_owner
