@@ -47,8 +47,6 @@ def compile_app(phantom_version, phantom_client, test_directory):
     stdout_lines = stdout.readlines()
     stdout_lines = [ANSI_ESCAPE.sub("", line) for line in stdout_lines]
     stdout_lines = [line.strip() for line in stdout_lines]
-    for line in stdout_lines:
-        logging.info(line)
 
     error_lines = stderr.readlines()
     if error_lines:
