@@ -2,19 +2,16 @@
 """
 Compile Apps
 """
-
-import os
 import argparse
 import logging
 import git
 from contextlib import contextmanager
 
 from utils import compile_app
-
+from utils.phantom_constants import LOCAL_REPO_DIRECTORY
 
 @contextmanager
 def get_app_code(local_code_dir):
-    print(f"Running tests against existing local copy of app: {local_code_dir}")
     local_repo = git.Repo(local_code_dir)
     for submodule in local_repo.submodules:
         try:
@@ -34,10 +31,10 @@ def main():
 
     args = parser.parse_args()
     app_repo_name = args.app_repo
-    repo_root = os.getenv("GITHUB_WORKSPACE", ".")
 
-    with get_app_code(local_code_dir=repo_root) as local_repo_location:
-        print("Repo location: %s", local_repo_location)
+
+    with get_app_code(local_code_dir=LOCAL_REPO_DIRECTORY) as local_repo_location:
+        print(f"Repo location: {local_repo_location}")
         responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
         failed = [
