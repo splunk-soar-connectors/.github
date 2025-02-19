@@ -46,38 +46,28 @@ def main():
     )
 
     args = parser.parse_args()
-
-    app_repo = args.fork_repo or args.app_repo
-    local_code_dir = args.local_code_dir
     app_repo_name = args.app_repo
-    app_repo_branch = args.app_repo_branch
-    print(app_repo)
-    print(local_code_dir)
-    print(app_repo_name)
-    print(app_repo_branch)
-    print(os.getcwd())
-    print(os.listdir())
 
-    local_repo_location = get_app_code(local_code_dir=os.getcwd())
-    logging.info("Repo location: %s", local_repo_location)
-    responses = compile_app.run_compile(app_repo_name, local_repo_location)
+    with get_app_code(local_code_dir=os.getcwd()) as local_repo_location:
+        logging.info("Repo location: %s", local_repo_location)
+        responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
-    failed = [
-        (version, results)
-        for version, results in responses.items()
-        if results["success"] is False
-    ]
-    if failed:
-        print("Compilation failed")
-        for version, results in failed:
-            print(version)
-            for messaage in results.get("message"):
-                for line in messaage.split(","):
-                    print(line)
-        return 1
-    else:
-        print("No compile errors found")
-        return 0
+        failed = [
+            (version, results)
+            for version, results in responses.items()
+            if results["success"] is False
+        ]
+        if failed:
+            print("Compilation failed")
+            for version, results in failed:
+                print(version)
+                for messaage in results.get("message"):
+                    for line in messaage.split(","):
+                        print(line)
+            return 1
+        else:
+            print("No compile errors found")
+            return 0
 
 
 if __name__ == "__main__":
