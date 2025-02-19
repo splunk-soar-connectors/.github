@@ -51,6 +51,21 @@ def main():
     print(os.getcwd())
     print("listdir")
     print(os.listdir())
+    # GitHub workspace (repo root)
+    repo_root = os.getenv("GITHUB_WORKSPACE", ".")
+
+    # GitHub actions metadata
+    repo_name = os.getenv("GITHUB_REPOSITORY")  # e.g., owner/repo
+    branch = os.getenv("GITHUB_REF")  # e.g., refs/heads/main
+    commit_sha = os.getenv("GITHUB_SHA")  # Current commit SHA
+
+    print(f"Repository Root: {repo_root}")
+    print(f"Repo Name: {repo_name}")
+    print(f"Branch: {branch}")
+    print(f"Commit SHA: {commit_sha}")
+
+    # List repo files
+    print("Repo Files:", os.listdir(repo_root))
 
     with get_app_code(local_code_dir=os.getcwd()) as local_repo_location:
         logging.info("Repo location: %s", local_repo_location)
