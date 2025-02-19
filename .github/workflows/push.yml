@@ -64,6 +64,7 @@ jobs:
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: [build, compile, test-setup]
     strategy:
+      fail-fast: false
       matrix:
         include:
           - version: "current"
@@ -128,7 +129,7 @@ jobs:
           app_repo: ${{ github.event.repository.name }}
 
   security-scans:
-    runs-on: 
+    runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: [build, compile]
