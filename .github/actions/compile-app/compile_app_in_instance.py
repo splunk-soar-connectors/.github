@@ -67,7 +67,7 @@ def main():
     # List repo files
     print("Repo Files:", os.listdir(repo_root))
 
-    with get_app_code(local_code_dir=os.getcwd()) as local_repo_location:
+    with get_app_code(local_code_dir=os.getenv("GITHUB_WORKSPACE", ".")) as local_repo_location:
         logging.info("Repo location: %s", local_repo_location)
         responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
