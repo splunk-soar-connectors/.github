@@ -48,10 +48,10 @@ def compile_app(phantom_version, phantom_client, test_directory):
     error_lines = stderr.readlines()
 
     lines = [ANSI_ESCAPE.sub("", line) for line in lines]
-    print(lines)
+    logging.info(lines)
     if error_lines:
         error_lines = [ANSI_ESCAPE.sub("", line) for line in error_lines]
-        print(error_lines)
+        logging.info(error_lines)
         error_message = ",".join(error_lines).replace("\n", "")
         error_message = OUTPUT.findall(error_message)[:1]
 
@@ -77,6 +77,7 @@ def delete_folder(phantom_client, test_directory):
 
 @contextmanager
 def upload_app_files(phantom_version, phantom_client, local_app_path, app_name):
+    logging.info(phantom_version, phantom_client, local_app_path, app_name)
     remote_path = TEST_APP_DIRECTORY_TEMPLATE.format(app_name=app_name + RANDOM_STRING)
     make_folder(phantom_version, phantom_client, app_name, remote_path)
 
