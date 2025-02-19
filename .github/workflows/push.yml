@@ -65,6 +65,7 @@ jobs:
     needs: [build, compile, test-setup]
     strategy:
       matrix:
+        fail-fast: false
         include:
           - version: "current"
             ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
