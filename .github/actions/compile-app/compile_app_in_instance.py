@@ -9,8 +9,6 @@ import logging
 import git
 from contextlib import contextmanager
 
-#from utils.api.github import GitHubApi
-from utils.phantom_constants import GITHUB_API_KEY
 from utils import compile_app
 
 
@@ -66,28 +64,26 @@ def main():
     print(os.getcwd())
     print(os.listdir())
 
-    with get_app_code(
-        app_repo, app_repo_branch, local_code_dir, args.fork_repo_owner
-    ) as local_repo_location:
-        logging.info("Repo location: %s", local_repo_location)
-        responses = compile_app.run_compile(app_repo_name, local_repo_location)
+    local_repo_location = os.get_cwd()
+    logging.info("Repo location: %s", local_repo_location)
+    responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
-        failed = [
-            (version, results)
-            for version, results in responses.items()
-            if results["success"] is False
-        ]
-        if failed:
-            print("Compilation failed")
-            for version, results in failed:
-                print(version)
-                for messaage in results.get("message"):
-                    for line in messaage.split(","):
-                        print(line)
-            return 1
-        else:
-            print("No compile errors found")
-            return 0
+    failed = [
+        (version, results)
+        for version, results in responses.items()
+        if results["success"] is False
+    ]
+    if failed:
+        print("Compilation failed")
+        for version, results in failed:
+            print(version)
+            for messaage in results.get("message"):
+                for line in messaage.split(","):
+                    print(line)
+        return 1
+    else:
+        print("No compile errors found")
+        return 0
 
 
 if __name__ == "__main__":
