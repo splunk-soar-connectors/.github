@@ -30,43 +30,14 @@ def get_app_code(local_code_dir):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("app_repo", type=str, help="app repo name")
-    # parser.add_argument(
-    #     "--local-code-dir", type=str, help="local directory location for app under test"
-    # )
     parser.add_argument("--app-repo-branch", type=str, help="app repo branch")
-    # parser.add_argument(
-    #     "--fork-repo",
-    #     required=False,
-    #     help="Name of a forked app repo, if we are testing against a fork.",
-    # )
-    # parser.add_argument(
-    #     "--fork-repo-owner",
-    #     required=False,
-    #     help="Owner of the forked app repo, if we are testing against a fork.",
-    # )
 
     args = parser.parse_args()
     app_repo_name = args.app_repo
-    print(app_repo_name)
-    # GitHub workspace (repo root)
-    repo_root = os.getenv("GITHUB_WORKSPACE", "..")
-
-    # GitHub actions metadata
-    repo_name = os.getenv("GITHUB_REPOSITORY")  # e.g., owner/repo
-    branch = os.getenv("GITHUB_REF")  # e.g., refs/heads/main
-    commit_sha = os.getenv("GITHUB_SHA")  # Current commit SHA
-
-    print(f"Repository Root: {repo_root}")
-    print(f"Repo Name: {repo_name}")
-    print(f"Branch: {branch}")
-    print(f"Commit SHA: {commit_sha}")
-
-    # List repo files
-    print("Repo Files:", os.listdir(repo_root))
+    repo_root = os.getenv("GITHUB_WORKSPACE", ".")
 
     with get_app_code(local_code_dir=repo_root) as local_repo_location:
-        logging.info("Repo location: %s", local_repo_location)
-        print(f"repo location: {local_repo_location}")
+        print("Repo location: %s", local_repo_location)
         responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
         failed = [
