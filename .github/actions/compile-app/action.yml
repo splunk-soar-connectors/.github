@@ -5,5 +5,7 @@ runs:
   steps:
     - name: Compile App
       run: |
-        echo "Compiling the app on a SOAR instance"
+        set -e
+        python3 compile_app_in_instance.py "$APP_REPO" $REPO_BRANCH_FLAG \
+                $FORK_OWNER_FLAG $FORK_REPO_FLAG 2>&1 | tee compile_app.out
       shell: bash

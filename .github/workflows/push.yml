@@ -30,14 +30,16 @@ jobs:
           path: ${{ github.event.repository.name }}.tgz
 
   compile:
-    runs-on: ubuntu-latest # This will be Codebuild
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: pre-commit
     steps:
-      - name: Setup Environment
-        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
+      - name: Check out actions repo
+        uses: actions/checkout@v4
 
       - name: Compile Application
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@mnordby/PAPP-35402
 
   test-setup:
     runs-on: ubuntu-latest
