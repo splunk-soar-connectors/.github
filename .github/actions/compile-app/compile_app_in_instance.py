@@ -24,7 +24,7 @@ def get_app_code(local_code_dir):
                 f"WARNING: Failed to clone Git submodules. Some dependency tests may fail. Error message: {e}"
             )
             break
-    yield local_repo.git_dir
+    yield local_repo.working_tree_dir
 
 
 def main():
