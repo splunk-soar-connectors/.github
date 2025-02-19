@@ -49,7 +49,7 @@ def main():
     app_repo_name = args.app_repo
     print(app_repo_name)
     # GitHub workspace (repo root)
-    repo_root = os.getenv("GITHUB_WORKSPACE", ".")
+    repo_root = os.getenv("GITHUB_WORKSPACE", "..")
 
     # GitHub actions metadata
     repo_name = os.getenv("GITHUB_REPOSITORY")  # e.g., owner/repo
@@ -66,6 +66,7 @@ def main():
 
     with get_app_code(local_code_dir=repo_root) as local_repo_location:
         logging.info("Repo location: %s", local_repo_location)
+        print(f"repo location: {local_repo_location}")
         responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
         failed = [
