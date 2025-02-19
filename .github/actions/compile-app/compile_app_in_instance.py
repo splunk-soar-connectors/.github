@@ -47,6 +47,10 @@ def main():
 
     args = parser.parse_args()
     app_repo_name = args.app_repo
+    print("cwd")
+    print(os.getcwd())
+    print("listdir")
+    print(os.listdir())
 
     with get_app_code(local_code_dir=os.getcwd()) as local_repo_location:
         logging.info("Repo location: %s", local_repo_location)

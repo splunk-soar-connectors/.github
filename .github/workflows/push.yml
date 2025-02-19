@@ -35,7 +35,7 @@ jobs:
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: pre-commit
     steps:
-      - name: Check out actions repo
+      - name: Check out app repo
         uses: actions/checkout@v4
 
       - name: Compile Application
