@@ -3,6 +3,10 @@ description: "Compiles the app on a SOAR instance"
 runs:
   using: "composite"
   steps:
+    - name: Install Requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+      
     - name: Compile App
       run: |
         set -e
