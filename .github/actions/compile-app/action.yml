@@ -10,7 +10,5 @@ runs:
     - name: Compile App
       run: |
         set -e
-        ls -lath
-        pwd
         python ${{ github.action_path }}/compile_app_in_instance.py --local-code-dir pwd --app-repo-branch ${{ github.event.repository.name }} ${{ github.head_ref }} 2>&1 | tee compile_app.out
       shell: bash

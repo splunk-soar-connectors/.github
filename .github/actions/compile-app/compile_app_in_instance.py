@@ -13,7 +13,7 @@ from utils import compile_app
 
 
 @contextmanager
-def get_app_code(app_repo, app_repo_branch, local_code_dir, fork_repo_owner):
+def get_app_code(app_repo, app_repo_branch, local_code_dir):
     if local_code_dir and os.path.isdir(local_code_dir):
         print(f"Running tests against existing local copy of app: {local_code_dir}")
         local_repo = git.Repo(local_code_dir)
@@ -64,7 +64,7 @@ def main():
     print(os.getcwd())
     print(os.listdir())
 
-    local_repo_location = get_app_code(local_code_dir=os.get_cwd())
+    local_repo_location = get_app_code(local_code_dir=os.getcwd())
     logging.info("Repo location: %s", local_repo_location)
     responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
