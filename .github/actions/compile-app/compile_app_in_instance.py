@@ -64,7 +64,7 @@ def main():
     print(os.getcwd())
     print(os.listdir())
 
-    local_repo_location = os.get_cwd()
+    local_repo_location = os.getcwd()
     logging.info("Repo location: %s", local_repo_location)
     responses = compile_app.run_compile(app_repo_name, local_repo_location)
 
