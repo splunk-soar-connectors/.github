@@ -44,18 +44,23 @@ def compile_app(phantom_version, phantom_client, test_directory):
     exit_code = int(stdout.channel.recv_exit_status())
     logging.info(f"Compile Command Exit Code: {exit_code}")
 
-    lines = stdout.readlines()
-    error_lines = stderr.readlines()
+    stdout_lines = stdout.readlines()
+    stdout_lines = [ANSI_ESCAPE.sub("", line) for line in stdout_lines]
+    stdout_lines = [line.strip() for line in stdout_lines]
+    for line in stdout_lines:
+        logging.info(line)
 
-    lines = [ANSI_ESCAPE.sub("", line) for line in lines]
-    logging.info(lines)
+    error_lines = stderr.readlines()
     if error_lines:
         error_lines = [ANSI_ESCAPE.sub("", line) for line in error_lines]
-        logging.info(error_lines)
+        error_lines = [line.strip() for line in error_lines]
         error_message = ",".join(error_lines).replace("\n", "")
         error_message = OUTPUT.findall(error_message)[:1]
+        for line in error_lines:
+            logging.info(line)
+        
 
-    response = {"success": exit_code == 0, "message": lines if (exit_code == 0) else error_message}
+    response = {"success": exit_code == 0, "message": stdout_lines if (exit_code == 0) else error_message}
 
     return response
 
