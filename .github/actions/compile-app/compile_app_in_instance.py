@@ -13,24 +13,18 @@ from utils import compile_app
 
 
 @contextmanager
-def get_app_code(app_repo, app_repo_branch, local_code_dir):
-    if local_code_dir and os.path.isdir(local_code_dir):
-        print(f"Running tests against existing local copy of app: {local_code_dir}")
-        local_repo = git.Repo(local_code_dir)
-        for submodule in local_repo.submodules:
-            try:
-                submodule.update(init=True)
-            except git.exc.GitCommandError as e:
-                print(
-                    f"WARNING: Failed to clone Git submodules. Some dependency tests may fail. Error message: {e}"
-                )
-                break
-        yield local_repo.git_dir
-    else:
-        github = 1#GitHubApi(owner_repo=fork_repo_owner, token=GITHUB_API_KEY)
-        with github.clone_and_manage_app_repo(app_repo, branch=app_repo_branch) as local_repo:
-            print(f"Cloned app from GitHub to this location: {local_repo}")
-            yield local_repo
+def get_app_code(local_code_dir):
+    print(f"Running tests against existing local copy of app: {local_code_dir}")
+    local_repo = git.Repo(local_code_dir)
+    for submodule in local_repo.submodules:
+        try:
+            submodule.update(init=True)
+        except git.exc.GitCommandError as e:
+            print(
+                f"WARNING: Failed to clone Git submodules. Some dependency tests may fail. Error message: {e}"
+            )
+            break
+    yield local_repo.git_dir
 
 
 def main():
