@@ -1,0 +1,53 @@
+name: precommit-update-and-apply
+description: Update and apply pre-commit hooks
+
+on:
+  - repository: github.com/splunk-soar-connectors/*
+
+steps:
+  - container: alpine:3
+    run: |
+      apk add --no-cache curl python3 py3-pip git pre-commit docker
+
+      # Install Docker and start the daemon (needed for our hooks)
+      rc-update add docker boot
+      service docker start
+
+      # Download our most recent template files
+      curl -O https://raw.githubusercontent.com/phantomcyber/dev-cicd-tools/feature/frictionless_connector_contributions/pre-commit-template/pre-commit-hooks-template.yaml
+      curl -O https://raw.githubusercontent.com/phantomcyber/dev-cicd-tools/feature/frictionless_connector_contributions/pre-commit-template/pyproject.toml
+
+      # Rename templates
+      mv pre-commit-hooks-template.yaml .pre-commit-config.yaml
+
+      # Run pre-commit up to 3 times (might need multiple iterations till everything is clean)
+      attempts=0
+      while [ $attempts -lt 3 ]; do
+        if pre-commit run --all; then
+          break
+        fi
+        attempts=$((attempts + 1))
+        if [ $attempts -lt 3 ]; then
+          echo "Pre-commit failed, trying again..."
+          sleep 1
+        else
+          echo "Pre-commit failed after max attempts"
+        fi
+      done
+
+      # Check for changes
+      if [ -n "$(git status --porcelain)" ]; then
+        echo "Changes detected"
+      else
+        echo "No changes needed"
+      fi
+
+changesetTemplate:
+  title: Update and apply pre-commit hooks
+  body: |
+    - Update pre-commit hooks
+    - Apply pre-commit fixes
+  branch: update-and-apply-precommit
+  commit:
+    message: "[batch] update and apply pre-commit hooks"
+  published: false

@@ -1,0 +1,97 @@
+name: 001-connectors-workflow-and-precommit-updates
+description: Add workflow updates and standardized pre-commit changes and configurations to connectors for frictionless connector contributions [PAPP-35399]
+
+on:
+  # TODO: Change to all connectors after (this is a test selection)
+  - repository: github.com/splunk-soar-connectors/crowdstrikeoauth # Recent
+  - repository: github.com/splunk-soar-connectors/imap 
+  - repository: github.com/splunk-soar-connectors/maxmind
+  - repository: github.com/splunk-soar-connectors/snowflake # Somewhat recent
+  - repository: github.com/splunk-soar-connectors/paloaltonetworksfirewall
+  - repository: github.com/splunk-soar-connectors/domaintools # Old
+  - repository: github.com/splunk-soar-connectors/code42
+
+steps:
+  # Step 1: Workflow files
+  - container: alpine:3
+    run: |
+      apk add --no-cache curl
+
+      # Remove existing workflow files
+      rm -rf .github/workflows/*
+      mkdir -p .github/workflows
+
+      # Create call_push.yml
+      cat > .github/workflows/call-push.yml << 'EOL'
+      name: Call Push Workflow
+
+      on:
+        pull_request:
+          branches-ignore:
+            - main  # Runs only on non-main branches
+          types:
+            - opened       # When a new PR is opened
+            - synchronize  # When a new commit is pushed to the PR branch
+
+      jobs:
+        call-push:
+          uses: splunk-soar-connectors/.github/.github/workflows/push.yml@main
+      EOL
+
+      # Create call_publish.yml
+      cat > .github/workflows/call-publish.yml << 'EOL'
+      name: Call Publish Workflow
+
+      on:
+        push:
+          branches:
+            - main  # Runs only on push (merge) to main
+
+      jobs:
+        call-publish:
+          uses: splunk-soar-connectors/.github/.github/workflows/publish.yml@main
+      EOL
+
+  # Step 2: Add new pre-commit configurations and apply changes
+  - container: alpine:3
+    run: |
+      apk add --no-cache curl python3 py3-pip git pre-commit docker
+
+      # Install Docker and start the daemon (needed for our hooks)
+      rc-update add docker boot
+      service docker start
+
+      # Remove tox file if exists (no longer needed)
+      rm -f tox.ini
+
+      # Download our template files
+      curl -O https://raw.githubusercontent.com/phantomcyber/dev-cicd-tools/feature/frictionless_connector_contributions/pre-commit-template/pre-commit-hooks-template.yaml
+      curl -O https://raw.githubusercontent.com/phantomcyber/dev-cicd-tools/feature/frictionless_connector_contributions/pre-commit-template/pyproject.toml
+
+      # Rename templates
+      mv pre-commit-hooks-template.yaml .pre-commit-config.yaml
+
+      # Run pre-commit up to 3 times (might need multiple iterations till everything is clean)
+      attempts=0
+      while [ $attempts -lt 3 ]; do
+        if pre-commit run --all; then
+          break
+        fi
+        attempts=$((attempts + 1))
+        if [ $attempts -lt 3 ]; then
+          echo "Pre-commit failed, trying again..."
+          sleep 1
+        else
+          echo "Pre-commit failed after max attempts"
+        fi
+      done
+
+changesetTemplate:
+  title: Workflow updates and standardized pre-commit changes and configurations added
+  body: |
+    - Update workflow files with new CI/CD configuration
+    - Add standardized pre-commit hooks and configurations
+    - Apply pre-commit fixes
+  branch: standardize-workflow-and-precommit
+  commit:
+    message: "[batch] workflow updates and pre-commit changes and configurations added and applied"
