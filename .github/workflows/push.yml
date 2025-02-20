@@ -38,16 +38,15 @@ jobs:
       - name: Check out app repo
         uses: actions/checkout@v4
 
-      - name: env
-        run: env
-
       - name: Compile Application
+        env:
+          PHANTOM_PASSWORD: $PHANTOM_PASSWORD
         uses: splunk-soar-connectors/.github/.github/actions/compile-app@mnordby/PAPP-35402
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
           phantom_username: ${{ vars.PHANTOM_USERNAME }}
-          phantom_password: ${{ vars.PHANTOM_PASSWORD }}
+          phantom_password: ${{ env.PHANTOM_PASSWORD }}
 
   test-setup:
     runs-on: ubuntu-latest
