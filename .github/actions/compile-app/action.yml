@@ -1,9 +1,27 @@
 name: "Compile App"
 description: "Compiles the app on a SOAR instance"
+inputs:
+  current_phantom_ip:
+    description: 'The IP address of the current Phantom version'
+    required: true
+  previous_phantom_ip:
+    description: 'The IP address of the previous Phantom version'
+    required: true
+  phantom_username:
+    description: 'The username for the Phantom instances'
+    required: true
+  phantom_password:
+    description: 'The password for the Phantom instances'
+    required: true
 runs:
   using: "composite"
   steps:
+    - name: Install Requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+
     - name: Compile App
       run: |
-        echo "Compiling the app on a SOAR instance"
+        set -e
+        python ${{ github.action_path }}/compile_app_in_instance.py ${{ github.event.repository.name }} --app-repo-branch ${{ github.head_ref }} --current-phantom-ip ${{ inputs.current_phantom_ip }} --previous-phantom-ip ${{ inputs.previous_phantom_ip }} --phantom-username ${{ inputs.phantom_username }}
       shell: bash
