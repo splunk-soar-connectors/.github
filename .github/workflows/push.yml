@@ -38,6 +38,11 @@ jobs:
       - name: Check out app repo
         uses: actions/checkout@v4
 
+      - name: env
+        run: |
+        echo ${{ PHANTOM_PASSWORD }}
+        echo ${{ phantom_password }}
+
       - name: Compile Application
         uses: splunk-soar-connectors/.github/.github/actions/compile-app@mnordby/PAPP-35402
         with:
