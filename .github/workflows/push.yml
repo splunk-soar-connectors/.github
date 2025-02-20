@@ -3,9 +3,9 @@ name: Reusable Push Workflow
 on:
   workflow_call:
       inputs:
-      phantom_password:
-        required: true
-        type: string
+        phantom_password:
+          required: true
+          type: string
 
 jobs:
   pre-commit:
