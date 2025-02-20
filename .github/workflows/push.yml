@@ -2,10 +2,6 @@ name: Reusable Push Workflow
 
 on:
   workflow_call:
-      inputs:
-        phantom_password:
-          required: true
-          type: string
 
 jobs:
   pre-commit:
@@ -48,7 +44,7 @@ jobs:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
           phantom_username: ${{ vars.PHANTOM_USERNAME }}
-          phantom_password: ${{ inputs.phantom_password }}
+          phantom_password: ${{ vars.PHANTOM_PASSWORD }}
 
   test-setup:
     runs-on: ubuntu-latest
