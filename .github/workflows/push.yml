@@ -48,7 +48,7 @@ jobs:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
           phantom_username: ${{ vars.PHANTOM_USERNAME }}
-          phantom_password: ${{ inputs.PHANTOM_PASSWORD }}
+          phantom_password: ${{ inputs.phantom_password }}
 
   test-setup:
     runs-on: ubuntu-latest
