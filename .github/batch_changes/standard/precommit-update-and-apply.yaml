@@ -1,0 +1,72 @@
+name: precommit-update-and-apply
+description: Update and apply pre-commit hooks
+
+on:
+  - repository: github.com/splunk-soar-connectors/*
+
+steps:
+  - container: quay.io/pypa/manylinux_2_28_x86_64
+    env:
+      REPO: phantomcyber/dev-cicd-tools
+      BRANCH: feature/frictionless_connector_contributions
+    run: |
+      # Install dependencies
+      yum install -y \
+        curl \
+        git \
+        python39 \
+        python39-pip \
+        jq
+
+      # Set Python 3.9 as default
+      alternatives --set python3 /usr/bin/python3.9
+      
+      python3 -m pip install --upgrade pip
+      python3 -m pip install --upgrade "pre-commit>=4.1.0"
+      pre-commit --version
+
+      # Download our most recent template files
+      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pre-commit-hooks-template.yaml
+      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pyproject.toml
+
+      # Rename templates
+      mv pre-commit-hooks-template.yaml .pre-commit-config.yaml
+
+      pre-commit install
+
+      # Add newline to README.md for force build-docs to trigger
+      echo "" >> README.md
+
+      # Run pre-commit up to 3 times (might need multiple iterations till everything is clean)
+      attempts=0
+      while [ $attempts -lt 3 ]; do
+        if pre-commit run --all; then
+          break
+        fi
+        attempts=$((attempts + 1))
+        if [ $attempts -lt 3 ]; then
+          echo "Pre-commit failed, trying again..."
+          sleep 1
+        else
+          echo "Pre-commit failed after max attempts"
+        fi
+      done
+
+      # Check for changes
+      if [ -n "$(git status --porcelain)" ]; then
+        echo "Changes detected"
+      else
+        echo "No changes needed"
+      fi
+
+changesetTemplate:
+  title: Update and apply pre-commit hooks
+  body: |
+    - Update pre-commit hooks
+    - Apply pre-commit fixes
+  branch: update-and-apply-precommit
+  commit:
+    message: |
+      chore(ci): pre-commit updates and fixes applied
+      
+      [batch update]

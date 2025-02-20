@@ -1,0 +1,89 @@
+name: 001-connectors-workflow-and-precommit-updates
+description: Add workflow updates and standardized pre-commit changes and configurations to connectors for frictionless connector contributions [PAPP-35399]
+
+on:
+  # TODO: Change to all connectors after (this is a test selection)
+  - repository: github.com/splunk-soar-connectors/crowdstrikeoauth # Recent
+  - repository: github.com/splunk-soar-connectors/imap 
+  - repository: github.com/splunk-soar-connectors/maxmind
+  - repository: github.com/splunk-soar-connectors/snowflake # Somewhat recent
+  - repository: github.com/splunk-soar-connectors/paloaltonetworksfirewall
+  - repository: github.com/splunk-soar-connectors/signalfx # Old
+  - repository: github.com/splunk-soar-connectors/github
+
+steps:
+  # Step 1: Workflow files
+  - container: alpine:3
+    env:
+      REPO: phantomcyber/dev-cicd-tools
+      BRANCH: feature/frictionless_connector_contributions
+    run: |
+      apk add --no-cache curl
+
+      # Remove existing workflow files
+      rm -rf .github/workflows/*
+      mkdir -p .github/workflows
+
+      # Download workflow files
+      curl -o .github/workflows/call-push.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-push-template.yml
+      curl -o .github/workflows/call-publish.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-publish-template.yml
+
+  # Step 2: Add new pre-commit configurations and apply changes
+  - container: quay.io/pypa/manylinux_2_28_x86_64 # Needed for package app dependencies (and other script entries too)
+    env:
+      REPO: phantomcyber/dev-cicd-tools
+      BRANCH: feature/frictionless_connector_contributions
+    run: |
+      # Dependencies
+      yum install -y \
+        curl \
+        git \
+        python39 \
+        python39-pip \
+        jq
+
+      # 3.9 default
+      alternatives --set python3 /usr/bin/python3.9
+      
+      python3 -m pip install --upgrade "pre-commit>=4.1.0"
+      pre-commit --version
+
+      # Remove tox file if exists (no longer needed)
+      rm -f tox.ini
+
+      # Download our template files
+      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pre-commit-hooks-template.yaml
+      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pyproject.toml
+
+      # Rename templates
+      mv pre-commit-hooks-template.yaml .pre-commit-config.yaml
+
+      pre-commit install
+
+      # Run pre-commit up to 3 timgit commes (might need multiple iterations till everything is updated and clean)
+      attempts=0
+      while [ $attempts -lt 3 ]; do
+        if pre-commit run --all; then
+          break
+        fi
+        attempts=$((attempts + 1))
+        if [ $attempts -lt 3 ]; then
+          echo "Pre-commit failed, trying again..."
+          sleep 1
+        else
+          echo "Pre-commit failed after max attempts"
+        fi
+      done
+
+changesetTemplate:
+  title: Workflow updates and standardized pre-commit changes and configurations added
+  body: |
+    - Update workflow files with new CI/CD configuration
+    - Add standardized pre-commit hooks and configurations
+    - Apply pre-commit fixes
+  branch: standardize-workflow-and-precommit
+  commit:
+    message: |
+      chore(ci): workflow updates and pre-commit changes and configurations added and applied
+      
+      [batch update]
