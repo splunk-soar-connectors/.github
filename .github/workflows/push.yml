@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Compile Application
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@mnordby/PAPP-35402
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
