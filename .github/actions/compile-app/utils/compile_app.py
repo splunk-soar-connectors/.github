@@ -10,20 +10,8 @@ import backoff
 import paramiko
 from scp import SCPClient
 
-from utils.phantom_constants import (
-    PHANTOM_INSTANCE_CURRENT_VERSION_IP,
-    PHANTOM_INSTANCE_PREVIOUS_VERSION_IP,
-    PHANTOM_PASSWORD,
-    PHANTOM_SSH_USER,
-)
-
 ANSI_ESCAPE = re.compile(r"(\x1b|\x1B)(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 OUTPUT = re.compile(r"Output\:([^\x1b]*?)Error output\:")
-
-ALL_HOSTS = {
-    "current_phantom_version": PHANTOM_INSTANCE_CURRENT_VERSION_IP,
-    "previous_phantom_version": PHANTOM_INSTANCE_PREVIOUS_VERSION_IP,
-}
 
 TEST_APP_DIRECTORY_TEMPLATE = "/home/phantom/app_tests/{app_name}"
 TEST_DIRECTORY = "/home/phantom/app_tests"
@@ -91,16 +79,20 @@ def upload_app_files(phantom_version, phantom_client, local_app_path, app_name):
 
 
 @backoff.on_exception(backoff.expo, socket.error, max_tries=3)
-def run_compile(app_name, local_app_path):
+def run_compile(app_name, local_app_path, current_phantom_ip, previous_phantom_ip, phantom_username, phantom_password):
     results = {}
+    hosts = {
+    "current_phantom_version": current_phantom_ip,
+    "previous_phantom_version": previous_phantom_ip,
+    }  
 
-    for version, host in ALL_HOSTS.items():
+    for version, host in hosts.items():
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             logging.info(f"Connecting to host {version}: {host}")
             client.connect(
-                hostname=host, username=PHANTOM_SSH_USER, password=PHANTOM_PASSWORD, port=22
+                hostname=host, username=phantom_username, password=phantom_password, port=22
             )
             with upload_app_files(version, client, local_app_path, app_name) as test_dir:
                 results[version] = compile_app(version, client, test_dir)
