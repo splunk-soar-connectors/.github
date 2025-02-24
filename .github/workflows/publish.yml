@@ -4,16 +4,61 @@ on:
   workflow_call:
 
 jobs:
-  publish:
+  semantic-version:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Setup Environment
+          uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
+
+        - name: Set up Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: "lts/*"
+
+        - name: Install dependencies
+          run: npm clean-install
+        - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+          run: npm audit signatures
+
+        - name: Update release numbering in files
+          run: echo "New release version: $(npx semantic-release --dry-run | grep -oP '(?<=next release version is ).*')" > version.txt
+
+        - name: Run semantic-release
+          env:
+            GITHUB_TOKEN: ${{ secrets.SOAR_APPS_TOKEN }}
+          run: npx semantic release
+  build:
     runs-on: ubuntu-latest
+    needs: semantic-version
     steps:
-      - name: Check out actions repo
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
+
+      - name: Build Application
+        uses: splunk-soar-connectors/.github/.github/actions/build-app@main
+
+      - name: Upload app tar file as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-tar
+          path: ${{ github.event.repository.name }}.tgz
+
+  publish:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: build
+    steps:
+      - name: Check out app repo
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Download app tar file for upload
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.9'
+          name: app-tar
+          path: artifacts/
 
       - name: Publish
-        uses: splunk-soar-connectors/.github/.github/actions/publish@main
+        uses: splunk-soar-connectors/.github/.github/actions/publish@mnordby/PAPP-35411
+        env:
+          UPLOAD_PATH: "artifacts/${{ github.event.repository.name }}.tgz"
