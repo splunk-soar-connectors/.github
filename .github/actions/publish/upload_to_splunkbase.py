@@ -38,7 +38,6 @@ def parse_args():
     help_str = " ".join(line.strip() for line in __doc__.splitlines())
     parser = argparse.ArgumentParser(description=help_str)
     parser.add_argument("app_repo_name", help="Name of the app's GitHub repo.")
-    parser.add_argument("--tarball", help="The path to the tarball to upload.")
     parser.add_argument(
         "--splunkbase_env", help="The Splunkbase environment to use.", type=str.upper
     )
