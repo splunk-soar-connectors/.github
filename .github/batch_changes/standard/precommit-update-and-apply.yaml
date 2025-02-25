@@ -26,8 +26,8 @@ steps:
       pre-commit --version
 
       # Download our most recent template files
-      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pre-commit-hooks-template.yaml
-      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pyproject.toml
+      curl -LsSfO https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pre-commit-hooks-template.yaml
+      curl -LsSfO https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pyproject.toml
 
       # Rename templates
       mv pre-commit-hooks-template.yaml .pre-commit-config.yaml
@@ -51,13 +51,6 @@ steps:
           echo "Pre-commit failed after max attempts"
         fi
       done
-
-      # Check for changes
-      if [ -n "$(git status --porcelain)" ]; then
-        echo "Changes detected"
-      else
-        echo "No changes needed"
-      fi
 
 changesetTemplate:
   title: Update and apply pre-commit hooks
