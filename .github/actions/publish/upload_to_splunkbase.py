@@ -150,14 +150,16 @@ def main(args):
     if apps:
         sb_appid = apps[0]["id"]
         logging.info("Found existing app with appid: %s: %s", appid, sb_appid)
-        package_id = sb_client.upload_app_version(
-            sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
-        )
+        # package_id = sb_client.upload_app_version(
+        #     sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
+        # )
+        package_id = 123123123123
     else:
         logging.info("Could not find an app with appid: %s", appid)
-        package_id = sb_client.upload_app(
-            app_repo_name, tarball, release_notes, license_string, license_url
-        )
+        # package_id = sb_client.upload_app(
+        #     app_repo_name, tarball, release_notes, license_string, license_url
+        # )
+        package_id = 123123123123
 
     logging.info("Package ID: %s", package_id)
     response = sb_client.check_upload_status(package_id)
@@ -168,9 +170,9 @@ def main(args):
         logging.info("Failed to validate upload: \n%s", json.dumps(response, indent=2))
         return 1
 
-    _send_release_message(
-        repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
-    )
+    # _send_release_message(
+    #     repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
+    # )
 
     if not apps:
         sb_client.add_app_editor(sb_appid)
