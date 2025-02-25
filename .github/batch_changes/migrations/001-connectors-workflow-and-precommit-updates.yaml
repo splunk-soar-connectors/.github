@@ -2,14 +2,8 @@ name: 001-connectors-workflow-and-precommit-updates
 description: Add workflow updates and standardized pre-commit changes and configurations to connectors for frictionless connector contributions [PAPP-35399]
 
 on:
-  # TODO: Change to all connectors after (this is a test selection)
-  - repository: github.com/splunk-soar-connectors/crowdstrikeoauth # Recent
+  # Repos to update (TODO: change to all when running)
   - repository: github.com/splunk-soar-connectors/imap 
-  - repository: github.com/splunk-soar-connectors/maxmind
-  - repository: github.com/splunk-soar-connectors/snowflake # Somewhat recent
-  - repository: github.com/splunk-soar-connectors/paloaltonetworksfirewall
-  - repository: github.com/splunk-soar-connectors/signalfx # Old
-  - repository: github.com/splunk-soar-connectors/github
 
 steps:
   # Step 1: Workflow files
@@ -25,8 +19,8 @@ steps:
       mkdir -p .github/workflows
 
       # Download workflow files
-      curl -o .github/workflows/call-push.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-push-template.yml
-      curl -o .github/workflows/call-publish.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-publish-template.yml
+      curl -LsSfo .github/workflows/call-push.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-push-template.yml
+      curl -LsSfo .github/workflows/call-publish.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-publish-template.yml
 
   # Step 2: Add new pre-commit configurations and apply changes
   - container: quay.io/pypa/manylinux_2_28_x86_64 # Needed for package app dependencies (and other script entries too)
@@ -52,15 +46,15 @@ steps:
       rm -f tox.ini
 
       # Download our template files
-      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pre-commit-hooks-template.yaml
-      curl -O https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pyproject.toml
+      curl -LsSfO https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pre-commit-hooks-template.yaml
+      curl -LsSfO https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/pyproject.toml
 
       # Rename templates
       mv pre-commit-hooks-template.yaml .pre-commit-config.yaml
 
       pre-commit install
 
-      # Run pre-commit up to 3 timgit commes (might need multiple iterations till everything is updated and clean)
+      # Run pre-commit up to 3 times (might need multiple iterations till everything is updated and clean)
       attempts=0
       while [ $attempts -lt 3 ]; do
         if pre-commit run --all; then
