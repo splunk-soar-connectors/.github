@@ -1,0 +1,27 @@
+name: "Test coverage"
+description: "Determines if all of the connectors actions are being tested"
+
+runs:
+  using: composite
+  steps:
+    - name: Clone app tests repo
+      env:
+        APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }}
+      shell: bash
+      run: |
+        cd ..
+        git clone https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+        ls
+
+    - name: Determine test coverage
+      shell: bash
+      run: |
+        cd ../app-tests
+        if ! git checkout origin/$APP_TESTS_BRANCH &> /dev/null; then
+          echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to next."
+          git checkout next
+        fi
+        cd ..
+        echo $(pwd)
+        ls
+        python ${{ github.action_path }}/determine_test_coverage.py ${{ github.event.repository.name }} --dir-location=$(pwd)
