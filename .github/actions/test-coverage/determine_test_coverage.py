@@ -121,9 +121,7 @@ def determine_coverage(app_name: str, directory: str) -> None:
     actions_not_tested = app_actions - actions_tested
     if actions_not_tested:
         test_coverage = math.ceil(len(actions_not_tested) / len(app_actions) * 100)
-        raise TestCoverageError(
-            f"Test coverage is {test_coverage}%. The following actions aren't being tested in the app tests {actions_not_tested}"
-        )
+        raise TestCoverageError(test_coverage, actions_not_tested)
     else:
         print("Test coverage is 100%. All actions are being tested")
 
