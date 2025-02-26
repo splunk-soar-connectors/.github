@@ -64,6 +64,17 @@ jobs:
           echo "publisher=${{ env.publisher }}" >> $GITHUB_OUTPUT
           echo "fips_compliant=${{ env.fips_compliant }}" >> $GITHUB_OUTPUT
 
+  test-coverage:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Test Coverage
+        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
+
   sanity-test:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
