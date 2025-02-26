@@ -11,7 +11,6 @@ runs:
       run: |
         cd ..
         git clone https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
-        ls
 
     - name: Determine test coverage
       shell: bash
@@ -22,6 +21,4 @@ runs:
           git checkout next
         fi
         cd ..
-        echo $(pwd)
-        ls
         python ${{ github.action_path }}/determine_test_coverage.py ${{ github.event.repository.name }} --dir-location=$(pwd)

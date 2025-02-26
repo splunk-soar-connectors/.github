@@ -121,7 +121,6 @@ def determine_coverage(app_name: str, directory: str) -> None:
         print("Test coverage is 100%. All actions are being tested")
 
 
-# Example usage
 if __name__ == "__main__":
     import argparse
 
