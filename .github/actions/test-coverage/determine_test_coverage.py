@@ -134,4 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--dir-location", required=True)
 
     args = parser.parse_args()
-    determine_coverage(args.app_name, args.dir_location)
+    try:
+        determine_coverage(args.app_name, args.dir_location)
+    except TestCoverageError as e:
+        raise SystemExit(str(e))
