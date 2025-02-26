@@ -4,17 +4,17 @@ import sys
 from pathlib import Path
 import json
 import math
+from collections.abc import Iterable
 
 
 class TestCoverageError(Exception):
-    
     def __init__(self, percent: int, actions_missing_coverage: Iterable[str]) -> None:
         self.percent = percent
         self.actions_missing_coverage = sorted(actions_missing_coverage)
-        
+
     def __str__(self) -> str:
-         action_str = "\n".join(f"    - {action}" for action in self.actions_missing_coverage)
-        return f"Only {self.percent}% of actions have tests. These actions appear to be missing tests: {action_str}"
+        action_str = "\n".join(f"    - {action}" for action in self.actions_missing_coverage)
+        return f"Only {self.percent}% of actions have tests. These actions appear to be missing tests:\n {action_str}"
 
 
 class SubclassActionFinder(ast.NodeVisitor):
