@@ -13,11 +13,44 @@ jobs:
       - name: Pre-commit
         uses: splunk-soar-connectors/.github/.github/actions/pre-commit@main
 
+  security-scans:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    steps:
+      - name: Run Security Scans
+        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
+
+  test-coverage:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Test Coverage
+        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
+
+  compile:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+
+      - name: Compile Application
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
+        with:
+          current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+          previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
+          phantom_username: ${{ vars.PHANTOM_USERNAME }}
+
   build:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: pre-commit
+    needs: [compile]
     steps:
       - uses: actions/checkout@v4
 
@@ -30,25 +63,9 @@ jobs:
           name: app-tar
           path: ${{ github.event.repository.name }}.tgz
 
-  compile:
-    runs-on:
-      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: pre-commit
-    steps:
-      - name: Check out app repo
-        uses: actions/checkout@v4
-
-      - name: Compile Application
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
-        with:
-          current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-          previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
-          phantom_username: ${{ vars.PHANTOM_USERNAME }}
-
   test-setup:
     runs-on: ubuntu-latest
-    needs: [build, compile]
+    needs: [build]
     outputs:
       fips_compliant: ${{ steps.set-outputs.outputs.fips_compliant }}
       publisher: ${{ steps.set-outputs.outputs.publisher }}
@@ -65,22 +82,11 @@ jobs:
           echo "publisher=${{ env.publisher }}" >> $GITHUB_OUTPUT
           echo "fips_compliant=${{ env.fips_compliant }}" >> $GITHUB_OUTPUT
 
-  test-coverage:
-    runs-on:
-      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: []
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Test Coverage
-        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
-
   sanity-test:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: [build, compile, test-setup]
+    needs: [test-setup]
     strategy:
       fail-fast: false
       matrix:
@@ -123,7 +129,7 @@ jobs:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: [build, compile, test-setup]
+    needs: [test-setup]
     env:
       PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }}
       PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_IP_FIPS }}
@@ -145,13 +151,3 @@ jobs:
           fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
           publisher: ${{ needs.test-setup.outputs.publisher }}
           app_repo: ${{ github.event.repository.name }}
-
-  security-scans:
-    runs-on:
-      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: [build, compile]
-
-    steps:
-      - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
