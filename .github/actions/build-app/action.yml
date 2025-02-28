@@ -9,6 +9,6 @@ runs:
 
     - name: Build App
       run: |
-        echo ${{ github.event.repository.name }} ${{ github.head_ref }}
-        python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.head_ref }} --output-dir=$(pwd)
+        echo ${{ github.event.repository.name }} ${{ github.ref }}
+        python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.ref }} --output-dir=$(pwd)
       shell: bash
