@@ -17,11 +17,13 @@ jobs:
 
         - name: Install dependencies
           run: |
-            npm install semantic-release
+            npm install --save-dev semantic-release
             npm install @semantic-release/changelog @semantic-release/git -D
 
         - name: ls
-          run: ls -lath
+          run: |
+          ls -lath
+          cat package.json
 
         - name: Run semantic-release and update version numbers
           env:
