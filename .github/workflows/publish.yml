@@ -28,8 +28,9 @@ jobs:
 
         - name: Clean up
           run: |
-            rm $(pwd)/package.json
-            rm $(pwd)/package_lock.json
+            ls -lath
+            rm package.json
+            rm package_lock.json
 
   build:
     runs-on: ubuntu-latest
