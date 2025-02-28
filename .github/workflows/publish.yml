@@ -22,8 +22,8 @@ jobs:
 
         - name: ls
           run: |
-          ls -lath
-          cat package.json
+            ls -lath
+            cat package.json
 
         - name: Run semantic-release and update version numbers
           env:
