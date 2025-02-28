@@ -24,15 +24,17 @@ jobs:
           run: |
             ls -lath
             cat package.json
+            cat .releaserc.json
 
         - name: Run semantic-release and update version numbers
           env:
             GITHUB_TOKEN: ${{ secrets.SOAR_APPS_TOKEN }}
             DEBUG: semantic-release*
           run: |
-            ls
+            ls -lath
             pwd
-            npx semantic-release -e .releaserc.json
+            cat .releaserc.json
+            npx semantic-release --extends $(pwd)/.releaserc.json
 
   build:
     runs-on: ubuntu-latest
