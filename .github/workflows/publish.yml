@@ -26,7 +26,7 @@ jobs:
 
         - name: Run semantic-release and update version numbers
           env:
-            GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+            GITHUB_TOKEN: ${{ github.token }}
             DEBUG: semantic-release*
           run: |
             ls -lath
