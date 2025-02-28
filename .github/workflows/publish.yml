@@ -27,7 +27,7 @@ jobs:
           env:
             GITHUB_TOKEN: ${{ secrets.SOAR_APPS_TOKEN }}
             DEBUG: semantic-release*
-          run: npx semantic release -e ./releaserc.json
+          run: npx semantic release -e .releaserc.json
 
   build:
     runs-on: ubuntu-latest
