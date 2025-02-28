@@ -26,6 +26,11 @@ jobs:
           run: |
             npx semantic-release -e $(pwd)/.releaserc.json
 
+        - name: Clean up
+          run: |
+            rm $(pwd)/package.json
+            rm $(pwd)/package_lock.json
+
   build:
     runs-on: ubuntu-latest
     needs: semantic-version
