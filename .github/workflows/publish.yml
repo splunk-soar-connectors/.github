@@ -23,11 +23,7 @@ jobs:
         - name: Run semantic-release and update version numbers
           env:
             GITHUB_TOKEN: ${{ github.token }}
-            DEBUG: semantic-release*
           run: |
-            ls -lath
-            pwd
-            cat .releaserc.json
             npx semantic-release -e $(pwd)/.releaserc.json
 
   build:
