@@ -20,12 +20,6 @@ jobs:
             npm install --save-dev semantic-release
             npm install @semantic-release/changelog @semantic-release/git @semantic-release/exec -D
 
-        - name: ls
-          run: |
-            ls -lath
-            cat package.json
-            cat .releaserc.json
-
         - name: Run semantic-release and update version numbers
           env:
             GITHUB_TOKEN: ${{ secrets.SOAR_APPS_TOKEN }}
@@ -34,7 +28,7 @@ jobs:
             ls -lath
             pwd
             cat .releaserc.json
-            npx semantic-release --extends $(pwd)/.releaserc.json
+            npx semantic-release -e $(pwd)/.releaserc.json
 
   build:
     runs-on: ubuntu-latest
