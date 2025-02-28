@@ -34,7 +34,7 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
       - name: Build Application
-        uses: splunk-soar-connectors/.github/.github/actions/build-app@main
+        uses: splunk-soar-connectors/.github/.github/actions/build-app@mnordby/PAPP-35411
 
       - name: Upload app tar file as artifact
         uses: actions/upload-artifact@v4
