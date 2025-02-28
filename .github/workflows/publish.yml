@@ -30,8 +30,9 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.SOAR_APPS_TOKEN }}
             DEBUG: semantic-release*
           run: |
-            ls -lath
-            npx semantic-release -e ./releaserc.json
+            ls
+            pwd
+            npx semantic-release -e .releaserc.json
 
   build:
     runs-on: ubuntu-latest
