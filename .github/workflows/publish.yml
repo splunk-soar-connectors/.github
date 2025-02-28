@@ -2,6 +2,10 @@ name: Reusable Publish Workflow
 
 on:
   workflow_call:
+    inputs:
+      GITHUB_TOKEN:
+        required: true
+        type: string
 
 jobs:
   semantic-version:
@@ -22,7 +26,7 @@ jobs:
 
         - name: Run semantic-release and update version numbers
           env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
             DEBUG: semantic-release*
           run: |
             ls -lath
