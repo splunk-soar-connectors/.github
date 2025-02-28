@@ -17,11 +17,13 @@ jobs:
 
         - name: Install dependencies
           run: |
+            npm install semantic-release
             npm install @semantic-release/changelog @semantic-release/git -D
 
         - name: Run semantic-release and update version numbers
           env:
             GITHUB_TOKEN: ${{ secrets.SOAR_APPS_TOKEN }}
+            DEBUG: semantic-release*
           run: npx semantic release
 
   build:

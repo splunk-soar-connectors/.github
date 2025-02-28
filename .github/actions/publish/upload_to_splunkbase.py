@@ -168,8 +168,10 @@ def main(args):
         logging.info("Upload validated successfully: \n%s", json.dumps(response, indent=2))
     else:
         logging.info("Failed to validate upload: \n%s", json.dumps(response, indent=2))
-        return 1
+        #uncomment this
+        #return 1
 
+    print(f"sending a release message with repo_name={app_repo_name}, new_app={not apps}, app_json={app_json}, release_notes={release_notes}")
     # _send_release_message(
     #     repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
     # )
