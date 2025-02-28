@@ -22,7 +22,7 @@ jobs:
 
         - name: Run semantic-release and update version numbers
           env:
-            GITHUB_TOKEN: ${{ secrets.SOAR_APPS_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.SOAR_APPS_GITHUB_KEY }}
             DEBUG: semantic-release*
           run: |
             ls -lath
