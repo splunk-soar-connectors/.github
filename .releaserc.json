@@ -6,9 +6,7 @@
         [
             "@semantic-release/exec",
             {
-                "print": "echo LS",
-                "print2": "ls",
-                "print3": "echo ${nextRelease.version}",
+                "RemoveJsons": "rm package.json package-lock.json .releaserc.json",
                 "generateNotesCmd": "python update_version.py ${nextRelease.version}"
             }
         ],
