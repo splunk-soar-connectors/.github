@@ -3,13 +3,16 @@
     "plugins": [
         "@semantic-release/commit-analyzer",
         "@semantic-release/release-notes-generator",
-        "@semantic-release/changelog",
         [
             "@semantic-release/exec",
             {
-                "updateVersionInFiles": "python .github/actions/publish/utils/update_version.py ${nextRelease.version}"
+                "print": "echo LS",
+                "print2": "ls",
+                "print3": "echo ${nextRelease.version}",
+                "generateNotesCmd": "python update_version.py ${nextRelease.version}"
             }
         ],
+        "@semantic-release/changelog",
         [
             "@semantic-release/git",
             {
