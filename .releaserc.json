@@ -6,13 +6,13 @@
         [
             "@semantic-release/exec",
             {
-                "prepareCmd": "echo ${nextRelease.notes} && rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version}"
+                "prepareCmd": "rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version} ${nextRelease.notes}"
             }
         ],
         [
             "@semantic-release/git",
             {
-                "assets": ["README.md", "*.json", "CHANGELOG.md"],
+                "assets": ["README.md", "*.json", "release_notes/*"],
                 "message": "chore(release): update version to ${nextRelease.version} [skip ci]"
             }
         ],

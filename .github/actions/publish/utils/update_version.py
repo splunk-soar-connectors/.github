@@ -42,6 +42,9 @@ def create_cmdline_parser():
     argparser.add_argument(
         "new_version", type=str, help="The new version the app json will be updated to"
     )
+    argparser.add_argument(
+        "release_notes", type=str, help="The release notes for the new version"
+    )
 
     return argparser
 
@@ -52,6 +55,12 @@ def main(**kwargs):
         exit(1)
 
     new_version = kwargs.get("new_version")
+
+    if not kwargs.get("release_notes"):
+        print("Release notes not generated")
+        exit(1)
+
+    release_notes = kwargs.get(release_notes)
 
     main_app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith('.json')])
     print(f"Found one top-level json file: {main_app_json_name}")
@@ -72,6 +81,9 @@ def main(**kwargs):
     with open(main_app_json_name, 'w') as f:
         json.dump(json_content, f, indent=len(indent), sort_keys=False, separators=(",", ": "))
         f.write('\n')
+
+    with open(f"release_notes/{new_version}.md", 'w') as f:
+        f.write(release_notes)
 
 
 if __name__ == "__main__":
