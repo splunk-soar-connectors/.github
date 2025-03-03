@@ -87,7 +87,7 @@ class AppBuilder:
             2.  Clones the app repo if not already present locally
             3.  Determines build config of specific app (i.e. dont_post_rpm or download extra files)
             4.  Downloads any extra files the app might need to do a build (see build_config)
-            5.  Determines which packages to build and where to post them (no tgz on next, no rpm if dont_post_rpm)
+            5.  Determines which packages to build and where to post them (no tgz on main, no rpm if dont_post_rpm)
             6.  Builds necessary packages (either tgz, rpm, none, or both)
             7. Posts them to appropriate location in AWS S3, based on git branch
         """

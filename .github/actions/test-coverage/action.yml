@@ -17,8 +17,8 @@ runs:
       run: |
         cd ../app-tests
         if ! git checkout origin/$APP_TESTS_BRANCH &> /dev/null; then
-          echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to next."
-          git checkout next
+          echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to main."
+          git checkout main
         fi
         cd ..
         python ${{ github.action_path }}/determine_test_coverage.py ${{ github.event.repository.name }} --dir-location=$(pwd)
