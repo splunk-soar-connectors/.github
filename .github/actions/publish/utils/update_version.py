@@ -60,7 +60,7 @@ def main(**kwargs):
         print("Release notes not generated")
         exit(1)
 
-    release_notes = kwargs.get(release_notes)
+    release_notes = kwargs.get("release_notes")
 
     main_app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith('.json')])
     print(f"Found one top-level json file: {main_app_json_name}")
