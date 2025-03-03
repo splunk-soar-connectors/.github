@@ -6,10 +6,9 @@
         [
             "@semantic-release/exec",
             {
-                "generateNotesCmd": "rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version}"
+                "prepareCmd": "echo ${nextRelease.notes} && rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version}"
             }
         ],
-        "@semantic-release/changelog",
         [
             "@semantic-release/git",
             {
