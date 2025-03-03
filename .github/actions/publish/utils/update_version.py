@@ -38,12 +38,11 @@ def create_cmdline_parser():
     """
     Commandline parser for passing in necessary arguments
     """
-    help_str = " ".join(line.strip() for line in __doc__.splitlines())
-    argparser = argparse.ArgumentParser(description=help_str)
+    argparser = argparse.ArgumentParser()
     argparser.add_argument(
         "new_version", type=str, help="The new version the app json will be updated to"
     )
-
+    
     return argparser
 
 def main(**kwargs):
