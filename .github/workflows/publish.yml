@@ -10,6 +10,12 @@ jobs:
         - name: Setup Environment
           uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
+        - name: Set up Github Repo
+          uses: actions/checkout@v4
+          with:
+            repository: splunk-soar-connectors/.github
+            path: dotgithub
+
         - name: Set up Node.js
           uses: actions/setup-node@v4
           with:
@@ -24,16 +30,13 @@ jobs:
           env:
             GITHUB_TOKEN: ${{ github.token }}
           run: |
+            ls -lath
+            cd ..
+            pwd
+            ls -lath
+            cd dotgithub
+            pwd
             npx semantic-release -e $(pwd)/.releaserc.json
-
-        - name: Clean up
-          run: |
-            if [ -f package.json ]; then
-              rm package.json
-            fi
-            if [ -f package-lock.json ]; then
-              rm package-lock.json
-            fi
 
   build:
     runs-on: ubuntu-latest
@@ -41,6 +44,20 @@ jobs:
     steps:
       - name: Setup Environment
         uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
+
+      - name: Clean up
+        run: |
+          pwd
+          ls -lath
+          if [ -f package.json ]; then
+            rm package.json
+          fi
+          if [ -f package-lock.json ]; then
+            rm package-lock.json
+          fi
+          if [ -f .releaserc.json ]; then
+            rm .releaserc.json
+          fi
 
       - name: Build Application
         uses: splunk-soar-connectors/.github/.github/actions/build-app@mnordby/PAPP-35411
