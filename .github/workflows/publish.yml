@@ -7,38 +7,21 @@ jobs:
   semantic-version:
       runs-on: ubuntu-latest
       steps:
-        - name: Set up workspace
-          run: mkdir -p /home/runner/work/workspace
+        - name: Setup Environment
+          uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
-        - name: Check out app repo
-          uses: actions/checkout@v4
-          with:
-            path: /home/runner/work/workspace/${{ github.event.repository.name }}
-
-        - name: Set up Python
-          uses: actions/setup-python@v5
-          with:
-            python-version: '3.9'
-
-        - name: Cache pip
-          uses: actions/cache@v4
-          with:
-            path: ~/.cache/pip
-            key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-
-        - name: Set up .github Repo
+        - name: Set up .github repo
           uses: actions/checkout@v4
           with:
             repository: splunk-soar-connectors/.github
-            path: /home/runner/work/workspace/.github
-        
-        - name: ls
+            path: dotgithub
+
+        - name: Copy necessary files to app repo for semantic release
           run: |
             ls -lath
-            pwd
-            cd ..
+            cp dotgithub/.github/.releaserc.json .releaserc.json
+            cp dotgithub/.github/actions/publish/utils/update_version.py update_version.py
             ls -lath
-            pwd
 
         - name: Set up Node.js
           uses: actions/setup-node@v4
@@ -54,12 +37,6 @@ jobs:
           env:
             GITHUB_TOKEN: ${{ github.token }}
           run: |
-            ls -lath
-            cd ..
-            pwd
-            ls -lath
-            cd dotgithub
-            pwd
             npx semantic-release -e $(pwd)/.releaserc.json
 
   build:
@@ -81,6 +58,9 @@ jobs:
           fi
           if [ -f .releaserc.json ]; then
             rm .releaserc.json
+          fi
+          if [ -d dotgithub ]; then
+            rm -rf dotgithub
           fi
 
       - name: Build Application
