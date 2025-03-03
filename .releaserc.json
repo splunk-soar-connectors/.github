@@ -6,8 +6,7 @@
         [
             "@semantic-release/exec",
             {
-                "RemoveJsons": "rm package.json package-lock.json .releaserc.json",
-                "generateNotesCmd": "python update_version.py ${nextRelease.version}"
+                "generateNotesCmd": "rm package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version}"
             }
         ],
         "@semantic-release/changelog",
