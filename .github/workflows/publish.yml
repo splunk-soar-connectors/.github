@@ -7,14 +7,38 @@ jobs:
   semantic-version:
       runs-on: ubuntu-latest
       steps:
-        - name: Setup Environment
-          uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
+        - name: Set up workspace
+          run: mkdir -p /home/runner/work/workspace
 
-        - name: Set up Github Repo
+        - name: Check out app repo
+          uses: actions/checkout@v4
+          with:
+            path: /home/runner/work/workspace/${{ github.event.repository.name }}
+
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.9'
+
+        - name: Cache pip
+          uses: actions/cache@v4
+          with:
+            path: ~/.cache/pip
+            key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+        - name: Set up .github Repo
           uses: actions/checkout@v4
           with:
             repository: splunk-soar-connectors/.github
-            path: ../dotgithub
+            path: /home/runner/work/workspace/.github
+        
+        - name: ls
+          run: |
+            ls -lath
+            pwd
+            cd ..
+            ls -lath
+            pwd
 
         - name: Set up Node.js
           uses: actions/setup-node@v4
