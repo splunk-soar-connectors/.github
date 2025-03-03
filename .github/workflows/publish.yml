@@ -19,10 +19,8 @@ jobs:
 
         - name: Copy necessary files to app repo for semantic release
           run: |
-            ls -lath
             cp dotgithub/.releaserc.json $(pwd)/.releaserc.json
             cp dotgithub/.github/actions/publish/utils/update_version.py $(pwd)/update_version.py
-            ls -lath
 
         - name: Set up Node.js
           uses: actions/setup-node@v4
@@ -62,6 +60,9 @@ jobs:
           fi
           if [ -d dotgithub ]; then
             rm -rf dotgithub
+          fi          
+          if [ -d update_version.py ]; then
+            rm update_version.py
           fi
 
       - name: Build Application
