@@ -1,10 +1,11 @@
-# This script should find the instances where we store the app version in code and update them (app.json, README.md, etc...)
+# This script updates the app json with the new version provided by semantic release, and creates release notes for that release
+# Explored but currently not using: auto-generating release notes with ${nextRelease.notes} from semantic release
 import os
 import json
-from collections import OrderedDict
-from datetime import datetime, timezone
 import argparse
 import re
+from collections import OrderedDict
+from datetime import datetime, timezone
 
 def find_app_json_name(json_filenames):
     """
@@ -34,6 +35,44 @@ def find_app_json_name(json_filenames):
     # There's only one json file in the top level, so it must be the app's json
     return filtered_json_filenames[0]
 
+def update_app_version_in_app_json(app_json_name: str, new_version: str):
+    # First, determine indent level of app json
+    indent = ""
+    with open(app_json_name) as f:
+        for line in f:
+            if "appid" in line:
+                indent = re.match(r"(\s*)", line).group(0)
+                break
+
+    # Extract existing json
+    with open(app_json_name, 'r') as f:
+        json_content = json.loads(f.read(), object_pairs_hook=OrderedDict)
+    
+    # Update values
+    json_content["app_version"] = new_version
+    json_content["utctime_updated"] = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    
+    print(f"Updating app json with new version: {new_version}")
+    # Write json back to file
+    with open(app_json_name, 'w') as f:
+        json.dump(json_content, f, indent=len(indent), sort_keys=False, separators=(",", ": "))
+        f.write('\n')
+
+
+def generate_release_notes(new_version: str) -> None:
+    print("Generating new release notes from unreleased.md")
+    # Get release notes from unreleased.md
+    with open("release_notes/unreleased.md", 'r') as f:
+        release_notes = f.read()
+
+    # Copy release notes to new version.md
+    with open(f"release_notes/{new_version}.md", 'w') as f:
+        f.write(release_notes)
+
+    # Clear release notes from unreleased.md
+    with open("release_notes/unreleased.md", 'w') as f:
+        f.truncate(0)
+
 def create_cmdline_parser():
     """
     Commandline parser for passing in necessary arguments
@@ -56,35 +95,12 @@ def main(**kwargs):
 
     new_version = kwargs.get("new_version")
 
-    if not kwargs.get("release_notes"):
-        print("Release notes not generated")
-        exit(1)
+    app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith('.json')])
+    print(f"Found one top-level json file: {app_json_name}")
+    
+    update_app_version_in_app_json(app_json_name, new_version)
 
-    release_notes = kwargs.get("release_notes")
-
-    main_app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith('.json')])
-    print(f"Found one top-level json file: {main_app_json_name}")
-
-    # First, determine indent level of app json
-    indent = ""
-    with open(main_app_json_name) as f:
-        for line in f:
-            if "appid" in line:
-                indent = re.match(r"(\s*)", line).group(0)
-                break
-
-    with open(main_app_json_name, 'r') as f:
-        json_content = json.loads(f.read(), object_pairs_hook=OrderedDict)
-    json_content["app_version"] = new_version
-    # Update the last update time
-    json_content["utctime_updated"] = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    with open(main_app_json_name, 'w') as f:
-        json.dump(json_content, f, indent=len(indent), sort_keys=False, separators=(",", ": "))
-        f.write('\n')
-
-    with open(f"release_notes/{new_version}.md", 'w') as f:
-        f.write(release_notes)
-
+    generate_release_notes(new_version)
 
 if __name__ == "__main__":
     parser = create_cmdline_parser()
