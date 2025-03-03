@@ -42,7 +42,7 @@ def create_cmdline_parser():
     argparser.add_argument(
         "new_version", type=str, help="The new version the app json will be updated to"
     )
-    
+
     return argparser
 
 def main(**kwargs):
@@ -71,7 +71,7 @@ def main(**kwargs):
     json_content["utctime_updated"] = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     with open(main_app_json_name, 'w') as f:
         json.dump(json_content, f, indent=len(indent), sort_keys=False, separators=(",", ": "))
-
+        f.write('\n')
 
 
 if __name__ == "__main__":
