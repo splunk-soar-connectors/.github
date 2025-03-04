@@ -37,9 +37,6 @@ def parse_args():
     help_str = " ".join(line.strip() for line in __doc__.splitlines())
     parser = argparse.ArgumentParser(description=help_str)
     parser.add_argument("app_repo_name", help="Name of the app's GitHub repo.")
-    parser.add_argument(
-        "--splunkbase_env", help="The Splunkbase environment to use.", type=str.upper
-    )
     return parser.parse_args()
 
 
@@ -105,8 +102,6 @@ def _validate_repo_name_matches_app_id(repo_name, app_id):
 
 def main(args):
     app_repo_name = args.app_repo_name 
-    splunkbase_env = args.splunkbase_env
-    print(f"Splunkbase env: {splunkbase_env}")
 
     tarball = os.getenv("UPLOAD_PATH")
     logging.info("Downloaded tarball to %s", tarball)
@@ -117,7 +112,7 @@ def main(args):
     _validate_repo_name_matches_app_id(app_repo_name, appid)
 
     logging.info("Candidate version for release: %s", app_version)
-    sb_client = Splunkbase(splunkbase_env)
+    sb_client = Splunkbase()
 
     existing_releases = sb_client.get_existing_releases(appid)
     if existing_releases:
