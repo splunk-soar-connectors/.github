@@ -81,9 +81,10 @@ class Splunkbase:
         self.env = "PROD"
         self._apps_base_url = SPLUNKBASE_ENVIRONMENT
         self._splunkbase_editor_url = SPLUNKBASE_ENVIRONMENT_EDITOR
-        self.auth = self._get_basic_auth()
         self.splunkbase_user = splunkbase_user
         self.splunkbase_password = splunkbase_password
+        self.auth = self._get_basic_auth()
+
 
     def _get_basic_auth(self):
         user = self.splunkbase_user
