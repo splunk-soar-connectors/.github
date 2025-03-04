@@ -94,6 +94,13 @@ jobs:
           name: app-tar
           path: artifacts/
 
+      - name: ls
+        run: |
+          ls -lath
+          pwd
+          cd artifacts/
+          ls -lath
+
       - name: Publish
         uses: splunk-soar-connectors/.github/.github/actions/publish@mnordby/PAPP-35411
         env:

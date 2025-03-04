@@ -110,7 +110,7 @@ def main(args):
 
     tarball = os.getenv("UPLOAD_PATH")
     logging.info("Downloaded tarball to %s", tarball)
-
+    logging.info(os.listdir())
     app_json = get_app_json(tarball)
     app_version = app_json["app_version"]
     appid = app_json["appid"]
