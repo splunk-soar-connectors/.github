@@ -111,6 +111,9 @@ def main(args):
     tarball = os.getenv("UPLOAD_PATH")
     logging.info("Downloaded tarball to %s", tarball)
     logging.info(os.listdir())
+    artifact_path = os.path.join(os.getenv("GITHUB_WORKSPACE", ""), "artifacts")
+    print(f"Checking path: {artifact_path}")
+    print(f"Files in artifacts: {os.listdir(artifact_path)}")
     app_json = get_app_json(tarball)
     app_version = app_json["app_version"]
     appid = app_json["appid"]
