@@ -28,7 +28,7 @@ NEW_APP_WARNING_MESSAGE = (
     "See: http://go/new-soar-app-in-splunkbase for more."
 )
 
-RELEASE_QUEUE_URL = os.getenv["RELEASE_QUEUE_URL"]
+RELEASE_QUEUE_URL = os.getenv("RELEASE_QUEUE_URL")
 SOAR_APPS_TOKEN = os.getenv("SOAR_APPS_TOKEN")
 
 
