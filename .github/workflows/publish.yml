@@ -2,10 +2,9 @@ name: Reusable Publish Workflow
 
 on:
   workflow_call:
-    inputs:
+    secrets:
       release_queue_url:
         required: true
-        type: string
 
 jobs:
   semantic-version:
@@ -99,4 +98,4 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/publish@mnordby/PAPP-35411
         env:
           UPLOAD_PATH: "artifacts/${{ github.event.repository.name }}.tgz"
-          RELEASE_QUEUE_URL: ${{ inputs.release_queue_url }}
+          RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
