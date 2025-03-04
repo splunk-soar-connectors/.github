@@ -7,7 +7,8 @@ on:
         required: true
       splunkbase_user:
         required: true
-      splunkbase_password: true  
+      splunkbase_password: 
+        required: true  
 
 jobs:
   semantic-version:
