@@ -107,6 +107,7 @@ def _validate_repo_name_matches_app_id(repo_name, app_id):
 def main(args):
     app_repo_name = args.app_repo_name 
     splunkbase_env = args.splunkbase_env
+    print(f"Splunkbase env: {splunkbase_env}")
 
     tarball = os.getenv("UPLOAD_PATH")
     logging.info("Downloaded tarball to %s", tarball)

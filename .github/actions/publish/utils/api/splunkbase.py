@@ -89,6 +89,8 @@ def _get_request(url, return_json=True, params=None, auth_tuple=None):
 class Splunkbase:
     def __init__(self, env=Environment.PROD.name):
         self.env = env
+        logging.info(self.env)
+        logging.info(Environment[env])
         self._apps_base_url = Environment[env].value
         self._splunkbase_editor_url = EnvironmentEditor[env].value
         self.auth = self._get_basic_auth()
