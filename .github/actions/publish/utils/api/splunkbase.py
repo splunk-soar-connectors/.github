@@ -25,6 +25,8 @@ SPLUNKBASE_SUCCESSFUL_UPLOAD_RESPONSES = [
     "App was successfully uploaded and is being validated.",
     "Release was successfully uploaded and is being validated.",
 ]
+SPLUNKBASE_ENVIRONMENT = f"https://splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
+SPLUNKBASE_ENVIRONMENT_EDITOR = "https://splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
 STATUS_CODES_TO_RETRY = [403, 502, 504]
 RESPONSE_MESSAGES_TO_RETRY = [
     "Network error communicating with endpoint",
@@ -32,18 +34,6 @@ RESPONSE_MESSAGES_TO_RETRY = [
     "Package validation still in progress.",
 ]
 MAX_MESSAGE_RETRY_TIME = 120
-
-
-class Environment(Enum):
-    PLAYGROUND = f"https://dev.splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
-    STAGING = f"https://stage.splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
-    PROD = f"https://splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
-
-
-class EnvironmentEditor(Enum):
-    PLAYGROUND = "https://dev.splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
-    STAGING = "https://stage.splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
-    PROD = "https://splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
 
 
 def _post_request(auth_tuple, url, data, check_response=True):
@@ -87,12 +77,10 @@ def _get_request(url, return_json=True, params=None, auth_tuple=None):
 
 
 class Splunkbase:
-    def __init__(self, env=Environment.PROD.name):
-        self.env = env
-        logging.info(self.env)
-        logging.info(Environment[env])
-        self._apps_base_url = Environment[env].value
-        self._splunkbase_editor_url = EnvironmentEditor[env].value
+    def __init__(self):
+        self.env = "PROD"
+        self._apps_base_url = SPLUNKBASE_ENVIRONMENT
+        self._splunkbase_editor_url = SPLUNKBASE_ENVIRONMENT_EDITOR
         self.auth = self._get_basic_auth()
 
     def _get_basic_auth(self):
