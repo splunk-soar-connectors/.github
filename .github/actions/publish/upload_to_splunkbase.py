@@ -12,7 +12,7 @@ from distutils.version import LooseVersion
 
 import boto3
 
-from utils import find_app_json_name
+from utils.update_version import find_app_json_name
 from utils.api.splunkbase import (
     APACHE2_LICENSE_STRING,
     APACHE2_LICENSE_URL,

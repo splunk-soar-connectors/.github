@@ -54,23 +54,8 @@ jobs:
 
       - name: Clean up
         run: |
-          pwd
-          ls -lath
-          if [ -f package.json ]; then
-            rm package.json
-          fi
-          if [ -f package-lock.json ]; then
-            rm package-lock.json
-          fi
-          if [ -f .releaserc.json ]; then
-            rm .releaserc.json
-          fi
-          if [ -d dotgithub ]; then
-            rm -rf dotgithub
-          fi          
-          if [ -d update_version.py ]; then
-            rm update_version.py
-          fi
+            rm -rf dotgithub         
+            rm -f update_version.py
 
       - name: Build Application
         uses: splunk-soar-connectors/.github/.github/actions/build-app@mnordby/PAPP-35411

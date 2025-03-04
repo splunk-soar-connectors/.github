@@ -25,8 +25,8 @@ SPLUNKBASE_SUCCESSFUL_UPLOAD_RESPONSES = [
     "App was successfully uploaded and is being validated.",
     "Release was successfully uploaded and is being validated.",
 ]
-SPLUNKBASE_ENVIRONMENT = f"https://splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
-SPLUNKBASE_ENVIRONMENT_EDITOR = "https://splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
+SPLUNKBASE_BASE_URL = f"https://splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
+SPLUNKBASE_EDITOR_URL = "https://splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
 STATUS_CODES_TO_RETRY = [403, 502, 504]
 RESPONSE_MESSAGES_TO_RETRY = [
     "Network error communicating with endpoint",
@@ -79,8 +79,8 @@ def _get_request(url, return_json=True, params=None, auth_tuple=None):
 class Splunkbase:
     def __init__(self, splunkbase_user, splunkbase_password):
         self.env = "PROD"
-        self._apps_base_url = SPLUNKBASE_ENVIRONMENT
-        self._splunkbase_editor_url = SPLUNKBASE_ENVIRONMENT_EDITOR
+        self._apps_base_url = SPLUNKBASE_BASE_URL
+        self._splunkbase_editor_url = SPLUNKBASE_EDITOR_URL
         self.splunkbase_user = splunkbase_user
         self.splunkbase_password = splunkbase_password
         self.auth = self._get_basic_auth()
