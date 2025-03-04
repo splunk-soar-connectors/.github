@@ -93,15 +93,7 @@ jobs:
         with:
           name: app-tar
           path: ${{ github.workspace }}/artifacts
-
-      - name: ls
-        run: |
-          ls -lath
-          pwd
-          cd artifacts/
-          ls -lath
-          cd ..
-
+          
       - name: Publish
         uses: splunk-soar-connectors/.github/.github/actions/publish@mnordby/PAPP-35411
         env:
