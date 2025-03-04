@@ -77,15 +77,19 @@ def _get_request(url, return_json=True, params=None, auth_tuple=None):
 
 
 class Splunkbase:
-    def __init__(self):
+    def __init__(self, splunkbase_user, splunkbase_password):
         self.env = "PROD"
         self._apps_base_url = SPLUNKBASE_ENVIRONMENT
         self._splunkbase_editor_url = SPLUNKBASE_ENVIRONMENT_EDITOR
         self.auth = self._get_basic_auth()
+        self.splunkbase_user = splunkbase_user
+        self.splunkbase_password = splunkbase_password
 
     def _get_basic_auth(self):
-        user = os.getenv("SPLUNKBASE_USER")
-        password = os.getenv("SPLUNKBASE_PASSWORD")
+        user = self.splunkbase_user
+        password = self.splunkbase_password
+        if not user and password:
+            logging.error("Splunkbase username and password not provided")
         return (user, password) if user and password else None
 
     def _is_retryable_response(response):

@@ -30,6 +30,8 @@ NEW_APP_WARNING_MESSAGE = (
 
 RELEASE_QUEUE_URL = os.getenv("RELEASE_QUEUE_URL")
 SOAR_APPS_TOKEN = os.getenv("SOAR_APPS_TOKEN")
+SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
+SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
 
 
 
@@ -112,7 +114,7 @@ def main(args):
     _validate_repo_name_matches_app_id(app_repo_name, appid)
 
     logging.info("Candidate version for release: %s", app_version)
-    sb_client = Splunkbase()
+    sb_client = Splunkbase(SPLUNKBASE_USER, SPLUNKBASE_PASSWORD)
 
     existing_releases = sb_client.get_existing_releases(appid)
     if existing_releases:
