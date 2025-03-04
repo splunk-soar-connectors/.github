@@ -166,8 +166,7 @@ def main(args):
         #uncomment this
         #return 1
 
-    print(f"sending a release message with repo_name={app_repo_name}, new_app={not apps}, app_json={app_json}, release_notes={release_notes}")
-    # _send_release_message(
+    print(f"sending a release message with repo_name={app_repo_name}, new_app={not apps}")
     #     repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
     # )
 

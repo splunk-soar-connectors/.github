@@ -90,7 +90,7 @@ class Splunkbase:
         user = self.splunkbase_user
         password = self.splunkbase_password
         if not user and password:
-            logging.error("Splunkbase username and password not provided")
+            logging.info("Splunkbase username and password not provided")
         return (user, password) if user and password else None
 
     def _is_retryable_response(response):
