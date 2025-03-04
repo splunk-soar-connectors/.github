@@ -139,7 +139,6 @@ def main(args):
     license_string, license_url = get_license_info(app_json)
     logging.info("Using license info: %s: %s", license_string, license_url)
 
-    logging.info("Using Splunkbase environment: %s", splunkbase_env)
     apps = sb_client.get_apps({"appid": appid})
     if apps:
         sb_appid = apps[0]["id"]
