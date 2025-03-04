@@ -20,7 +20,7 @@ from utils.api.splunkbase import (
     SGT_LICENSE_URL,
     Splunkbase,
 )
-from utils.phantom_constants import REPO_NAME_TO_APPID_FILEPATH, DIR
+from utils.phantom_constants import RELEASE_QUEUE_REGION, REPO_NAME_TO_APPID_FILEPATH, DIR
 
 NEW_APP_WARNING_MESSAGE = (
     "Successfully uploaded a NEW APP to Splunkbase. "
@@ -29,7 +29,7 @@ NEW_APP_WARNING_MESSAGE = (
 )
 
 RELEASE_QUEUE_URL = os.environ["RELEASE_QUEUE_URL"]
-RELEASE_QUEUE_REGION = os.environ["RELEASE_QUEUE_REGION"]
+
 SOAR_APPS_TOKEN = os.getenv("SOAR_APPS_TOKEN")
 
 
