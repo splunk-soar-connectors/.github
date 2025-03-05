@@ -32,6 +32,8 @@ runs:
       run: |
         cd ..
         git clone https://oauth2:$GITLAB_API_TOKEN@cd.splunkdev.com/phantom-apps/app-tests.git
+        cd app-tests
+        git fetch --all
     - name: Run app tests
       env:
         APP_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }}
