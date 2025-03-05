@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 import tarfile
-from distutils.version import LooseVersion
+from packaging.version import parse
 
 import boto3
 
@@ -94,17 +94,15 @@ def main(args):
     app_version = app_json["app_version"]
     appid = app_json["appid"]
 
-    _validate_repo_name_matches_app_id(app_repo_name, appid)
-
     logging.info("Candidate version for release: %s", app_version)
     sb_client = Splunkbase(SPLUNKBASE_USER, SPLUNKBASE_PASSWORD)
 
     existing_releases = sb_client.get_existing_releases(appid)
     if existing_releases:
-        latest_release = max(LooseVersion(r["release_name"]) for r in existing_releases)
+        latest_release = max(parse(r["release_name"]) for r in existing_releases)
         logging.info("Latest released version: %s", latest_release.vstring)
 
-        if LooseVersion(app_version) <= latest_release:
+        if parse(app_version) <= latest_release:
             logging.error(
                 "Candidate version %s must be greater than the latest released version %s",
                 app_version,
