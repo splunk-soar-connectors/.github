@@ -58,7 +58,7 @@ jobs:
             rm -f update_version.py
 
       - name: Build Application
-        uses: splunk-soar-connectors/.github/.github/actions/build-app@mnordby/PAPP-35411
+        uses: splunk-soar-connectors/.github/.github/actions/build-app@main
 
       - name: Upload app tar file as artifact
         uses: actions/upload-artifact@v4
@@ -84,7 +84,7 @@ jobs:
           path: ${{ github.workspace }}/artifacts
 
       - name: Publish
-        uses: splunk-soar-connectors/.github/.github/actions/publish@mnordby/PAPP-35411
+        uses: splunk-soar-connectors/.github/.github/actions/publish@main
         env:
           UPLOAD_PATH: "${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz"
           RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
