@@ -20,7 +20,6 @@ from utils.api.splunkbase import (
     SGT_LICENSE_URL,
     Splunkbase,
 )
-from utils.phantom_constants import RELEASE_QUEUE_REGION, REPO_NAME_TO_APPID_FILEPATH, DIR
 
 NEW_APP_WARNING_MESSAGE = (
     "Successfully uploaded a NEW APP to Splunkbase. "
@@ -32,6 +31,7 @@ RELEASE_QUEUE_URL = os.getenv("RELEASE_QUEUE_URL")
 SOAR_APPS_TOKEN = os.getenv("SOAR_APPS_TOKEN")
 SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
+RELEASE_QUEUE_REGION = 'us-west-2'
 
 
 
@@ -83,23 +83,6 @@ def _send_release_message(repo_name, new_app, release_notes, app_json):
     }
 
     queue.send_message(MessageBody=json.dumps(message))
-
-
-def _validate_repo_name_matches_app_id(repo_name, app_id):
-    with open(REPO_NAME_TO_APPID_FILEPATH) as f:
-        repo_names_to_app_ids = json.load(f)
-
-    if repo_name not in repo_names_to_app_ids:
-        raise ValueError(
-            f"Could not find an app id for {repo_name}. "
-            f"Please add the app id for {repo_name} to "
-            f"{os.path.relpath(REPO_NAME_TO_APPID_FILEPATH, DIR)} before re-running this script."
-        )
-    elif repo_names_to_app_ids[repo_name] != app_id:
-        raise ValueError(
-            f"App id {app_id} found in the app json does not match the record app id for "
-            f"{repo_name}: {repo_names_to_app_ids[repo_name]}"
-        )
 
 
 def main(args):
