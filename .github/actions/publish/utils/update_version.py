@@ -67,11 +67,18 @@ def generate_release_notes(new_version: str) -> None:
 
     # Copy release notes to new version.md
     with open(f"release_notes/{new_version}.md", 'w') as f:
-        f.write(release_notes)
+        f.write(f"** {new_version} **\n")
+        lines = release_notes.split("\n")
+        if len(lines) < 2:
+            print("Release notes not formatted correctly, not adding to official release notes")
+        else:
+            for line in lines[1:]:
+                f.write(line)
 
     # Clear release notes from unreleased.md
     with open("release_notes/unreleased.md", 'w') as f:
         f.truncate(0)
+        f.write("** Unreleased **\n")
 
 def create_cmdline_parser():
     """
