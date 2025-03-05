@@ -152,7 +152,8 @@ def main(args):
     # )
 
     if not apps:
-        sb_client.add_app_editor(sb_appid)
+        #sb_client.add_app_editor(sb_appid)
+        # uncomment this
         logging.warning(NEW_APP_WARNING_MESSAGE)
         return 2
 
