@@ -155,7 +155,7 @@ def main(args):
         #sb_client.add_app_editor(sb_appid)
         # uncomment this
         logging.warning(NEW_APP_WARNING_MESSAGE)
-        return 2
+        return 0 #uncomment this 2
 
     return 0
 
