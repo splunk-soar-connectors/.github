@@ -5,8 +5,12 @@ Creates a run for a specified pipeline in GitLab and polls for its completion
 import argparse
 import json
 import logging
+import sys
+import os
 
 import backoff
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from utils.api.gitlab import GitLabApi
 
