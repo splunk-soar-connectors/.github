@@ -3,7 +3,8 @@ description: "Publishes the app to Splunkbase"
 runs:
   using: "composite"
   steps:
-    - name: Publish App
-      run: |
-        echo "Publishing App"
-      shell: bash
+  - name: Publish App
+    run: |
+      set -e
+      python ${{ github.action_path }}/upload_to_splunkbase.py ${{ github.event.repository.name }}
+    shell: bash

@@ -3,7 +3,7 @@ name: Setup Environment
 runs:
   using: "composite"
   steps:
-    - name: Check out actions repo
+    - name: Check out app repo
       uses: actions/checkout@v4
 
     - name: Set up Python

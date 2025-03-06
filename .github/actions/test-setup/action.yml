@@ -6,7 +6,7 @@ runs:
     - name: Install jq
       shell: bash
       run: sudo apt-get install jq
-    - name: Set enviornment variables
+    - name: Set environment variables
       shell: bash
       run: |
         app_json=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
