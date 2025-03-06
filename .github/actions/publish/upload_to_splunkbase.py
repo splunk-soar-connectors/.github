@@ -35,8 +35,8 @@ RELEASE_QUEUE_REGION = 'us-west-2'
 
 
 
-def parse_args():
-    help_str = " ".join(line.strip() for line in __doc__.splitlines())
+def parse_args() -> argparse.Namespace:
+    help_str = " ".join(line.strip() for line in (__doc__ or "").splitlines())
     parser = argparse.ArgumentParser(description=help_str)
     parser.add_argument("app_repo_name", help="Name of the app's GitHub repo.")
     return parser.parse_args()

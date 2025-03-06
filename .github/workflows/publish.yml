@@ -21,7 +21,6 @@ jobs:
           uses: actions/checkout@v4
           with:
             repository: splunk-soar-connectors/.github
-            ref: mnordby/PAPP-35411 #can remove when merging
             path: dotgithub
 
         - name: Copy necessary files to app repo for semantic release
