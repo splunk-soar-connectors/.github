@@ -7,6 +7,9 @@ import argparse
 import logging
 import git
 from contextlib import contextmanager
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from utils import compile_app
 

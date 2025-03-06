@@ -39,10 +39,10 @@ runs:
           phantom_ip=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
         fi
         export PHANTOM_URL="https://$phantom_ip"
-        python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
+        python ${{ github.action_path }}/../../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
         if [[ "${{ inputs.app_repo }}" == *"aws"* ]]; then
-          python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
-          python ${{ github.action_path }}/../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+          python ${{ github.action_path }}/../../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
+          python ${{ github.action_path }}/../../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
         fi
         cd ../app-tests
         if ! git checkout origin/$APP_TESTS_BRANCH &> /dev/null; then

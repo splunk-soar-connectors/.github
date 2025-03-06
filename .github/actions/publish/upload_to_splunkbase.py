@@ -12,6 +12,8 @@ from packaging.version import parse
 
 import boto3
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 from utils.update_version import find_app_json_name
 from utils.api.splunkbase import (
     APACHE2_LICENSE_STRING,
