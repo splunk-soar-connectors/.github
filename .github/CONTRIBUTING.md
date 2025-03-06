@@ -41,13 +41,11 @@ are looking to contribute to.
 1. Make your changes on your branch.
 1. Thoroughly test your changes. See the [Automated Checks](#automated-checks) section for information about basic automated checks we provide for all apps.
 1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
-1. Open a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```next``` branch of the app repo, giving edit access to the maintainers of the repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md).
+1. Open a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```main``` branch of the app repo, giving edit access to the maintainers of the repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md).
 
 *****Important Notes:**
 
 1. **Please make sure to check the 'Allow edits and access to secrets by maintainers' box during your PR submission so that a Splunk>SOAR developer can aid in the PR process.**
-
-1. **Any pull-request to the ```main``` branch of an app repo will not be accepted**
 
 1. **A Splunk>SOAR developer may wish to create a new branch and ask you to perform your pull-request there for specific types of changes.**
 
@@ -67,8 +65,6 @@ If you've created a brand new App and wish to contribute it, the steps to do so 
 1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
 1. Perform a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```main``` branch of the app repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md).
 
-**Note: Any pull-request to the ```main``` branch of the app repo will not be accepted**
-
 **Note: A Splunk>SOAR developer may wish to create a new branch and ask you to perform your pull-request there for specific types of changes.**
 
 ## Automated Checks
@@ -78,11 +74,48 @@ By default we provide various automated checks you can leverage to test your cha
 - Click the "Checks" tab at the top of the pull request. **OR**
 - Click the "Details" link next to the list of checks that shows up at the bottom of the pull request. If the tests passed, this list will be hidden, so you will first need to click the "Show all checks" link.
 
-Currently, some our automated checks are internal to Splunk and their details cannot be publicly viewed. The details for the following checks *can* be publicly accessed.
- - **Linting** - [Flake8](http://flake8.pycqa.org/en/latest/) and [isort](https://pycqa.github.io/isort/) to ensure common Python coding standards are maintained.
- - **Semgrep** - a [static analysis tool](https://semgrep.dev/) to find potential vulnerabilitilies in app code.
- - **Static Tests** - common test suites that we run for each app repo. The "Details" link of this check will be a Google Drive link to the test results. A comment will also be posted in the PR with the same link by ```phantom-apps-bot```.
-After doing any of the above, the results will be under the "Test pull request" section in the log that shows up. If the overall result was a failure this section will automatically be open and scrolled to the bottom of the report. Otherwise, clicking on "Test pull request" will open up the report.
+All of checks can be viewed and are the following:
+
+(Precommit checks that can be run with a commit locally or with `pre-commit run --all-files`)
+
+- **Commit Message Validation**: Ensures commit messages follow conventional format
+- **Code Quality Checks**:
+  - Linting via Ruff
+  - Code formatting via Ruff
+  - Django template linting and formatting
+  - Markdown formatting
+  - Security scanning (semgrep)
+- **General Checks**:
+  - Merge conflict detection
+  - End-of-file fixing
+  - Trailing whitespace cleanup
+  - Requirements.txt formatting
+  - JSON and YAML validation
+- **Splunk-specific Checks**:
+  - Documentation building
+  - Copyright verification
+  - App dependency packaging
+  - Release notes validation
+  - Static tests
+
+Additionally, our CI/CD pipeline runs these checks on every push:
+
+- **Pre-commit Checks**:
+  - Listed above
+- **Security Scans**:
+  - Semgrep static analysis
+  - Detect-secrets for credential scanning
+  - Additional vulnerability scanning
+- **Test Coverage**: Measures code coverage of tests (this will fail till support can help add tests for new apps and changes)
+- **Compilation**: Verifies app compiles correctly
+- **Build**: Creates app package
+- **Sanity Tests**: Validates app functionality across multiple environments:
+  - Current version
+  - Next version
+  - Previous version
+  - Cloud environment
+  - RHEL environment
+- **Integration Tests**: Runs comprehensive integration test suite
 
 ## Legal Notice
 
@@ -90,8 +123,8 @@ By submitting a Contribution to this Work, You agree that Your Contribution is m
 
 ### Definitions:
 
-“You” shall mean: (i) yourself if you are making a Contribution on your own behalf; or (ii) your company, if you are making a Contribution on behalf of your company. If you are making a Contribution on behalf of your company, you represent that you have the requisite authority to do so.
+"You" shall mean: (i) yourself if you are making a Contribution on your own behalf; or (ii) your company, if you are making a Contribution on behalf of your company. If you are making a Contribution on behalf of your company, you represent that you have the requisite authority to do so.
 
 "Contribution" shall mean any original work of authorship, including any modifications or additions to an existing work, that is intentionally submitted by You for inclusion in, or documentation of, this project/repository. For the purposes of this definition, "submitted" means any form of electronic, verbal, or written communication submitted for inclusion in this project/repository, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the maintainers of the project/repository.
 
-“Work” shall mean the collective software, content, and documentation in this project/repository.
+"Work" shall mean the collective software, content, and documentation in this project/repository.
