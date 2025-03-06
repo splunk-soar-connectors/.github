@@ -11,12 +11,15 @@ import os
 import subprocess
 import tarfile
 from contextlib import contextmanager
-from sys import stdout
+import sys
 
 import boto3
 import botocore
 import botocore.exceptions
 import git
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 from utils import validate_app_id
 from utils.api.github import GitHubApi
 from utils.app_parser import AppParser
@@ -51,7 +54,7 @@ def log(message):
     every time so we actually get output in GitLab
     """
     print("{}{}".format(" " * (len(inspect.stack()) - 1), message))
-    stdout.flush()
+    sys.stdout.flush()
 
 
 class AppBuilder:
