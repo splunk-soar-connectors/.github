@@ -4,7 +4,6 @@ import os
 import json
 import argparse
 import re
-from collections import OrderedDict
 from datetime import datetime, timezone
 
 def find_app_json_name(json_filenames):
@@ -46,7 +45,7 @@ def update_app_version_in_app_json(app_json_name: str, new_version: str):
 
     # Extract existing json
     with open(app_json_name, 'r') as f:
-        json_content = json.loads(f.read(), object_pairs_hook=OrderedDict)
+        json_content = json.loads(f.read())
     
     # Update values
     json_content["app_version"] = new_version

@@ -9,6 +9,7 @@ import os
 import sys
 import tarfile
 from packaging.version import parse
+from typing import Optional
 
 import boto3
 
@@ -44,17 +45,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_release_notes(tarball, version):
+def get_release_notes(tarball: str, version: str) -> Optional[str]:
+    filename = f"release_notes/{version}.md"
     with tarfile.open(tarball, "r") as tar:
-        filename = f"release_notes/{version}.md"
-        names = tar.getnames()
-        notes_for_version = [n for n in names if filename in n]
-        if notes_for_version:
-            return tar.extractfile(notes_for_version[0]).read()
+        for name in tar.getnames():
+            if filename in name:
+                return tar.extractfile(name).read()
     return None
 
 
-def get_app_json(tarball):
+def get_app_json(tarball) -> dict:
     with tarfile.open(tarball, "r") as tar:
         names = tar.getnames()
         app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1]
