@@ -22,7 +22,8 @@ RANDOM_STRING = "/{}/".format(
 
 def compile_app(phantom_version, phantom_client, test_directory):
     logging.info(f"running {phantom_version} test")
-    compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app -c"
+    # Excluding flake8 because it is getting removed from the platform anyway, and we do our own ruff validation
+    compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
     logging.info(compile_command)
 
     _, stdout, stderr = phantom_client.exec_command(compile_command)
