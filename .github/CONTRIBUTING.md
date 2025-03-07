@@ -74,7 +74,7 @@ By default we provide various automated checks you can leverage to test your cha
 - Click the "Checks" tab at the top of the pull request. **OR**
 - Click the "Details" link next to the list of checks that shows up at the bottom of the pull request. If the tests passed, this list will be hidden, so you will first need to click the "Show all checks" link.
 
-All of checks can be viewed and are the following:
+The checks performed are the following:
 
 (Precommit checks that can be run with a commit locally or with `pre-commit run --all-files`)
 
@@ -98,7 +98,7 @@ All of checks can be viewed and are the following:
   - Release notes validation
   - Static tests
 
-Additionally, our CI/CD pipeline runs these checks on every push:
+Additionally, our CI/CD pipeline runs these checks on every push, these can be viewed on the pull request:
 
 - **Pre-commit Checks**:
   - Listed above
@@ -106,7 +106,7 @@ Additionally, our CI/CD pipeline runs these checks on every push:
   - Semgrep static analysis
   - Detect-secrets for credential scanning
   - Additional vulnerability scanning
-- **Test Coverage**: Measures code coverage of tests (this will fail till support can help add tests for new apps and changes)
+- **Test Coverage**: Measures code coverage of tests (this will fail until support can help add tests for new apps and changes)
 - **Compilation**: Verifies app compiles correctly
 - **Build**: Creates app package
 - **Sanity Tests**: Validates app functionality across multiple environments:
