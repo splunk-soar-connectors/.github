@@ -63,14 +63,14 @@ def get_app_json(tarball) -> dict:
     return json.loads(app_json)
 
 
-def get_license_info(app_json):
+def get_license_info(app_json) -> tuple[str, str]:
     if app_json["publisher"] == "Splunk":
         return (SGT_LICENSE_STRING, SGT_LICENSE_URL)
 
     return (APACHE2_LICENSE_STRING, APACHE2_LICENSE_URL)
 
 
-def _send_release_message(repo_name, new_app, release_notes, app_json):
+def _send_release_message(repo_name: str, new_app: bool, release_notes: str, app_json: dict) -> None:
     sqs = boto3.resource("sqs", region_name=RELEASE_QUEUE_REGION)
     queue = sqs.Queue(RELEASE_QUEUE_URL)
 

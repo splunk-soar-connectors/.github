@@ -12,6 +12,7 @@ import subprocess
 import tarfile
 from contextlib import contextmanager
 import sys
+from typing import Iterator
 
 import boto3
 import botocore
@@ -63,7 +64,7 @@ class AppBuilder:
     Only method that should be used from the outside is run()
     """
 
-    def __init__(self, app_repo_name, app_branch, **kwargs):
+    def __init__(self, app_repo_name: str, app_branch: str, **kwargs):
         log("Initializing app builder")
         self._dry_run = bool(kwargs.get("dry_run", False))
         self.app_repo_name = app_repo_name
@@ -120,7 +121,7 @@ class AppBuilder:
                 # Create tgz and rpm
                 log("Creating tgz package")
                 tarfile_path = self._create_tar(
-                    self.app_repo_name, self.commit_sha, app_parser.excludes
+                    self.app_repo_name, app_parser.excludes
                 )
                 log(tarfile_path)
 
@@ -142,7 +143,7 @@ class AppBuilder:
             raise ValueError(f"Branch {self.branch} not found in {self.app_repo_name}")
 
     @contextmanager
-    def _get_app_code(self):
+    def _get_app_code(self) -> Iterator[git.Repo]:
         """
         If necessary, clone the app repo. Either way, make a repo object out of the directory
         """
@@ -173,7 +174,7 @@ class AppBuilder:
                     submodule.update(init=True)
                 yield repo
 
-    def _get_build_config(self):
+    def _get_build_config(self) -> None:
         """
         Gets the app's build config, also checks if it indicates 'deprecated'.
         Stop the build if deprecated
@@ -194,7 +195,7 @@ class AppBuilder:
         # Some apps have files that need to be downloaded during build
         self.download_files = config.get("download_files", [])
 
-    def _validate_app_json(self):
+    def _validate_app_json(self) -> None:
         """
         Validates the app's json by checking if required fields are present and in the correct format
         """
@@ -206,7 +207,7 @@ class AppBuilder:
                     f'App json failed validation on required field "{req_field}" with value "{self.app_json[req_field]}"'
                 )
 
-    def _download_build_files(self):
+    def _download_build_files(self) -> None:
         """
         If the app's build_config specifies any files to download, grab them before building
         """
@@ -228,7 +229,7 @@ class AppBuilder:
                 else:
                     raise
 
-    def _compile_app(self):
+    def _compile_app(self) -> None:
         """
         Compile the app directory
         """
@@ -236,7 +237,7 @@ class AppBuilder:
         log("Compiling app with python")
         run_command(compile_cmd)
 
-    def _create_tar(self, app_repo_name, commit_sha, excludes):
+    def _create_tar(self, app_repo_name: str, excludes) -> str:
         """
         Creates a tar file of the app's source code and returns it
         """
@@ -254,7 +255,7 @@ class AppBuilder:
         return tarfile_path
 
     @staticmethod
-    def _get_tar_excludes(excludes):
+    def _get_tar_excludes(excludes) -> str:
         """
         Generate --excludes options for a tar command
         """
@@ -263,7 +264,7 @@ class AppBuilder:
             return " ".join([f'--exclude="{x}"' for x in excludes | global_excludes_list])
 
     @staticmethod
-    def _validate_tar(tarfile_path):
+    def _validate_tar(tarfile_path: str) -> None:
         """
         Validates if a tar file is legitimate and returns the app name, if not, throw an exception
         """
@@ -295,7 +296,7 @@ def run_command(cmd, console=False, suppress=False):
 
 
 @contextmanager
-def change_current_directory(to_directory):
+def change_current_directory(to_directory) -> Iterator[str]:
     """
     Safer chdir method that takes you back to where you were when it's done
     """

@@ -7,6 +7,7 @@ import json
 import logging
 import sys
 import os
+from typing import Optional
 
 import backoff
 
@@ -15,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 from utils.api.gitlab import GitLabApi
 
 
-def create_arg_parser():
+def create_arg_parser() -> argparse.ArgumentParser:
     help_str = " ".join(line.strip() for line in __doc__.splitlines())
     argparser = argparse.ArgumentParser(description=help_str)
     argparser.add_argument(
@@ -39,7 +40,7 @@ def create_arg_parser():
 
 
 @backoff.on_predicate(backoff.constant, interval=10, max_time=1200, jitter=None)
-def _poll_pipeline_completion(gitlab_client, repo_name, pipeline_id):
+def _poll_pipeline_completion(gitlab_client: GitLabApi, repo_name: str, pipeline_id: int) -> Optional[dict]:
     run_details = gitlab_client.get_pipeline_run(repo_name, pipeline_id)
     status = run_details["status"]
 

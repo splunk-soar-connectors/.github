@@ -6,7 +6,7 @@ import argparse
 import re
 from datetime import datetime, timezone
 
-def find_app_json_name(json_filenames):
+def find_app_json_name(json_filenames: list) -> str:
     """
     Given a list of possible json files and the app repo name, return the name of the file
     that is most likely to be the app repo's main module json
@@ -34,7 +34,7 @@ def find_app_json_name(json_filenames):
     # There's only one json file in the top level, so it must be the app's json
     return filtered_json_filenames[0]
 
-def update_app_version_in_app_json(app_json_name: str, new_version: str):
+def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None:
     # First, determine indent level of app json
     indent = ""
     with open(app_json_name) as f:
@@ -79,7 +79,7 @@ def generate_release_notes(new_version: str) -> None:
         f.truncate(0)
         f.write("** Unreleased **\n")
 
-def create_cmdline_parser():
+def create_cmdline_parser() -> argparse.ArgumentParser:
     """
     Commandline parser for passing in necessary arguments
     """

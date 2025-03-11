@@ -1,10 +1,7 @@
 import logging
-import os
-
+from typing import Optional, Tuple
 import backoff
 import requests
-
-from enum import Enum
 
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -36,7 +33,7 @@ RESPONSE_MESSAGES_TO_RETRY = [
 MAX_MESSAGE_RETRY_TIME = 120
 
 
-def _post_request(auth_tuple, url, data, check_response=True):
+def _post_request(auth_tuple, url, data, check_response=True) -> dict:
     session = requests.Session()
     session.auth = auth_tuple
 
@@ -86,7 +83,7 @@ class Splunkbase:
         self.auth = self._get_basic_auth()
 
 
-    def _get_basic_auth(self):
+    def _get_basic_auth(self) -> Optional[Tuple[str, str]]:
         user = self.splunkbase_user
         password = self.splunkbase_password
         if not user and password:

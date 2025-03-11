@@ -2,7 +2,6 @@ import ast
 import json
 import os
 import re
-from collections import OrderedDict
 from distutils.version import LooseVersion
 
 from utils import clear_memorization, find_app_json_name, memoize
@@ -126,7 +125,7 @@ class AppParser:
     def app_json(self):
         # Gets the loaded json, preserving key order
         with open(self._app_json_filepath) as f:
-            json_content = json.loads(f.read(), object_pairs_hook=OrderedDict)
+            json_content = json.loads(f.read())
         return json_content
 
     @property
@@ -212,6 +211,6 @@ class AppParser:
         if isinstance(node, ast.Attribute):
             return node.attr
 
-    def refresh_app_json(self, local_repo_location):
+    def refresh_app_json(self) -> None:
         clear_memorization(self.app_json_name)
         clear_memorization(self.app_json)
