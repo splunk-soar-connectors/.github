@@ -17,9 +17,9 @@
   # Set the original repo as the upstream
   $ git remote add upstream git@github.com:splunk-soar-connectors/app-repo.git
 
-  # Sync with the latest changes on the upstream's next branch
-  $ git checkout next
-  $ git pull upstream next
+  # Sync with the latest changes on the upstream's main branch
+  $ git checkout main
+  $ git pull upstream main
   ```
 
 ## Step 3: Make your changes
@@ -28,7 +28,7 @@
 1. Perform the following commands to start working on your issue:
 
   ```
-  # Create a working branch off of the next branch
+  # Create a working branch off of the main branch
   $ git checkout -b your-branch
 
   # Once you are finished with your changes/additions
@@ -39,7 +39,7 @@
 
 ## Step 4: Finally, create a Pull Request on GitHub
 
- 1. The final step is to create a pull request from `your-username/app-repo-fork:your-branch` into `splunk-soar-connectors/app-repo:next` for the Splunk>SOAR Engineering team to review your code changes and provide feedback
+ 1. The final step is to create a pull request from `your-username/app-repo-fork:your-branch` into `splunk-soar-connectors/app-repo:main` for the Splunk>SOAR Engineering team to review your code changes and provide feedback
  1. In order for the Splunk>SOAR team to properly aid you in the PR process, please make sure to check the 'Allow edits and access to secrets by maintainers' box which is shown in the image below.
  1. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md).
 

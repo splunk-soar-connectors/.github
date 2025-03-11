@@ -11,7 +11,7 @@ Please ensure your pull request (PR) adheres to the following guidelines:
 - [ ] Use the following format for the PR description: `<App Name>: <PR Type> - <PR Description>`
 - [ ] Provide release notes as part of the PR submission which describe high level points about the changes for the upcoming GA release.
 - [ ] Verify all checks are passing.
-- [ ] Do NOT use the `next` branch of the forked repo. Create separate feature branch for raising the PR.
+- [ ] Do NOT use the `main` branch of the forked repo. Create separate feature branch for raising the PR.
 - [ ] Do NOT submit updates to dependencies unless it fixes an issue.
 ## Pull Request Type
 
