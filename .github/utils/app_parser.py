@@ -205,7 +205,7 @@ class AppParser:
         return [node for node in ast.walk(funcdef) if isinstance(node, ast.Call)]
 
     def get_id_attr(self, node):
-        # Name = node.id in 'name'; Name = node.attr in 'class.name'
+        # Name = node.id in 'name' Name = node.attr in 'class.name'
         if isinstance(node, ast.Name):
             return node.id
         if isinstance(node, ast.Attribute):

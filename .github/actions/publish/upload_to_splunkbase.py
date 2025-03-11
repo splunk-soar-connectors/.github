@@ -6,10 +6,11 @@ import argparse
 import json
 import logging
 import os
+from pathlib import Path
 import sys
 import tarfile
 from packaging.version import parse
-from typing import Optional
+from typing import Any, Optional, Union
 
 import boto3
 

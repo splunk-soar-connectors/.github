@@ -8,11 +8,12 @@ import argparse
 import inspect
 import json
 import os
+from pathlib import Path
 import subprocess
 import tarfile
 from contextlib import contextmanager
 import sys
-from typing import Iterator
+from typing import Iterator, Union
 
 import boto3
 import botocore

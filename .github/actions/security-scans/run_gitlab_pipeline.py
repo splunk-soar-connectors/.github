@@ -5,8 +5,8 @@ Creates a run for a specified pipeline in GitLab and polls for its completion
 import argparse
 import json
 import logging
+from pathlib import Path
 import sys
-import os
 from typing import Optional
 
 import backoff

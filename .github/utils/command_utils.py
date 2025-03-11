@@ -2,7 +2,7 @@ import os
 import subprocess
 
 
-def get_command_output(command, shell=False, quiet_stderr=False):
+def get_command_output(command: str, shell: bool=False, quiet_stderr: bool=False) -> str:
     try:
         if quiet_stderr:
             with open(os.devnull, "w") as f:
@@ -14,6 +14,6 @@ def get_command_output(command, shell=False, quiet_stderr=False):
         raise
 
 
-def get_command_result(command, shell=False):
+def get_command_result(command: str, shell=False) -> int:
     with open(os.devnull, "w") as f:
         return subprocess.call(command, shell=shell, stdout=f, stderr=f)  # want command quiet
