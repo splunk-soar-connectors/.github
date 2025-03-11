@@ -19,7 +19,9 @@ import botocore
 import botocore.exceptions
 import git
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Add utils to the import path
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
+sys.path.append(str(REPO_ROOT))
 
 from utils import validate_app_id
 from utils.api.github import GitHubApi
@@ -64,7 +66,7 @@ class AppBuilder:
     Only method that should be used from the outside is run()
     """
 
-    def __init__(self, app_repo_name: str, app_branch: str, **kwargs):
+    def __init__(self, app_repo_name: str, app_branch: str, **kwargs) -> None:
         log("Initializing app builder")
         self._dry_run = bool(kwargs.get("dry_run", False))
         self.app_repo_name = app_repo_name
@@ -237,7 +239,7 @@ class AppBuilder:
         log("Compiling app with python")
         run_command(compile_cmd)
 
-    def _create_tar(self, app_repo_name: str, excludes) -> str:
+    def _create_tar(self, app_repo_name: str, excludes: set[str]) -> str:
         """
         Creates a tar file of the app's source code and returns it
         """
@@ -255,7 +257,7 @@ class AppBuilder:
         return tarfile_path
 
     @staticmethod
-    def _get_tar_excludes(excludes) -> str:
+    def _get_tar_excludes(excludes: set[str]) -> str:
         """
         Generate --excludes options for a tar command
         """
@@ -296,7 +298,7 @@ def run_command(cmd, console=False, suppress=False):
 
 
 @contextmanager
-def change_current_directory(to_directory) -> Iterator[str]:
+def change_current_directory(to_directory: Union[Path, str]) -> Iterator[str]:
     """
     Safer chdir method that takes you back to where you were when it's done
     """

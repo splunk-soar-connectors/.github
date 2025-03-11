@@ -11,7 +11,9 @@ from typing import Optional
 
 import backoff
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Add utils to the import path
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
+sys.path.append(str(REPO_ROOT))
 
 from utils.api.gitlab import GitLabApi
 

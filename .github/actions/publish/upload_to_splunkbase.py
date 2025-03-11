@@ -13,7 +13,9 @@ from typing import Optional
 
 import boto3
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Add utils to the import path
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
+sys.path.append(str(REPO_ROOT))
 
 from utils.update_version import find_app_json_name
 from utils.api.splunkbase import (
@@ -54,7 +56,7 @@ def get_release_notes(tarball: str, version: str) -> Optional[str]:
     return None
 
 
-def get_app_json(tarball) -> dict:
+def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
     with tarfile.open(tarball, "r") as tar:
         names = tar.getnames()
         app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1]
@@ -63,14 +65,14 @@ def get_app_json(tarball) -> dict:
     return json.loads(app_json)
 
 
-def get_license_info(app_json) -> tuple[str, str]:
+def get_license_info(app_json: dict[str, Any]) -> tuple[str, str]:
     if app_json["publisher"] == "Splunk":
         return (SGT_LICENSE_STRING, SGT_LICENSE_URL)
 
     return (APACHE2_LICENSE_STRING, APACHE2_LICENSE_URL)
 
 
-def _send_release_message(repo_name: str, new_app: bool, release_notes: str, app_json: dict) -> None:
+def _send_release_message(repo_name: str, new_app: bool, release_notes: str, app_json: dict[str, Any]) -> None:
     sqs = boto3.resource("sqs", region_name=RELEASE_QUEUE_REGION)
     queue = sqs.Queue(RELEASE_QUEUE_URL)
 

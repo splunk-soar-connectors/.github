@@ -6,7 +6,7 @@ import argparse
 import re
 from datetime import datetime, timezone
 
-def find_app_json_name(json_filenames: list) -> str:
+def find_app_json_name(json_filenames: list[str]) -> str:
     """
     Given a list of possible json files and the app repo name, return the name of the file
     that is most likely to be the app repo's main module json

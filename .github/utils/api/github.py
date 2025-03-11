@@ -64,7 +64,7 @@ class GitHubApi:
             shutil.rmtree(dir_path)
         os.makedirs(dir_path)
 
-    def _clone(self, repo_name: str, local_repo_dir: str, branch=GITHUB_APP_REPO_BRANCH) -> Iterator[git.Repo]:
+    def _clone(self, repo_name: str, local_repo_dir: str, branch: str = GITHUB_APP_REPO_BRANCH) -> Iterator[git.Repo]:
         if self._token:
             clone_url = "{}/{}".format(
                 f"https://{self._token}@github.com/{self._github_repo_owner}", repo_name
@@ -86,7 +86,7 @@ class GitHubApi:
         return local_repo_dir
 
     @contextmanager
-    def clone_and_manage(self, repo_name: str, local_repo_dir: str, branch=GITHUB_APP_REPO_BRANCH) -> Iterator[git.Repo]:
+    def clone_and_manage(self, repo_name: str, local_repo_dir: str, branch: str = GITHUB_APP_REPO_BRANCH) -> Iterator[git.Repo]:
         """
         This is method calls the _clone method with required parameters depending the mode of the testing.
         It yields the repo directory to wrapper function.
@@ -99,7 +99,7 @@ class GitHubApi:
 
     @contextmanager
     def clone_and_manage_app_repo(
-        self, repo_name: str, local_repo_dir="/tmp", branch=GITHUB_APP_REPO_BRANCH
+        self, repo_name: str, local_repo_dir: str = "/tmp", branch: str = GITHUB_APP_REPO_BRANCH
     ) -> Iterator[git.Repo]:
         """
         This is a wrapper function to call the clone_and_manage method with required parameters depending the mode of the testing.

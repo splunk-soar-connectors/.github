@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 import backoff
 import requests
 
@@ -33,7 +33,7 @@ RESPONSE_MESSAGES_TO_RETRY = [
 MAX_MESSAGE_RETRY_TIME = 120
 
 
-def _post_request(auth_tuple, url, data, check_response=True) -> dict:
+def _post_request(auth_tuple: tuple[str, str], url: str, data: Union[str, bytes, bool, list, dict], check_response: bool = True) -> Union[list, dict, str, bool]:
     session = requests.Session()
     session.auth = auth_tuple
 
@@ -83,7 +83,7 @@ class Splunkbase:
         self.auth = self._get_basic_auth()
 
 
-    def _get_basic_auth(self) -> Optional[Tuple[str, str]]:
+    def _get_basic_auth(self) -> Optional[tuple[str, str]]:
         user = self.splunkbase_user
         password = self.splunkbase_password
         if not user and password:
