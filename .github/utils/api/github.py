@@ -2,9 +2,7 @@ import os
 import shutil
 from contextlib import contextmanager
 from enum import Enum
-from typing import Iterator
-
-import git.refs
+from typing import Iterator 
 
 import git
 from utils.api import ApiSession
