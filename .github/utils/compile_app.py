@@ -1,10 +1,12 @@
 import os
+from pathlib import Path
 import re
 import socket
 import string
 import random
 import logging
 from contextlib import contextmanager
+from typing import Iterator, Union
 
 import backoff
 import paramiko
@@ -20,7 +22,7 @@ RANDOM_STRING = "/{}/".format(
 )
 
 
-def compile_app(phantom_version, phantom_client, test_directory):
+def compile_app(phantom_version: str, phantom_client: paramiko.SSHClient, test_directory: Path) -> dict[str, Union[bool, str]]:
     logging.info(f"running {phantom_version} test")
     # Excluding flake8 because it is getting removed from the platform anyway, and we do our own ruff validation
     compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
@@ -50,14 +52,14 @@ def compile_app(phantom_version, phantom_client, test_directory):
     return response
 
 
-def make_folder(phantom_version, phantom_client, app_name, test_directory):
+def make_folder(phantom_version: str, phantom_client: paramiko.SSHClient, app_name: str, test_directory: Path) -> None:
     commands = f"mkdir -p {test_directory}; cd {test_directory}"
     logging.info(commands)
     logging.info(f"Creating folder for {app_name} on phantom {phantom_version}")
     phantom_client.exec_command(commands)
 
 
-def delete_folder(phantom_client, test_directory):
+def delete_folder(phantom_client: paramiko.SSHClient, test_directory: Path) -> None:
     commands = f"rm -rf {test_directory}"
     logging.info("Deleting folder %s", test_directory)
     logging.info(commands)
@@ -66,7 +68,7 @@ def delete_folder(phantom_client, test_directory):
 
 
 @contextmanager
-def upload_app_files(phantom_version, phantom_client, local_app_path, app_name):
+def upload_app_files(phantom_version: str, phantom_client: paramiko.SSHClient, local_app_path: Path, app_name: str) -> Iterator[Path]:
     remote_path = TEST_APP_DIRECTORY_TEMPLATE.format(app_name=app_name + RANDOM_STRING)
     make_folder(phantom_version, phantom_client, app_name, remote_path)
 
@@ -80,7 +82,8 @@ def upload_app_files(phantom_version, phantom_client, local_app_path, app_name):
 
 
 @backoff.on_exception(backoff.expo, socket.error, max_tries=3)
-def run_compile(app_name, local_app_path, current_phantom_ip, previous_phantom_ip, phantom_username, phantom_password):
+def run_compile(app_name: str, local_app_path: Path, current_phantom_ip: str, 
+                previous_phantom_ip: str, phantom_username: str, phantom_password: str) -> dict[str, dict[str, Union[bool, str]]]:
     results = {}
     hosts = {
     "current_phantom_version": current_phantom_ip,

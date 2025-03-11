@@ -7,7 +7,18 @@ runs:
       run: pip install -r ${{ github.action_path }}/requirements.txt
       shell: bash
 
+      # The value of github.head_ref varies depending on the event that triggered the workflow
+      # so we need to check the event_name to determine the correct branch name
+    - name: Set Branch Name
+      run: |
+        if [ "${{ github.event_name }}" == "push" ]; then
+          echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV
+        else
+          echo "BRANCH_NAME=${{ github.head_ref }}" >> $GITHUB_ENV
+        fi
+      shell: bash
+
     - name: Build App
       run: |
-        python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} ${{ github.ref_name }} --output-dir=$(pwd)
+        python ${{ github.action_path }}/build_app.py ${{ github.event.repository.name }} $BRANCH_NAME --output-dir=$(pwd)
       shell: bash

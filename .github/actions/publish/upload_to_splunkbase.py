@@ -6,11 +6,17 @@ import argparse
 import json
 import logging
 import os
+from pathlib import Path
 import sys
 import tarfile
 from packaging.version import parse
+from typing import Any, Optional, Union
 
 import boto3
+
+# Add utils to the import path
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
+sys.path.append(str(REPO_ROOT))
 
 from utils.update_version import find_app_json_name
 from utils.api.splunkbase import (
@@ -42,17 +48,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_release_notes(tarball, version):
+def get_release_notes(tarball: str, version: str) -> Optional[str]:
+    filename = f"release_notes/{version}.md"
     with tarfile.open(tarball, "r") as tar:
-        filename = f"release_notes/{version}.md"
-        names = tar.getnames()
-        notes_for_version = [n for n in names if filename in n]
-        if notes_for_version:
-            return tar.extractfile(notes_for_version[0]).read()
+        for name in tar.getnames():
+            if filename in name:
+                return tar.extractfile(name).read()
     return None
 
 
-def get_app_json(tarball):
+def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
     with tarfile.open(tarball, "r") as tar:
         names = tar.getnames()
         app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1]
@@ -61,14 +66,14 @@ def get_app_json(tarball):
     return json.loads(app_json)
 
 
-def get_license_info(app_json):
+def get_license_info(app_json: dict[str, Any]) -> tuple[str, str]:
     if app_json["publisher"] == "Splunk":
         return (SGT_LICENSE_STRING, SGT_LICENSE_URL)
 
     return (APACHE2_LICENSE_STRING, APACHE2_LICENSE_URL)
 
 
-def _send_release_message(repo_name, new_app, release_notes, app_json):
+def _send_release_message(repo_name: str, new_app: bool, release_notes: str, app_json: dict[str, Any]) -> None:
     sqs = boto3.resource("sqs", region_name=RELEASE_QUEUE_REGION)
     queue = sqs.Queue(RELEASE_QUEUE_URL)
 

@@ -5,8 +5,15 @@ Compile Apps
 import os
 import argparse
 import logging
+from pathlib import Path
+from typing import Iterator
 import git
 from contextlib import contextmanager
+import sys
+
+# Add utils to the import path
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
+sys.path.append(str(REPO_ROOT))
 
 from utils import compile_app
 
@@ -14,7 +21,7 @@ LOCAL_REPO_DIRECTORY = os.getenv("GITHUB_WORKSPACE", ".")
 PHANTOM_PASSWORD = os.getenv("PHANTOM_PASSWORD", ".")
 
 @contextmanager
-def get_app_code(local_code_dir):
+def get_app_code(local_code_dir: str) -> Iterator[git.Repo]:
     local_repo = git.Repo(local_code_dir)
     for submodule in local_repo.submodules:
         try:

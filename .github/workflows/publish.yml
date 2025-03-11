@@ -26,12 +26,13 @@ jobs:
         - name: Copy necessary files to app repo for semantic release
           run: |
             cp dotgithub/.releaserc.json $(pwd)/.releaserc.json
-            cp dotgithub/.github/actions/publish/utils/update_version.py $(pwd)/update_version.py
+            cp dotgithub/.github/utils/update_version.py $(pwd)/update_version.py
 
         - name: Set up Node.js
           uses: actions/setup-node@v4
           with:
             node-version: "lts/*"
+            cache: "npm"
 
         - name: Install dependencies
           run: |
@@ -44,17 +45,17 @@ jobs:
           run: |
             npx semantic-release -e $(pwd)/.releaserc.json
 
+        - name: Clean up
+          run: |
+              rm -rf dotgithub         
+              rm -f update_version.py
+
   build:
     runs-on: ubuntu-latest
     needs: semantic-version
     steps:
       - name: Setup Environment
         uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
-
-      - name: Clean up
-        run: |
-            rm -rf dotgithub         
-            rm -f update_version.py
 
       - name: Build Application
         uses: splunk-soar-connectors/.github/.github/actions/build-app@main

@@ -1,8 +1,6 @@
 import os
 
 DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
-
-__curr_dir = os.getcwd()
 os.chdir(DIR)
 
 GITHUB_API_KEY = os.environ.get("SOAR_APPS_GITHUB_KEY")

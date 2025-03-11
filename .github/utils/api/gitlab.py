@@ -73,7 +73,7 @@ class GitLabApi:
         group_id = self.grp_ids[group_name.lower()]
         yield from self._iter_data(f"/groups/{group_id}/projects", params={"per_page": 50})
 
-    def create_pipeline_run(self, repo_name, git_ref, **pipeline_vars):
+    def create_pipeline_run(self, repo_name: str, git_ref: str, **pipeline_vars) -> dict:
         """
         Creates a pipeline run for the given repo/branch using the given
         variables
@@ -84,7 +84,7 @@ class GitLabApi:
             f"/projects/{repo_id}/pipeline?ref={git_ref}", json=req_body
         ).json()
 
-    def get_pipeline_run(self, repo_name, pipeline_id):
+    def get_pipeline_run(self, repo_name: str, pipeline_id: int) -> dict:
         """
         Fetches details for a given pipeline run
         """
