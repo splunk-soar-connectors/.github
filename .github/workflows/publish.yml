@@ -66,27 +66,39 @@ jobs:
           name: app-tar
           path: ${{ github.event.repository.name }}.tgz
 
-  publish:
-    runs-on:
-      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: build
-    permissions:
-      contents: write
+  #publish:
+  #  runs-on:
+  #    - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+  #    - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+  #  needs: build
+  #  permissions:
+  #    contents: write
+  #  steps:
+  #    - name: Check out app repo
+  #      uses: actions/checkout@v4
+
+  #    - name: Download app tar file for upload
+  #      uses: actions/download-artifact@v4
+  #      with:
+  #        name: app-tar
+  #        path: ${{ github.workspace }}/artifacts
+
+  #    - name: Publish
+  #      uses: splunk-soar-connectors/.github/.github/actions/publish@main
+  #      env:
+  #        UPLOAD_PATH: "${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz"
+  #        RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
+  #        SPLUNKBASE_USER: ${{ secrets.splunkbase_user }}
+  #        SPLUNKBASE_PASSWORD: ${{ secrets.splunkbase_password }}
+  
+  metrics:
+    runs-on: ubuntu-latest
+    needs: publish
     steps:
-      - name: Check out app repo
-        uses: actions/checkout@v4
+      - name: Setup Environment
+        uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
 
-      - name: Download app tar file for upload
-        uses: actions/download-artifact@v4
+      - name: Run metrics
+        uses: splunk-soar-connectors/.github/.github/actions/metrics@'tapishj/PAPP-35446
         with:
-          name: app-tar
-          path: ${{ github.workspace }}/artifacts
-
-      - name: Publish
-        uses: splunk-soar-connectors/.github/.github/actions/publish@main
-        env:
-          UPLOAD_PATH: "${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz"
-          RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
-          SPLUNKBASE_USER: ${{ secrets.splunkbase_user }}
-          SPLUNKBASE_PASSWORD: ${{ secrets.splunkbase_password }}
+          return_code: ${{ needs.publish.outputs.return_code }}

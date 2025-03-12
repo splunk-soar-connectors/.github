@@ -1,0 +1,11 @@
+name: 'Send app related metrics to Skynet'
+description: 'Send new action names and apps to Skynt'
+runs:
+  using: 'composite'
+  steps:
+    - name: Send metrics
+      shell: bash
+      run: |
+        app_json=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
+        set -e
+        python ${{ github.action_path }}/send_metrics.py $app_json

@@ -7,4 +7,5 @@ runs:
     run: |
       set -e
       python ${{ github.action_path }}/upload_to_splunkbase.py ${{ github.event.repository.name }}
+      echo "::set-output name=return_code::$?"
     shell: bash
