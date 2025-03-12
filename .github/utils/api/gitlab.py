@@ -79,7 +79,7 @@ class GitLabApi:
         variables
         """
         repo_id = self.proj_ids[repo_name.lower()]
-        req_body = {"variables": [{"key": k, "value": v} for k, v in pipeline_vars.items()]}
+        req_body = {"ref": git_ref, "variables": [{"key": k, "value": v} for k, v in pipeline_vars.items()]}
         return self.session.post(
             f"/projects/{repo_id}/pipeline?ref={git_ref}", json=req_body
         ).json()

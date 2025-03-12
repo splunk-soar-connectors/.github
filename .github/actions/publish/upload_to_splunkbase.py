@@ -91,6 +91,7 @@ def _send_release_message(repo_name: str, new_app: bool, release_notes: str, app
 
 
 def main(args):
+    return 2
     app_repo_name = args.app_repo_name 
 
     tarball = os.getenv("UPLOAD_PATH")

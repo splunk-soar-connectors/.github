@@ -52,7 +52,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: semantic-version
+    needs: []
     steps:
       - name: Setup Environment
         uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
@@ -71,6 +71,8 @@ jobs:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: build
+    outputs:
+      return_code: ${{ steps.set-outputs.outputs.return_code }}
     permissions:
       contents: write
     steps:
@@ -84,9 +86,39 @@ jobs:
           path: ${{ github.workspace }}/artifacts
 
       - name: Publish
-        uses: splunk-soar-connectors/.github/.github/actions/publish@main
+        uses: splunk-soar-connectors/.github/.github/actions/publish@tapishj/PAPP-35446
         env:
           UPLOAD_PATH: "${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz"
           RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
           SPLUNKBASE_USER: ${{ secrets.splunkbase_user }}
           SPLUNKBASE_PASSWORD: ${{ secrets.splunkbase_password }}
+      
+      - name: Set outputs
+        if: always()
+        id: set-outputs
+        run: |
+          echo ${{ env.return_code }}
+          echo "return_code=${{ env.return_code }}" >> $GITHUB_OUTPUT
+  
+  metrics:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: publish
+    if: always()
+    steps:
+    - name: Check out app repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+    - name: Run metrics
+      uses: splunk-soar-connectors/.github/.github/actions/metrics@tapishj/PAPP-35446
+      with:
+        publish_return_code: ${{ needs.publish.outputs.return_code }}
