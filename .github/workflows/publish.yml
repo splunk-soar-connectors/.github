@@ -26,6 +26,7 @@ jobs:
         - name: Copy necessary files to app repo for semantic release
           run: |
             cp dotgithub/.releaserc.json $(pwd)/.releaserc.json
+            cat .releaserc.json
             cp dotgithub/.github/utils/update_version.py $(pwd)/update_version.py
 
         - name: Set up Node.js
