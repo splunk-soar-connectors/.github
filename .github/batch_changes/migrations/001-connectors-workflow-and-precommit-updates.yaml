@@ -21,6 +21,20 @@ steps:
       curl -LsSfo .github/workflows/call-push.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-push-template.yml
       curl -LsSfo .github/workflows/call-publish.yml https://raw.githubusercontent.com/${REPO}/${BRANCH}/templates/call-publish-template.yml
 
+  # Step 2: Release notes
+  - container: alpine:3
+    run: |
+      rm -rf release_notes/*
+      
+      mkdir -p release_notes
+      
+      # Create unreleased.md with required content (will pass pre-commit)
+      cat > release_notes/unreleased.md << 'EOF'
+      **Unreleased**
+
+      * chore: batch changes
+      EOF
+  
   # Step 2: Add new pre-commit configurations and apply changes
   - container: quay.io/pypa/manylinux_2_28_x86_64 # Needed for package app dependencies (and other script entries too)
     env:
