@@ -49,8 +49,8 @@ jobs:
           # We need to clear unreleased release notes in this case
         - name: Clear unreleased notes
           run: |
-              echo "**Unreleased**" > release_notes/unreleased.md
-              
+              echo "**Unreleased**" > $(pwd)/release_notes/unreleased.md
+
         - name: Clean up
           run: |
               rm -rf dotgithub         
