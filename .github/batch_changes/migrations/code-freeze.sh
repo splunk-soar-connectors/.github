@@ -24,15 +24,18 @@ freeze_branch() {
     -H "Accept: application/vnd.github.v3+json" \
     "https://api.github.com/repos/$REPO/branches/$branch/protection" \
     -d '{
-      "required_status_checks": {"strict": true, "contexts": ["freeze-check"]},
+      "required_status_checks": null,
       "enforce_admins": true,
       "required_pull_request_reviews": {
         "dismiss_stale_reviews": true,
         "require_code_owner_reviews": true,
-        "required_approving_review_count": 6
+        "required_approving_review_count": 6,
+        "bypass_pull_request_allowances": {
+          "users": ["grokas-splunk", "mnordby-splunk", "tapishj-splunk", "phantom-jacob"]
+        }
       },
       "restrictions": {
-        "users": [],
+        "users": ["grokas-splunk", "mnordby-splunk", "tapishj-splunk", "phantom-jacob"],
         "teams": []
       }
     }'

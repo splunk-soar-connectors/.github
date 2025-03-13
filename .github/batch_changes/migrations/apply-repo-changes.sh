@@ -11,6 +11,7 @@ fi
 ACTION="thaw"
 REGEX_PATTERN="^(?!.*(\.github|frictionless_connectors_test)$).*$" # Exclude .github and frictionless_connectors_test
 PAGE_COUNT=17  # Each page has 30 repos (needed for 500 repos)
+START_INDEX=0  # Default starting index (0-based)
 
 # Parse command args
 while [[ $# -gt 0 ]]; do
@@ -23,9 +24,13 @@ while [[ $# -gt 0 ]]; do
       REGEX_PATTERN="$2"
       shift 2
       ;;
+    --start)
+      START_INDEX="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--action freeze|thaw|migrate-next-to-main] [--regex PATTERN]"
+      echo "Usage: $0 [--action freeze|thaw|migrate-next-to-main] [--regex PATTERN] [--start INDEX]"
       exit 1
       ;;
   esac
@@ -89,13 +94,13 @@ if [[ $TOTAL_REPOS -eq 0 ]]; then
 fi
 
 echo "Processing repositories..."
-for ((i=0; i<TOTAL_REPOS; i++)); do
+for ((i=START_INDEX; i<TOTAL_REPOS; i++)); do
   REPO="${REPOS[$i]}"
   echo "[$((i+1))/$TOTAL_REPOS] Processing: $REPO"
   
   bash "$SCRIPT_PATH" "$REPO"
   
-  sleep 1
+  sleep 2
 done
 
 echo "✅ Completed processing $TOTAL_REPOS repositories" 
