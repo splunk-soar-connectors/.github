@@ -1,5 +1,5 @@
 {
-    "branches": ["main"],
+    "branches": ["main", "mnordby/newtest"],
     "plugins": [
         "@semantic-release/commit-analyzer",
         "@semantic-release/release-notes-generator",
