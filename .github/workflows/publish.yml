@@ -26,6 +26,8 @@ jobs:
         - name: Copy necessary files to app repo for semantic release
           run: |
             cp dotgithub/.releaserc.json $(pwd)/.releaserc.json
+            sudo apt-get install jq
+            jq '.branches = ["main", "mnordby/newtest"]' .releaserc.json > temp.json && mv temp.json .releaserc.json
             cat .releaserc.json
             cp dotgithub/.github/utils/update_version.py $(pwd)/update_version.py
 
