@@ -95,11 +95,11 @@ def create_cmdline_parser() -> argparse.ArgumentParser:
 
 def main(**kwargs):
 
-    if not kwargs.get("new_version") or not re.match(r'^\d+\.\d+\.\d+$', kwargs.get("new_version")):
-        print(f'New version provided by semantic-release is not formatted correctly: {kwargs.get("new_version")}')
+    new_version = kwargs.get("new_version")
+    if not new_version or not re.match(r'^\d+\.\d+\.\d+$', new_version):
+        print(f'New version provided by semantic-release is not formatted correctly: {new_version}')
         exit(1)
 
-    new_version = kwargs.get("new_version")
 
     app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith('.json')])
     print(f"Found one top-level json file: {app_json_name}")
