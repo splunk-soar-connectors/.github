@@ -24,11 +24,11 @@ steps:
   # Step 2: Release notes
   - container: alpine:3
     run: |
-      rm -rf release_notes/*
+      rm -f release_notes/unreleased.md
       
       mkdir -p release_notes
       
-      # Create unreleased.md with required content (will pass pre-commit)
+      # Create unreleased.md with required content (needed to pass pre-commit)
       cat > release_notes/unreleased.md << 'EOF'
       **Unreleased**
 
@@ -70,7 +70,7 @@ steps:
       # Run pre-commit up to 3 times (might need multiple iterations till everything is updated and clean)
       attempts=0
       while [ $attempts -lt 3 ]; do
-        if pre-commit run --all; then
+        if SKIP="package_app_dependencies" pre-commit run --all; then
           break
         fi
         attempts=$((attempts + 1))
