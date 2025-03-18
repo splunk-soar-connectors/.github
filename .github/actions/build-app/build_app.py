@@ -99,7 +99,6 @@ class AppBuilder:
             7. Posts them to appropriate location in AWS S3, based on git branch
         """
         log("Running app builder")
-        self._validate_self()
 
         # Get a repo object to work on
         with self._get_app_code() as app_repo:
@@ -127,23 +126,6 @@ class AppBuilder:
                     self.app_repo_name, app_parser.excludes
                 )
                 log(tarfile_path)
-
-    def _validate_self(self):
-        """
-        Make sure the arguments we were given are valid before trying to build anything
-        """
-        # Checks to see if the app repo exists in Phantom Apps
-        for repo in self.git_api.iter_repos():
-            if repo["name"] == self.app_repo_name:
-                break
-        else:
-            raise ValueError(f"Repo {self.app_repo_name} not found in app repo")
-        # Check to see if branch exists in the app repo's branch listing
-        for branch in self.git_api.iter_branches(self.app_repo_name):
-            if branch["name"] == self.branch:
-                break
-        else:
-            raise ValueError(f"Branch {self.branch} not found in {self.app_repo_name}")
 
     @contextmanager
     def _get_app_code(self) -> Iterator[git.Repo]:
