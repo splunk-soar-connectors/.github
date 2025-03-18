@@ -48,7 +48,7 @@ runs:
         fi
         if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
           pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [[ ${{ inputs.publisher }} == "Splunk" ]]; then
+        elif [[ "${{ inputs.publisher }}" == "Splunk" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
