@@ -17,7 +17,7 @@ runs:
     - name: Setup app in SOAR instance
       shell: bash
       run: |
-        if [[ ${{ inputs.fips_compliant }} == "true" ]]; then
+        if [[ "${{ inputs.fips_compliant }}" == "true" ]]; then
           echo "Detected FIPS Compliant Connector"
           export PHANTOM_INSTANCE_IP=$PHANTOM_INSTANCE_IP_FIPS
         fi
@@ -46,9 +46,9 @@ runs:
           echo "Failed to authenticate with Vault!"
           exit 1
         fi
-        if [ -d suite/apps/"${{ inputs.app_repo }}" ]; then
+        if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
           pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [ ${{ inputs.publisher }} == "Splunk" ]; then
+        elif [[ "${{ inputs.publisher }}" == "Splunk" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
