@@ -102,6 +102,14 @@ def get_actions_being_tested(apps_test_path: Path) -> set:
     return actions_tested
 
 
+def load_necessary_test_modules(apps_test_path: Path) -> None:
+    modules_to_load = [(apps_test_path / "utils", "utils"), (apps_test_path / "constants/qa.py", "qa"), (apps_test_path / "constants/phantom.py", "phantom"), (apps_test_path / "modules/common", "common"), (apps_test_path / "modules/phantom", "phantom"), (apps_test_path / "modules/ui", "ui")]
+    for module_file, module_name in modules_to_load:
+        spec = importlib.util.spec_from_file_location(module_name, module_file)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+
+
 def actions_in_app(app_repo_path: Path) -> set:
     app_json_name = find_app_json(app_repo_path)
     app_json_path = app_repo_path / app_json_name
@@ -115,6 +123,7 @@ def actions_in_app(app_repo_path: Path) -> set:
 
 def determine_coverage(app_name: str, directory: str) -> None:
     apps_test_path = Path(directory) / "app-tests/suite/apps" / app_name
+    load_necessary_test_modules(Path(directory) / "app-tests")
     actions_tested = get_actions_being_tested(apps_test_path)
     app_repo_path = Path(directory) / app_name
     app_actions = actions_in_app(app_repo_path)
