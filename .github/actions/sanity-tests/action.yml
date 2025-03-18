@@ -35,7 +35,7 @@ runs:
       shell: bash
       run: |
         phantom_ip=${{ inputs.phantom_ip }}
-        if [[ ${{ inputs.fips_compliant }} == "true" && "${{ inputs.version }}" == "current" ]]; then
+        if [[ "${{ inputs.fips_compliant }}" == "true" && "${{ inputs.version }}" == "current" ]]; then
           phantom_ip=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
         fi
         export PHANTOM_URL="https://$phantom_ip"
@@ -49,7 +49,7 @@ runs:
           echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to main."
           git checkout main
         fi
-        if [[ ${{ inputs.version }} == "cloud" ]]; then
+        if [[ "${{ inputs.version }}" == "cloud" ]]; then
           export AUTOMATION_BROKER="$AUTOMATION_BROKER_NAME"
         fi
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
@@ -58,7 +58,7 @@ runs:
         fi
         if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
           pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui" --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [[ ${{ inputs.publisher }} == "Splunk" ]]; then
+        elif [[ "${{ inputs.publisher }}" == "Splunk" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
