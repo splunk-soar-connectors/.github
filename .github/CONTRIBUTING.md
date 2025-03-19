@@ -2,9 +2,7 @@
 
 Thank you for considering spending your time contributing to Splunk SOAR. Whether you're interested in bug-hunting, documentation, or creating entirely new apps, this document will help and guide you through the process.
 
-If you've stumbled upon the site but don't know who or what we are, please check out the links below:
-- [Splunk > SOAR](https://www.splunk.com/en_us/software/splunk-security-orchestration-and-automation.html) - Home Page of Splunk SOAR
-- [Phantom Community](https://my.phantom.us) - Splunk SOAR (formerly known as Phantom) Community site
+If you've stumbled upon the site but don't know who or what we are, please check out the [Splunk SOAR](https://www.splunk.com/en_us/products/splunk-security-orchestration-and-automation.html) home page.
 
 ---
 
@@ -76,15 +74,14 @@ By default we provide various automated checks you can leverage to test your cha
 
 The checks performed are the following:
 
-(Precommit checks that can be run with a commit locally or with `pre-commit run --all-files`)
+(Pre-commit checks that can be run with a commit locally or with `pre-commit run --all-files`)
 
-- **Commit Message Validation**: Ensures commit messages follow conventional format
+- **Commit Message Validation**: Ensures commit messages follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/#summary) format
 - **Code Quality Checks**:
-  - Linting via Ruff
-  - Code formatting via Ruff
-  - Django template linting and formatting
-  - Markdown formatting
-  - Security scanning (semgrep)
+  - Python linting and formatting with [Ruff](https://astral.sh/ruff)
+  - Django template linting and formatting with [djlint](https://www.djlint.com/)
+  - Markdown formatting with [mdformat](https://mdformat.readthedocs.io/en/stable/)
+  - Security scanning with [semgrep](https://semgrep.dev/index.html)
 - **General Checks**:
   - Merge conflict detection
   - End-of-file fixing
@@ -104,8 +101,8 @@ Additionally, our CI/CD pipeline runs these checks on every push, these can be v
   - Listed above
 - **Security Scans**:
   - Semgrep static analysis
-  - Detect-secrets for credential scanning
-  - Additional vulnerability scanning
+  - Detect secrets for credential scanning
+  - Additional vulnerability scanning of dependencies
 - **Test Coverage**: Measures code coverage of tests (this will fail until support can help add tests for new apps and changes)
 - **Compilation**: Verifies app compiles correctly
 - **Build**: Creates app package
