@@ -105,7 +105,7 @@ def main(args):
     existing_releases = sb_client.get_existing_releases(appid)
     if existing_releases:
         latest_release = max(parse(r["release_name"]) for r in existing_releases)
-        logging.info("Latest released version: %s", latest_release.vstring)
+        logging.info("Latest released version: %s", latest_release.public)
 
         if parse(app_version) <= latest_release:
             logging.error(
@@ -131,14 +131,16 @@ def main(args):
     if apps:
         sb_appid = apps[0]["id"]
         logging.info("Found existing app with appid: %s: %s", appid, sb_appid)
-        package_id = sb_client.upload_app_version(
-            sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
-        )
+        # package_id = sb_client.upload_app_version(
+        #     sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
+        # )
+        package_id=-1
     else:
         logging.info("Could not find an app with appid: %s", appid)
-        package_id = sb_client.upload_app(
-            app_repo_name, tarball, release_notes, license_string, license_url
-        )
+        # package_id = sb_client.upload_app(
+        #     app_repo_name, tarball, release_notes, license_string, license_url
+        # )
+        package_id=-1
 
     logging.info("Package ID: %s", package_id)
     response = sb_client.check_upload_status(package_id)
@@ -150,9 +152,9 @@ def main(args):
         return 1
 
     print(f"sending a release message with repo_name={app_repo_name}, new_app={not apps}")
-    _send_release_message(
-        repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
-    )
+    # _send_release_message(
+    #     repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
+    # )
 
     if not apps:
         sb_client.add_app_editor(sb_appid)
