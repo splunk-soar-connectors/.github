@@ -21,7 +21,6 @@ runs:
     - name: Send metrics
       shell: bash
       run: |
-        # Check if a JSON file was found
         APP_JSON=$(find "$(pwd)" -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
         APP_JSON_NAME=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
 
@@ -30,9 +29,6 @@ runs:
           exit 0
         fi
 
-        echo "Found JSON file: $APP_JSON"
-
-        # if the app is new, we don't have a previous version to compare against. deal with this case
-        old_json=$(git show HEAD^:"$APP_JSON_NAME")
+        old_json=$(git show HEAD^:"$APP_JSON_NAME" 2>/dev/null || echo "{}")
         python ${{ github.action_path }}/send_metrics.py "$APP_JSON" "$old_json" --publish-code ${{ inputs.publish_return_code }} -t 600
         

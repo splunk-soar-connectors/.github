@@ -97,8 +97,12 @@ jobs:
         if: always()
         id: set-outputs
         run: |
-          echo ${{ env.return_code }}
           echo "return_code=${{ env.return_code }}" >> $GITHUB_OUTPUT
+          if [ "$return_code" -ne 0 ]; then
+            echo "Publish script failed with return code $return_code, failing the job."
+            exit $return_code
+          fi
+
   
   metrics:
     runs-on:

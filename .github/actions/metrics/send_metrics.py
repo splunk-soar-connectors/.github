@@ -3,6 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 from typing import Optional
+import logging
 
 import backoff
 
@@ -34,7 +35,7 @@ def _poll_pipeline_completion(gitlab_client: GitLabApi, repo_name: str, pipeline
     status = run_details["status"]
 
     if status in {"created", "pending", "running"}:
-        print("Pipeline status %s, retrying...", status)
+        logging.info("Pipeline status %s, retrying...", status)
         return None
 
     return run_details
@@ -47,19 +48,18 @@ def main(args):
         new_json_data = json.loads(new_app_json)
         old_json_data = json.loads(args.old_app_json)
     except FileNotFoundError:
-        print(f"File not found: {app_json}")
-        sys.exit(1)
+        logging.error(f"File not found: {app_json}")
+        return 1
     except json.JSONDecodeError:
-        print("The file could not be decoded as JSON.")
-        sys.exit(1)
+        logging.error(f"App json could not be parsed")
+        return 1
     
     new_actions = set(get_actions_from_json(new_json_data))
     old_actions = set(get_actions_from_json(old_json_data))
     new_actions_added = new_actions - old_actions
     if len(new_actions_added) == 0:
-        print("No new actions added")
-        sys.exit(0)
-    print(new_actions_added)
+        logging.info("No new actions added. Not running the metrics pipeline")
+        return 0
     is_new_app = args.publish_code == 2
     
     gitlab = GitLabApi()
@@ -67,12 +67,12 @@ def main(args):
     create_pipeline_resp = gitlab.create_pipeline_run(
         "GitHub Requirements", "tapishj/PAPP-35446", **data
     )
-    print("Created pipeline run %s", repr(create_pipeline_resp))
+    logging.info("Created pipeline run %s", repr(create_pipeline_resp))
     
     completion_resp = _poll_pipeline_completion(
         gitlab, "GitHub Requirements", create_pipeline_resp["id"]
     )
-    print("Pipeline completed with response %s", repr(completion_resp))
+    logging.info("Pipeline completed with response %s", repr(completion_resp))
 
 
 if __name__ == '__main__':
