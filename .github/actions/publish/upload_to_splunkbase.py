@@ -111,7 +111,7 @@ def main(args):
             logging.error(
                 "Candidate version %s must be greater than the latest released version %s",
                 app_version,
-                latest_release.vstring,
+                latest_release.public,
             )
             return 1
     else:
