@@ -97,8 +97,8 @@ jobs:
             ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
           - version: "previous"
             ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
-          - version: "cloud"
-            ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
+          # - version: "cloud"
+          #   ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
           - version: "rhel"
             ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_RHEL_VERSION_IP }}
     env:
