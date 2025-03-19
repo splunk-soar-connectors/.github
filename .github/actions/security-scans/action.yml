@@ -15,7 +15,7 @@ runs:
     - name: Run Security Scans
       run: |
         set -e
-        python ${{ github.action_path }}/run_gitlab_pipeline.py 'GitHub Requirements' "tapishj/PAPP-35446" -t 600 -v "{
+        python ${{ github.action_path }}/run_gitlab_pipeline.py 'GitHub Requirements' ${{ inputs.github-requirements-branch }} -t 600 -v "{
           \"APP_REPO_NAME\":\"${{ github.event.repository.name }}\",
           \"APP_REPO_BRANCH\":\"${{ github.head_ref }}\",
           \"APP_REPO_OWNER\":\"${{ github.repository_owner }}\"

@@ -19,7 +19,7 @@ jobs:
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     steps:
       - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@tapishj/PAPP-35446
+        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
 
   test-coverage:
     runs-on:

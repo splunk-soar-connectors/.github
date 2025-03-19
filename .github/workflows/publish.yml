@@ -86,7 +86,7 @@ jobs:
           path: ${{ github.workspace }}/artifacts
 
       - name: Publish
-        uses: splunk-soar-connectors/.github/.github/actions/publish@tapishj/PAPP-35446
+        uses: splunk-soar-connectors/.github/.github/actions/publish@main
         env:
           UPLOAD_PATH: "${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz"
           RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
@@ -123,6 +123,6 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
 
     - name: Run metrics
-      uses: splunk-soar-connectors/.github/.github/actions/metrics@tapishj/PAPP-35446
+      uses: splunk-soar-connectors/.github/.github/actions/metrics@main
       with:
         publish_return_code: ${{ needs.publish.outputs.return_code }}
