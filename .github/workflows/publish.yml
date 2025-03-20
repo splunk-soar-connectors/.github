@@ -42,7 +42,7 @@ jobs:
           env:
             GITHUB_TOKEN: ${{ github.token }}
           run: |
-            npx semantic-release -e $(pwd)/.releaserc.json --dry-run --tag-format "1.0.0${version}" 
+            npx semantic-release -e $(pwd)/.releaserc.json --dry-run --tag-format "\${version}" 
 
           # Semantic-release will "pass" even if we don't increase the version
           # We need to clear unreleased release notes in this case
