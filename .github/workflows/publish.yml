@@ -27,6 +27,7 @@ jobs:
           run: |
             cp dotgithub/.releaserc.json $(pwd)/.releaserc.json
             cp dotgithub/.github/utils/update_version.py $(pwd)/update_version.py
+            jq '.branches += ["mnordby/test"]' $(pwd)/.releaserc.json > $(pwd)/.releaserc.tmp && mv $(pwd)/.releaserc.tmp $(pwd)/.releaserc.json
 
         - name: Set up Node.js
           uses: actions/setup-node@v4
