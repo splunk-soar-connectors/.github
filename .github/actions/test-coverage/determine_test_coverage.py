@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import math
 from collections.abc import Iterable
+from unittest.mock import patch, MagicMock
 
 
 class TestCoverageError(Exception):
@@ -71,7 +72,7 @@ def find_app_json(directory: Path) -> str:
             "Aborting because there should be exactly one top level JSON file."
         )
 
-    # There's only one json file in the top level, so it must be the app's json
+    # There's only one json file in the top level, so it must be the apps json
     return filtered_json_filenames[0]
 
 
@@ -83,21 +84,28 @@ def get_actions_being_tested(apps_test_path: Path) -> set:
         source = apps_test_path_file.read_text()
         subclass_actions = find_subclass_actions(source)
         action_test_name.update(set(actions for actions in subclass_actions.values()))
+        
+    # Mock modules that are imported in the test files
+    # sys.modules['utils'] = MagicMock()
 
     module_name = "actions"
     actions_file_path = apps_test_path / "actions.py"
+    print(action_test_name)
 
-    # Load the module
-    spec = importlib.util.spec_from_file_location(module_name, actions_file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    actions_tested = set()
-    for action in action_test_name:
-        action_list = getattr(module, action)
-        actions_tested.update(
-            {test["action_name"] for test in action_list if "action_name" in test}
-        )
+    # Mock modules that are imported in the actions file
+    with patch('builtins.__import__', side_effect=lambda name, *args, **kwargs: MagicMock()):
+        # Load the module
+        spec = importlib.util.spec_from_file_location(module_name, actions_file_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        actions_tested = set()
+        for action in action_test_name:
+            print(module, action)
+            action_list = getattr(module, action)
+            actions_tested.update(
+                {test["action_name"] for test in action_list if "action_name" in test}
+            )
 
     return actions_tested
 

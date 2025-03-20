@@ -5,9 +5,6 @@ inputs:
     description: "Is the connector fips compliant"
     required: true
     default: "false"
-  publisher:
-    description: "Who is the connectors publisher"
-    required: true
   app_repo:
     description: "Connector repo being tested"
     required: true
@@ -46,12 +43,11 @@ runs:
           echo "Failed to authenticate with Vault!"
           exit 1
         fi
-        if [[ -d suite/apps/"${{ inputs.app_repo }}" ]]; then
-          pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES
-        elif [[ "${{ inputs.publisher }}" == "Splunk" ]]; then
+        if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
+        pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES
     - name: Clean Up
       shell: bash
       if: always()
