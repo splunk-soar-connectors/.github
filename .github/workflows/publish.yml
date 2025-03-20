@@ -36,13 +36,13 @@ jobs:
         - name: Install dependencies
           run: |
             npm install --save-dev semantic-release
-            npm install @semantic-release/changelog @semantic-release/git @semantic-release/exec -D --dry-run --tag-format "${version}"
+            npm install @semantic-release/changelog @semantic-release/git @semantic-release/exec -D 
 
         - name: Run semantic-release and update version numbers
           env:
             GITHUB_TOKEN: ${{ github.token }}
           run: |
-            npx semantic-release -e $(pwd)/.releaserc.json
+            npx semantic-release -e --dry-run --tag-format "${version}" $(pwd)/.releaserc.json
 
           # Semantic-release will "pass" even if we don't increase the version
           # We need to clear unreleased release notes in this case
