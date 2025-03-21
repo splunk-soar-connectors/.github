@@ -1,8 +1,0 @@
-{
-    "name": "Review Release",
-    "description": "Determines whether a given app release is automatically approved for Splunkbase upload or if it requires manual approval.",
-    "iconName": "shield_green_icon",
-    "categories": [
-        "Python"
-    ]
-}
