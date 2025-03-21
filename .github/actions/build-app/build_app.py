@@ -13,7 +13,8 @@ import subprocess
 import tarfile
 from contextlib import contextmanager
 import sys
-from typing import Iterator, Union
+from typing import Union
+from collections.abc import Iterator
 
 import boto3
 import botocore
@@ -122,9 +123,7 @@ class AppBuilder:
 
                 # Create tgz and rpm
                 log("Creating tgz package")
-                tarfile_path = self._create_tar(
-                    self.app_repo_name, app_parser.excludes
-                )
+                tarfile_path = self._create_tar(self.app_repo_name, app_parser.excludes)
                 log(tarfile_path)
 
     @contextmanager

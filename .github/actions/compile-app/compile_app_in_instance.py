@@ -2,11 +2,12 @@
 """
 Compile Apps
 """
+
 import os
 import argparse
 import logging
 from pathlib import Path
-from typing import Iterator
+from collections.abc import Iterator
 import git
 from contextlib import contextmanager
 import sys
@@ -19,6 +20,7 @@ from utils import compile_app
 
 LOCAL_REPO_DIRECTORY = os.getenv("GITHUB_WORKSPACE", ".")
 PHANTOM_PASSWORD = os.getenv("PHANTOM_PASSWORD", ".")
+
 
 @contextmanager
 def get_app_code(local_code_dir: str) -> Iterator[git.Repo]:
@@ -48,11 +50,16 @@ def main():
     previous_phantom_ip = args.previous_phantom_ip
     phantom_username = args.phantom_username
 
-
-
     with get_app_code(local_code_dir=LOCAL_REPO_DIRECTORY) as local_repo_location:
         print(f"Repo location: {local_repo_location}")
-        responses = compile_app.run_compile(app_repo_name, local_repo_location, current_phantom_ip, previous_phantom_ip, phantom_username, PHANTOM_PASSWORD)
+        responses = compile_app.run_compile(
+            app_repo_name,
+            local_repo_location,
+            current_phantom_ip,
+            previous_phantom_ip,
+            phantom_username,
+            PHANTOM_PASSWORD,
+        )
 
         failed = [
             (version, results)

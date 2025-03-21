@@ -2,7 +2,7 @@ import os
 import subprocess
 
 
-def get_command_output(command: str, shell: bool=False, quiet_stderr: bool=False) -> str:
+def get_command_output(command: str, shell: bool = False, quiet_stderr: bool = False) -> str:
     try:
         if quiet_stderr:
             with open(os.devnull, "w") as f:

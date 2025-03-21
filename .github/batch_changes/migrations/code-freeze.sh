@@ -18,7 +18,7 @@ remote_branch_exists() {
 freeze_branch() {
   local branch=$1
   echo "Freezing branch: $branch"
-  
+
   # Strict freeze protection rules
   curl -X PUT -H "Authorization: token $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github.v3+json" \

@@ -7,8 +7,8 @@ on:
         required: true
       splunkbase_user:
         required: true
-      splunkbase_password: 
-        required: true  
+      splunkbase_password:
+        required: true
 
 jobs:
   semantic-version:
@@ -52,7 +52,7 @@ jobs:
 
         - name: Clean up
           run: |
-              rm -rf dotgithub         
+              rm -rf dotgithub
               rm -f update_version.py
 
   build:
