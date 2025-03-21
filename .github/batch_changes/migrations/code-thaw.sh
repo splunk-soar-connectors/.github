@@ -18,11 +18,11 @@ remote_branch_exists() {
 unfreeze_branch() {
   local branch=$1
   echo "Unfreezing branch: $branch"
-  
+
   curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github.v3+json" \
     "https://api.github.com/repos/$REPO/branches/$branch/protection"
-  
+
   # Apply our normal protection rules again
   curl -X PUT -H "Authorization: token $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github.v3+json" \
@@ -37,7 +37,7 @@ unfreeze_branch() {
         "required_approving_review_count": 1
       },
       "restrictions": null
-    }'    
+    }'
 }
 
 echo "Checking branches for $REPO..."

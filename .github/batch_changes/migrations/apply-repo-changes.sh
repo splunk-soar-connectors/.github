@@ -57,21 +57,21 @@ REPOS=()
 
 for ((page=1; page<=PAGE_COUNT; page++)); do
   echo "Fetching page $page of repositories..."
-  
+
   RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github.v3+json" \
     "https://api.github.com/orgs/splunk-soar-connectors/repos?per_page=30&page=$page")
-  
+
   REPO_COUNT=$(echo "$RESPONSE" | grep -c '"full_name":' || true)
-  
+
   if [[ $REPO_COUNT -eq 0 ]]; then
     echo "No more repositories found on page $page"
     break
   fi
-  
+
   # Extract repository names and filter by regex
   PAGE_REPOS=$(echo "$RESPONSE" | grep -o '"full_name": *"[^"]*"' | grep -o 'splunk-soar-connectors/[^"]*' | grep -v -E '\.github$|frictionless_connectors_test$' || true)
-  
+
   if [[ -n "$PAGE_REPOS" ]]; then
     while read -r repo; do
       REPOS+=("$repo")
@@ -92,10 +92,10 @@ echo "Processing repositories..."
 for ((i=0; i<TOTAL_REPOS; i++)); do
   REPO="${REPOS[$i]}"
   echo "[$((i+1))/$TOTAL_REPOS] Processing: $REPO"
-  
+
   bash "$SCRIPT_PATH" "$REPO"
-  
+
   sleep 1
 done
 
-echo "✅ Completed processing $TOTAL_REPOS repositories" 
+echo "✅ Completed processing $TOTAL_REPOS repositories"

@@ -11,6 +11,7 @@ select = ["A", "E", "F", "W", "UP", "RUF"]
 # select = ["B", "S", "PIE", "RSE"]
 ignore = [
 	"E501",  # Line too long (82 > 79 characters). We use 100 line length for black.
+	"E402",  # Our relative imports of utils directory fail on this
 ]
 
 # Allow unused variables when underscore-prefixed.
