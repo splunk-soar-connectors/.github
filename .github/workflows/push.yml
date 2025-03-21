@@ -84,6 +84,8 @@ jobs:
 
       - name: Run Test Coverage
         uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
+        with:
+          app_repo: ${{ github.event.repository.name }}
 
   sanity-test:
     runs-on:
