@@ -132,13 +132,13 @@ def main(args):
         sb_appid = apps[0]["id"]
         logging.info("Found existing app with appid: %s: %s", appid, sb_appid)
         # package_id = sb_client.upload_app_version(
-        #     sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
+        #    sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
         # )
         package_id=-1
     else:
         logging.info("Could not find an app with appid: %s", appid)
         # package_id = sb_client.upload_app(
-        #     app_repo_name, tarball, release_notes, license_string, license_url
+        #    app_repo_name, tarball, release_notes, license_string, license_url
         # )
         package_id=-1
 
