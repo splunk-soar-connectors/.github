@@ -1,8 +1,0 @@
-{
-    "name": "Start Release",
-    "description": "Initiates the release process for an app repo. See https://github.com/phantomcyber/dev-cicd-tools/blob/main/github-actions/start-release/action.yml for more details.",
-    "iconName": "shield_green_icon",
-    "categories": [
-        "Python"
-    ]
-}

@@ -1,8 +1,0 @@
-{
-    "name": "Linting",
-    "description": "Latest linting workflow for app repos.",
-    "iconName": "shield_green_icon",
-    "categories": [
-        "Python"
-    ]
-}
