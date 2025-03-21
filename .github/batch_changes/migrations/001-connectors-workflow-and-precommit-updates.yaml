@@ -67,14 +67,14 @@ steps:
 
       pre-commit install
 
-      # Run pre-commit up to 3 times (might need multiple iterations till everything is updated and clean)
+      # Run pre-commit up to 4 times (might need multiple iterations till everything is updated and clean)
       attempts=0
-      while [ $attempts -lt 3 ]; do
-        if SKIP="package_app_dependencies" pre-commit run --all; then
+      while [ $attempts -lt 4 ]; do
+        if pre-commit run --all; then
           break
         fi
         attempts=$((attempts + 1))
-        if [ $attempts -lt 3 ]; then
+        if [ $attempts -lt 4 ]; then
           echo "Pre-commit failed, trying again..."
           sleep 1
         else

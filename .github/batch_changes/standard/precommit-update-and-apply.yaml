@@ -38,14 +38,14 @@ steps:
       # Add newline to README.md for force build-docs to trigger
       echo "" >> README.md
 
-      # Run pre-commit up to 3 times (might need multiple iterations till everything is clean)
+      # Run pre-commit up to 5 times (might need multiple iterations till everything is clean)
       attempts=0
-      while [ $attempts -lt 3 ]; do
+      while [ $attempts -lt 5 ]; do
         if pre-commit run --all; then
           break
         fi
         attempts=$((attempts + 1))
-        if [ $attempts -lt 3 ]; then
+        if [ $attempts -lt 5 ]; then
           echo "Pre-commit failed, trying again..."
           sleep 1
         else
