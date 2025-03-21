@@ -21,16 +21,6 @@ jobs:
       - name: Run Security Scans
         uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
 
-  #test-coverage:
-  #  runs-on:
-  #    - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-  #    - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-  #  steps:
-  #    - uses: actions/checkout@v4
-
-  #    - name: Run Test Coverage
-  #      uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
-
   compile:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
@@ -79,14 +69,28 @@ jobs:
       - name: Set outputs
         id: set-outputs
         run: |
+          echo ${{ env.publisher }}
           echo "publisher=${{ env.publisher }}" >> $GITHUB_OUTPUT
           echo "fips_compliant=${{ env.fips_compliant }}" >> $GITHUB_OUTPUT
+  
+  test-coverage:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: test-setup
+    if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Test Coverage
+        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
 
   sanity-test:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: [test-setup]
+    needs: test-setup
+    if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
     strategy:
       fail-fast: false
       matrix:
@@ -97,8 +101,8 @@ jobs:
             ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
           - version: "previous"
             ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
-          # - version: "cloud"
-          #   ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
+          - version: "cloud"
+            ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
           - version: "rhel"
             ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_RHEL_VERSION_IP }}
     env:
@@ -120,7 +124,6 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
           fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
-          publisher: ${{ needs.test-setup.outputs.publisher }}
           phantom_ip: ${{ matrix.ip }}
           version: ${{ matrix.version }}
           app_repo: ${{ github.event.repository.name }}
@@ -129,7 +132,8 @@ jobs:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: [test-setup]
+    needs: test-setup
+    if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }} 
     env:
       PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }}
       PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_IP_FIPS }}
@@ -149,5 +153,4 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/integration-tests@main
         with:
           fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
-          publisher: ${{ needs.test-setup.outputs.publisher }}
           app_repo: ${{ github.event.repository.name }}
