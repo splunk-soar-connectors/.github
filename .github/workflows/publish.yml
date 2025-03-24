@@ -12,7 +12,6 @@ on:
       semantic_release_pk:
         required: true
 
-
 jobs:
   semantic-version:
       runs-on: ubuntu-latest
