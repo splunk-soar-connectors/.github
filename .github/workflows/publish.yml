@@ -9,6 +9,9 @@ on:
         required: true
       splunkbase_password:
         required: true
+      semantic_release_pk:
+        required: true
+
 
 jobs:
   semantic-version:
@@ -17,8 +20,28 @@ jobs:
         contents: write
         pull-requests: write
       steps:
-        - name: Setup Environment
-          uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
+        - uses: actions/create-github-app-token@v1
+          id: app-token
+          with:
+            app-id: ${{ vars.SEMTANTIC_RELEASE_APP_ID }}
+            private-key: ${{ secrets.semantic_release_pk }}
+
+        - name: Check out app repo
+          uses: actions/checkout@v4
+          with:
+              fetch-depth: 0
+              token: ${{ steps.app-token.outputs.token }}
+
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.9'
+
+        - name: Cache pip
+          uses: actions/cache@v4
+          with:
+            path: ~/.cache/pip
+            key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
 
         - name: Set up .github repo
           uses: actions/checkout@v4
