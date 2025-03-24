@@ -7,12 +7,15 @@ on:
         required: true
       splunkbase_user:
         required: true
-      splunkbase_password: 
-        required: true  
+      splunkbase_password:
+        required: true
 
 jobs:
   semantic-version:
       runs-on: ubuntu-latest
+      permissions:
+        contents: write
+        pull-requests: write
       steps:
         - name: Setup Environment
           uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
@@ -52,7 +55,7 @@ jobs:
 
         - name: Clean up
           run: |
-              rm -rf dotgithub         
+              rm -rf dotgithub
               rm -f update_version.py
 
   build:
