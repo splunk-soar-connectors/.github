@@ -65,7 +65,7 @@ jobs:
 
         - name: Run semantic-release and update version numbers
           env:
-            GITHUB_TOKEN: ${{ github.token }}
+            GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           run: |
             npx semantic-release -e $(pwd)/.releaserc.json --tag-format "\${version}"
 
