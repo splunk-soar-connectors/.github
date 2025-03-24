@@ -37,8 +37,7 @@ RELEASE_QUEUE_URL = os.getenv("RELEASE_QUEUE_URL")
 SOAR_APPS_TOKEN = os.getenv("SOAR_APPS_TOKEN")
 SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
-RELEASE_QUEUE_REGION = 'us-west-2'
-
+RELEASE_QUEUE_REGION = "us-west-2"
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,7 +72,9 @@ def get_license_info(app_json: dict[str, Any]) -> tuple[str, str]:
     return (APACHE2_LICENSE_STRING, APACHE2_LICENSE_URL)
 
 
-def _send_release_message(repo_name: str, new_app: bool, release_notes: str, app_json: dict[str, Any]) -> None:
+def _send_release_message(
+    repo_name: str, new_app: bool, release_notes: str, app_json: dict[str, Any]
+) -> None:
     sqs = boto3.resource("sqs", region_name=RELEASE_QUEUE_REGION)
     queue = sqs.Queue(RELEASE_QUEUE_URL)
 
@@ -91,7 +92,7 @@ def _send_release_message(repo_name: str, new_app: bool, release_notes: str, app
 
 
 def main(args):
-    app_repo_name = args.app_repo_name 
+    app_repo_name = args.app_repo_name
 
     tarball = os.getenv("UPLOAD_PATH")
     logging.info("Downloaded tarball to %s", tarball)
@@ -131,16 +132,14 @@ def main(args):
     if apps:
         sb_appid = apps[0]["id"]
         logging.info("Found existing app with appid: %s: %s", appid, sb_appid)
-        # package_id = sb_client.upload_app_version(
-        #    sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
-        # )
-        package_id=-1
+        package_id = sb_client.upload_app_version(
+            sb_appid, app_repo_name, tarball, release_notes, license_string, license_url
+        )
     else:
         logging.info("Could not find an app with appid: %s", appid)
-        # package_id = sb_client.upload_app(
-        #    app_repo_name, tarball, release_notes, license_string, license_url
-        # )
-        package_id=-1
+        package_id = sb_client.upload_app(
+            app_repo_name, tarball, release_notes, license_string, license_url
+        )
 
     logging.info("Package ID: %s", package_id)
     response = sb_client.check_upload_status(package_id)
@@ -152,9 +151,9 @@ def main(args):
         return 1
 
     print(f"sending a release message with repo_name={app_repo_name}, new_app={not apps}")
-    # _send_release_message(
-    #     repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
-    # )
+    _send_release_message(
+        repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
+    )
 
     if not apps:
         sb_client.add_app_editor(sb_appid)
