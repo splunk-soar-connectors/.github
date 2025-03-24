@@ -1,5 +1,9 @@
 name: "Test coverage"
 description: "Determines if all of the connectors actions are being tested"
+inputs:
+  app_repo:
+    description: "Connector repo being tested"
+    required: true
 
 runs:
   using: composite
@@ -20,5 +24,10 @@ runs:
           echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to main."
           git checkout main
         fi
+        if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then          
+          echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
+          exit 1
+        fi
+        pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --collect-actions --collect-output tested_actions.json
         cd ..
         python ${{ github.action_path }}/determine_test_coverage.py ${{ github.event.repository.name }} --dir-location=$(pwd)
