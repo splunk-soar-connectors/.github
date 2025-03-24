@@ -57,15 +57,15 @@ def main(args):
     new_actions = set(get_actions_from_json(new_json_data))
     old_actions = set(get_actions_from_json(old_json_data))
     new_actions_added = new_actions - old_actions
-    if len(new_actions_added) == 0:
-        logging.info("No new actions added. Not running the metrics pipeline")
-        return 0
     is_new_app = args.publish_code == 2
+    if len(new_actions_added) == 0 and not is_new_app:
+        logging.info("No new actions added and app already exists. Not running the metrics pipeline")
+        return 0
     
     gitlab = GitLabApi()
     data = {"APP_REPO_NAME": new_json_data["name"], "ACTIONS_ADDED": json.dumps(list(new_actions_added)), "IS_NEW_APP": is_new_app}
     create_pipeline_resp = gitlab.create_pipeline_run(
-        "GitHub Requirements", "tapishj/PAPP-35446", **data
+        "GitHub Requirements", "main", **data
     )
     logging.info("Created pipeline run %s", repr(create_pipeline_resp))
     

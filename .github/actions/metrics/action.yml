@@ -1,5 +1,5 @@
 name: 'Send app related metrics to Skynet'
-description: 'Send new action names and apps to Skynt'
+description: 'Send new action names and apps to Skynet'
 inputs:
   publish_return_code:
     description: "What the return code was from the publish action was"
