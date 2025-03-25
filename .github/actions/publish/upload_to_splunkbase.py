@@ -73,7 +73,7 @@ def get_license_info(app_json: dict[str, Any]) -> tuple[str, str]:
 
 
 def _send_release_message(
-    repo_name: str, new_app: bool, release_notes: str, app_json: dict[str, Any]
+    repo_name: str, new_app: bool, release_notes: list[str], app_json: dict[str, Any]
 ) -> None:
     sqs = boto3.resource("sqs", region_name=RELEASE_QUEUE_REGION)
     queue = sqs.Queue(RELEASE_QUEUE_URL)
