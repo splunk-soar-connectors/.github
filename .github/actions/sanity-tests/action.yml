@@ -47,7 +47,7 @@ runs:
           git checkout main
         fi
         if [[ "${{ inputs.version }}" == "cloud" ]]; then
-          export AUTOMATION_BROKER="{{ vars.AUTOMATION_BROKER_NAME }}"
+          export AUTOMATION_BROKER="${{ vars.AUTOMATION_BROKER_NAME }}"
           echo "Tests will use automation broker $AUTOMATION_BROKER"
         fi
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
