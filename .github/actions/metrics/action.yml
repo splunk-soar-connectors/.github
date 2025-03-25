@@ -1,0 +1,34 @@
+name: 'Send app related metrics to Skynet'
+description: 'Send new action names and apps to Skynet'
+inputs:
+  publish_return_code:
+    description: "What the return code was from the publish action was"
+    required: true
+    default: 0
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+    - name: Check publish return code
+      shell: bash
+      run: |
+        if [ ${{ inputs.publish_return_code }} -eq 1 ]; then
+          echo "Publish action failed and not because we're releasing a new app. Not sending metrics."
+          exit 0
+        fi
+    - name: Send metrics
+      shell: bash
+      run: |
+        APP_JSON=$(find "$(pwd)" -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
+        APP_JSON_NAME=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
+
+        if [ -z "$APP_JSON" ]; then
+          echo "No JSON file found."
+          exit 0
+        fi
+
+        old_json=$(git show HEAD^:"$APP_JSON_NAME" 2>/dev/null || echo "{}")
+        python ${{ github.action_path }}/send_metrics.py "$APP_JSON" "$old_json" --publish-code ${{ inputs.publish_return_code }} -t 600
+        

@@ -101,6 +101,8 @@ jobs:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: build
+    outputs:
+      return_code: ${{ steps.set-outputs.outputs.return_code }}
     permissions:
       contents: write
     steps:
@@ -120,3 +122,37 @@ jobs:
           RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
           SPLUNKBASE_USER: ${{ secrets.splunkbase_user }}
           SPLUNKBASE_PASSWORD: ${{ secrets.splunkbase_password }}
+      
+      - name: Set outputs
+        if: always()
+        id: set-outputs
+        run: |
+          echo "return_code=${{ env.return_code }}" >> $GITHUB_OUTPUT
+          if [ "$return_code" -ne 0 ]; then
+            echo "Publish script failed with return code $return_code, failing the job."
+            exit $return_code
+          fi
+
+  
+  metrics:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: publish
+    if: always()
+    steps:
+    - name: Check out app repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+    - name: Run metrics
+      uses: splunk-soar-connectors/.github/.github/actions/metrics@main
+      with:
+        publish_return_code: ${{ needs.publish.outputs.return_code }}
