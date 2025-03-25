@@ -122,7 +122,7 @@ jobs:
           RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
           SPLUNKBASE_USER: ${{ secrets.splunkbase_user }}
           SPLUNKBASE_PASSWORD: ${{ secrets.splunkbase_password }}
-      
+
       - name: Set outputs
         if: always()
         id: set-outputs
@@ -133,7 +133,7 @@ jobs:
             exit $return_code
           fi
 
-  
+
   metrics:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}

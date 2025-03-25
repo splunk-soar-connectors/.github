@@ -21,7 +21,7 @@ steps:
 
       # Set Python 3.9 as default
       alternatives --set python3 /usr/bin/python3.9
-      
+
       python3 -m pip install --upgrade pip
       python3 -m pip install --upgrade "pre-commit>=4.1.0"
       pre-commit --version
@@ -62,5 +62,5 @@ changesetTemplate:
   commit:
     message: |
       chore(ci): pre-commit updates and fixes applied
-      
+
       [batch update]

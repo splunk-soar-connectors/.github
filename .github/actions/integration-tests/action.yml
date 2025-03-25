@@ -43,7 +43,7 @@ runs:
           echo "Failed to authenticate with Vault!"
           exit 1
         fi
-        if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then          
+        if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi

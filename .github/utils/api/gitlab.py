@@ -1,4 +1,5 @@
 import os
+from typing import ClassVar
 
 from utils.api import ApiSession
 from urllib.parse import quote_plus
@@ -20,10 +21,9 @@ class GitLabApi:
     Our internal GitLab utils class.
     """
 
-    __initialized = None
-
-    grp_ids = {}
-    proj_ids = {}
+    __initialized: ClassVar[None] = None
+    grp_ids: ClassVar[dict] = {}
+    proj_ids: ClassVar[dict] = {}
 
     def __init__(self, token=None):
         self.session = ApiSession(f"https://{GITLAB_SERVER}/api/v4")

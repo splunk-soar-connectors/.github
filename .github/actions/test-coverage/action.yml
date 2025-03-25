@@ -24,7 +24,7 @@ runs:
           echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to main."
           git checkout main
         fi
-        if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then          
+        if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi

@@ -72,7 +72,7 @@ jobs:
           echo ${{ env.publisher }}
           echo "publisher=${{ env.publisher }}" >> $GITHUB_OUTPUT
           echo "fips_compliant=${{ env.fips_compliant }}" >> $GITHUB_OUTPUT
-  
+
   test-coverage:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
@@ -135,7 +135,7 @@ jobs:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: test-setup
-    if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }} 
+    if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
     env:
       PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }}
       PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_IP_FIPS }}

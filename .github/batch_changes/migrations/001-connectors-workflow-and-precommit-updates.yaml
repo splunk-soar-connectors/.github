@@ -25,16 +25,16 @@ steps:
   - container: alpine:3
     run: |
       rm -f release_notes/unreleased.md
-      
+
       mkdir -p release_notes
-      
+
       # Create unreleased.md with required content (needed to pass pre-commit)
       cat > release_notes/unreleased.md << 'EOF'
       **Unreleased**
 
       * chore: batch changes
       EOF
-  
+
   # Step 2: Add new pre-commit configurations and apply changes
   - container: quay.io/pypa/manylinux_2_28_x86_64 # Needed for package app dependencies (and other script entries too)
     env:
@@ -51,7 +51,7 @@ steps:
 
       # 3.9 default
       alternatives --set python3 /usr/bin/python3.9
-      
+
       python3 -m pip install --upgrade "pre-commit>=4.1.0"
       pre-commit --version
 
@@ -92,5 +92,5 @@ changesetTemplate:
   commit:
     message: |
       chore(ci): workflow updates and pre-commit changes and configurations added and applied
-      
+
       [batch update]

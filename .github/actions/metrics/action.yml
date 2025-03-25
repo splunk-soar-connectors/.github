@@ -31,4 +31,3 @@ runs:
 
         old_json=$(git show HEAD^:"$APP_JSON_NAME" 2>/dev/null || echo "{}")
         python ${{ github.action_path }}/send_metrics.py "$APP_JSON" "$old_json" --publish-code ${{ inputs.publish_return_code }} -t 600
-        
