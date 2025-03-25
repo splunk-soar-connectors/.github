@@ -47,7 +47,11 @@ runs:
           git checkout main
         fi
         if [[ "${{ inputs.version }}" == "cloud" ]]; then
-          export AUTOMATION_BROKER="${AUTOMATION_BROKER_NAME}"
+          export AUTOMATION_BROKER="${{ vars.AUTOMATION_BROKER_NAME }}"
+          if [[ "${AUTOMATION_BROKER}" == "" ]]; then
+            echo "ERROR - AUTOMATION_BROKER_NAME is not set!"
+            exit 1
+          fi
           echo "Tests will use automation broker $AUTOMATION_BROKER"
         fi
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
