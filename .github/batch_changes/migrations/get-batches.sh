@@ -19,6 +19,7 @@ if [ -z "$GITHUB_TOKEN" ]; then
 fi
 
 TEMP_DIR=$(mktemp -d)
+# shellcheck disable=SC2064
 trap "rm -rf $TEMP_DIR" EXIT
 
 ELIGIBLE_REPOS_FILE="$TEMP_DIR/eligible_repos.txt"
@@ -28,39 +29,39 @@ echo "Fetching repositories for organization: splunk-soar-connectors"
 
 for ((page=1; page<=PAGE_COUNT; page++)); do
   echo "Fetching page $page of repositories..."
-  
+
   repos=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github.v3+json" \
     "https://api.github.com/orgs/splunk-soar-connectors/repos?per_page=30&page=$page")
-  
+
   # Check if we got empty results (end of pagination)
   repo_count=$(echo "$repos" | grep -o '"full_name":' | wc -l)
   if [ "$repo_count" -eq 0 ]; then
     echo "No more repositories found on page $page"
     break
   fi
-  
+
   # Process each repository
   for repo in $(echo "$repos" | grep -o '"full_name": *"[^"]*"' | grep -o "splunk-soar-connectors/[^\"]*"); do
     echo "Checking repository: $repo"
-    
+
     # Check if repository is archived or has no releases
     is_archived=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
       -H "Accept: application/vnd.github.v3+json" \
       "https://api.github.com/repos/$repo" | \
       grep -o '"archived":\s*\(true\|false\)' | cut -d: -f2 | tr -d ' ')
-    
+
     if [ "$is_archived" == "true" ]; then
       echo "  Repository is archived, skipping"
       continue
     fi
-    
+
     releases=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
       -H "Accept: application/vnd.github.v3+json" \
       "https://api.github.com/repos/$repo/releases?per_page=1")
-    
+
     release_count=$(echo "$releases" | grep -o '"id":' | wc -l)
-    
+
     if [ "$release_count" -gt 0 ]; then
       echo "  Repository has releases, adding to list"
       echo "$repo" >> "$ELIGIBLE_REPOS_FILE"
@@ -68,7 +69,7 @@ for ((page=1; page<=PAGE_COUNT; page++)); do
       echo "  Repository has no releases, skipping"
     fi
   done
-  
+
   sleep 1
 done
 

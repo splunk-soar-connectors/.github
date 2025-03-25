@@ -6,7 +6,8 @@ import string
 import random
 import logging
 from contextlib import contextmanager
-from typing import Iterator, Union
+from typing import Union
+from collections.abc import Iterator
 
 import backoff
 import paramiko
@@ -22,10 +23,14 @@ RANDOM_STRING = "/{}/".format(
 )
 
 
-def compile_app(phantom_version: str, phantom_client: paramiko.SSHClient, test_directory: Path) -> dict[str, Union[bool, str]]:
+def compile_app(
+    phantom_version: str, phantom_client: paramiko.SSHClient, test_directory: Path
+) -> dict[str, Union[bool, str]]:
     logging.info(f"running {phantom_version} test")
     # Excluding flake8 because it is getting removed from the platform anyway, and we do our own ruff validation
-    compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
+    compile_command = (
+        f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
+    )
     logging.info(compile_command)
 
     _, stdout, stderr = phantom_client.exec_command(compile_command)
@@ -45,14 +50,18 @@ def compile_app(phantom_version: str, phantom_client: paramiko.SSHClient, test_d
         error_message = OUTPUT.findall(error_message)[:1]
         for line in error_lines:
             logging.info(line)
-        
 
-    response = {"success": exit_code == 0, "message": stdout_lines if (exit_code == 0) else error_message}
+    response = {
+        "success": exit_code == 0,
+        "message": stdout_lines if (exit_code == 0) else error_message,
+    }
 
     return response
 
 
-def make_folder(phantom_version: str, phantom_client: paramiko.SSHClient, app_name: str, test_directory: Path) -> None:
+def make_folder(
+    phantom_version: str, phantom_client: paramiko.SSHClient, app_name: str, test_directory: Path
+) -> None:
     commands = f"mkdir -p {test_directory}; cd {test_directory}"
     logging.info(commands)
     logging.info(f"Creating folder for {app_name} on phantom {phantom_version}")
@@ -68,7 +77,9 @@ def delete_folder(phantom_client: paramiko.SSHClient, test_directory: Path) -> N
 
 
 @contextmanager
-def upload_app_files(phantom_version: str, phantom_client: paramiko.SSHClient, local_app_path: Path, app_name: str) -> Iterator[Path]:
+def upload_app_files(
+    phantom_version: str, phantom_client: paramiko.SSHClient, local_app_path: Path, app_name: str
+) -> Iterator[Path]:
     remote_path = TEST_APP_DIRECTORY_TEMPLATE.format(app_name=app_name + RANDOM_STRING)
     make_folder(phantom_version, phantom_client, app_name, remote_path)
 
@@ -82,13 +93,19 @@ def upload_app_files(phantom_version: str, phantom_client: paramiko.SSHClient, l
 
 
 @backoff.on_exception(backoff.expo, socket.error, max_tries=3)
-def run_compile(app_name: str, local_app_path: Path, current_phantom_ip: str, 
-                previous_phantom_ip: str, phantom_username: str, phantom_password: str) -> dict[str, dict[str, Union[bool, str]]]:
+def run_compile(
+    app_name: str,
+    local_app_path: Path,
+    current_phantom_ip: str,
+    previous_phantom_ip: str,
+    phantom_username: str,
+    phantom_password: str,
+) -> dict[str, dict[str, Union[bool, str]]]:
     results = {}
     hosts = {
-    "current_phantom_version": current_phantom_ip,
-    "previous_phantom_version": previous_phantom_ip,
-    }  
+        "current_phantom_version": current_phantom_ip,
+        "previous_phantom_version": previous_phantom_ip,
+    }
 
     for version, host in hosts.items():
         client = paramiko.SSHClient()

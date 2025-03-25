@@ -33,4 +33,3 @@ The following changes require documentation in `manual_readme_content.md`:
 Please refer to our [Contribution Guide](https://github.com/splunk-soar-connectors/.github/blob/main/.github/CONTRIBUTING.md) for any questions on submitting a pull request.
 
 Thanks for contributing!
-

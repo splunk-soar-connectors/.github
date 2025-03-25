@@ -3,6 +3,7 @@ import json
 import math
 from collections.abc import Iterable
 
+
 class TestCoverageError(Exception):
     def __init__(self, percent: int, actions_missing_coverage: Iterable[str]) -> None:
         self.percent = percent
@@ -46,13 +47,13 @@ def actions_in_app(app_repo_path: Path) -> set:
 def determine_coverage(app_name: str, directory: str) -> None:
     json_file = Path(directory) / "app-tests/tested_actions.json"
     json_data = json.loads(json_file.read_text())
-    actions_tested = set(json_data)        
+    actions_tested = set(json_data)
     app_repo_path = Path(directory) / app_name
     app_actions = actions_in_app(app_repo_path)
     actions_not_tested = app_actions - actions_tested
     if actions_not_tested:
         test_coverage = math.ceil(len(actions_not_tested) / len(app_actions) * 100)
-        raise TestCoverageError(100-test_coverage, actions_not_tested)
+        raise TestCoverageError(100 - test_coverage, actions_not_tested)
     else:
         print("Test coverage is 100%. All actions are being tested")
 
