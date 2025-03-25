@@ -83,7 +83,7 @@ def _send_release_message(
         "app_name": app_json["name"],
         "app_logo": app_json["logo"],
         "repo_name": repo_name,
-        "release_notes": release_notes.decode().split("\n"),
+        "release_notes": release_notes,
         "release_version": app_json["app_version"],
         "new_app": new_app,
     }
@@ -151,8 +151,13 @@ def main(args):
         return 1
 
     print(f"sending a release message with repo_name={app_repo_name}, new_app={not apps}")
+    release_notes_for_slack = release_notes.decode().split("\n")
+    release_notes_for_slack = release_notes_for_slack[1:]  # Remove the first line
     _send_release_message(
-        repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
+        repo_name=app_repo_name,
+        new_app=not apps,
+        app_json=app_json,
+        release_notes=release_notes_for_slack,
     )
 
     if not apps:
