@@ -9,7 +9,7 @@ inputs:
     description: "Phantom instance the tests are ran on"
     required: true
   version:
-    descritpion: "Phantom version being tested"
+    description: "Phantom version being tested"
     required: true
   app_repo:
     description: "Connector repo being tested"
@@ -47,7 +47,8 @@ runs:
           git checkout main
         fi
         if [[ "${{ inputs.version }}" == "cloud" ]]; then
-          export AUTOMATION_BROKER="$AUTOMATION_BROKER_NAME"
+          export AUTOMATION_BROKER="{{ vars.AUTOMATION_BROKER_NAME }}"
+          echo "Tests will use automation broker $AUTOMATION_BROKER"
         fi
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
           echo "Failed to authenticate with Vault!"
