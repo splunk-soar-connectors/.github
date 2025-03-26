@@ -14,6 +14,9 @@ inputs:
   app_repo:
     description: "Connector repo being tested"
     required: true
+  automation_broker:
+    description: "Automation broker to use for cloud tests"
+    required: false
 runs:
   using: "composite"
   steps:
@@ -47,11 +50,11 @@ runs:
           git checkout main
         fi
         if [[ "${{ inputs.version }}" == "cloud" ]]; then
-          export AUTOMATION_BROKER="${{ vars.AUTOMATION_BROKER_NAME }}"
-          if [[ "${AUTOMATION_BROKER}" == "" ]]; then
-            echo "ERROR - AUTOMATION_BROKER_NAME is not set!"
+          if [[ "${{ inputs.automation_broker }}" == "" ]]; then
+            echo "ERROR - automation_broker is required for cloud!"
             exit 1
           fi
+          export AUTOMATION_BROKER="${{ inputs.automation_broker }}"
           echo "Tests will use automation broker $AUTOMATION_BROKER"
         fi
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then

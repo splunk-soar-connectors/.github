@@ -105,6 +105,7 @@ jobs:
             ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           - version: "cloud"
             ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
+            automation_broker: ${{ vars.AUTOMATION_BROKER_NAME }}
           - version: "rhel"
             ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_RHEL_VERSION_IP }}
     env:
@@ -113,7 +114,6 @@ jobs:
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
       VAULT_ROLE: ${{ vars.VAULT_ROLE }}
       PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
-      AUTOMATION_BROKER_NAME: ${{ vars.AUTOMATION_BROKER_NAME }}
 
     steps:
       - uses: actions/checkout@v4
