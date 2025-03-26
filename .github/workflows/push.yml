@@ -105,7 +105,6 @@ jobs:
             ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           - version: "cloud"
             ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
-            automation_broker: ${{ vars.AUTOMATION_BROKER_NAME }}
           - version: "rhel"
             ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_RHEL_VERSION_IP }}
     env:
@@ -130,6 +129,7 @@ jobs:
           phantom_ip: ${{ matrix.ip }}
           version: ${{ matrix.version }}
           app_repo: ${{ github.event.repository.name }}
+          automation_broker: ${{ vars.AUTOMATION_BROKER_NAME }}
 
   integration-test:
     runs-on:
