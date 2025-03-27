@@ -24,13 +24,20 @@ RANDOM_STRING = "/{}/".format(
 
 
 def compile_app(
-    phantom_version: str, phantom_client: paramiko.SSHClient, test_directory: Path
+    phantom_version: str, phantom_client: paramiko.SSHClient, test_directory: Path, version: str
 ) -> dict[str, Union[bool, str]]:
     logging.info(f"running {phantom_version} test")
+
+    # Previous version requires a different compile command
     # Excluding flake8 because it is getting removed from the platform anyway, and we do our own ruff validation
-    compile_command = (
-        f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
-    )
+    if version == "previous_phantom_version":
+        compile_command = (
+            f"cd {test_directory}; pwd; ls; phenv compile_app -i --compile-app --exclude-flake"
+        )
+    else:
+        compile_command = (
+            f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
+        )
     logging.info(compile_command)
 
     _, stdout, stderr = phantom_client.exec_command(compile_command)
@@ -116,7 +123,7 @@ def run_compile(
                 hostname=host, username=phantom_username, password=phantom_password, port=22
             )
             with upload_app_files(version, client, local_app_path, app_name) as test_dir:
-                results[version] = compile_app(version, client, test_dir)
+                results[version] = compile_app(version, client, test_dir, version)
         finally:
             client.close()
 
