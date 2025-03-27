@@ -31,9 +31,7 @@ def compile_app(
     # Previous version requires a different compile command
     # Excluding flake8 because it is getting removed from the platform anyway, and we do our own ruff validation
     if version == "previous_phantom_version":
-        compile_command = (
-            f"cd {test_directory}; pwd; ls; phenv compile_app -i --compile-app --exclude-flake"
-        )
+        compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app -i"
     else:
         compile_command = (
             f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
