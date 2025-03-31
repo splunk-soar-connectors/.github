@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import os
+import re
 from pathlib import Path
 import sys
 import tarfile
@@ -52,9 +53,14 @@ def get_release_notes(tarball: str, version: str) -> Optional[str]:
     with tarfile.open(tarball, "r") as tar:
         for name in tar.getnames():
             if filename in name:
-                release_notes_encoded = tar.extractfile(name).read()
-                release_notes = release_notes_encoded.decode().split("\n")
-                return "\n".join(release_notes[1:])  # Remove the **UNRELEASED** header
+                release_notes = tar.extractfile(name).read().decode()
+                # Remove the **UNRELEASED** header if it exists
+                return re.sub(
+                    r"^\** *unreleased *\**\s*$",
+                    "",
+                    release_notes,
+                    flags=re.IGNORECASE | re.MULTILINE,
+                )
     return None
 
 
