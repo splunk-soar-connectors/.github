@@ -52,7 +52,9 @@ def get_release_notes(tarball: str, version: str) -> Optional[str]:
     with tarfile.open(tarball, "r") as tar:
         for name in tar.getnames():
             if filename in name:
-                return tar.extractfile(name).read()
+                release_notes_encoded = tar.extractfile(name).read()
+                release_notes = release_notes_encoded.decode().split("\n")
+                return "\n".join(release_notes[1:])  # Remove the **UNRELEASED** header
     return None
 
 
