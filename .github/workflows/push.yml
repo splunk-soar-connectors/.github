@@ -36,7 +36,8 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-          previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
+          next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
+          previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           phantom_username: ${{ vars.PHANTOM_USERNAME }}
 
   build:

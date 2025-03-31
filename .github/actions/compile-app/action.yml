@@ -4,6 +4,9 @@ inputs:
   current_phantom_ip:
     description: 'The IP address of the current Phantom version'
     required: true
+  next_phantom_ip:
+    description: 'The IP address of the next Phantom version'
+    required: true
   previous_phantom_ip:
     description: 'The IP address of the previous Phantom version'
     required: true
@@ -23,5 +26,5 @@ runs:
     - name: Compile App
       run: |
         set -e
-        python ${{ github.action_path }}/compile_app_in_instance.py ${{ github.event.repository.name }} --app-repo-branch ${{ github.head_ref }} --current-phantom-ip ${{ inputs.current_phantom_ip }} --previous-phantom-ip ${{ inputs.previous_phantom_ip }} --phantom-username ${{ inputs.phantom_username }}
+        python ${{ github.action_path }}/compile_app_in_instance.py ${{ github.event.repository.name }} --app-repo-branch ${{ github.head_ref }} --current-phantom-ip ${{ inputs.current_phantom_ip }} --next-phantom-ip ${{ inputs.next_phantom_ip }} --previous-phantom-ip ${{ inputs.previous_phantom_ip }} --phantom-username ${{ inputs.phantom_username }}
       shell: bash
