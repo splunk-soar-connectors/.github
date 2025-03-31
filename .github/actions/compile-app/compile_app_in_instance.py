@@ -41,12 +41,14 @@ def main():
     parser.add_argument("app_repo", type=str, help="app repo name")
     parser.add_argument("--app-repo-branch", type=str, help="app repo branch")
     parser.add_argument("--current-phantom-ip", type=str, help="current phantom ip")
+    parser.add_argument("--next-phantom-ip", type=str, help="next phantom ip")
     parser.add_argument("--previous-phantom-ip", type=str, help="previous phantom ip")
     parser.add_argument("--phantom-username", type=str, help="phantom username")
 
     args = parser.parse_args()
     app_repo_name = args.app_repo
     current_phantom_ip = args.current_phantom_ip
+    next_phantom_ip = args.next_phantom_ip
     previous_phantom_ip = args.previous_phantom_ip
     phantom_username = args.phantom_username
 
@@ -56,6 +58,7 @@ def main():
             app_repo_name,
             local_repo_location,
             current_phantom_ip,
+            next_phantom_ip,
             previous_phantom_ip,
             phantom_username,
             PHANTOM_PASSWORD,

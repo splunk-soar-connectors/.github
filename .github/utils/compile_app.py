@@ -28,9 +28,9 @@ def compile_app(
 ) -> dict[str, Union[bool, str]]:
     logging.info(f"running {phantom_version} test")
 
-    # Previous version requires a different compile command
+    # Next version requires a different compile command
     # Excluding flake8 because it is getting removed from the platform anyway, and we do our own ruff validation
-    if version == "previous_phantom_version":
+    if version == "next_phantom_version":
         compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app -i"
     else:
         compile_command = (
@@ -102,6 +102,7 @@ def run_compile(
     app_name: str,
     local_app_path: Path,
     current_phantom_ip: str,
+    next_phantom_ip: str,
     previous_phantom_ip: str,
     phantom_username: str,
     phantom_password: str,
@@ -109,6 +110,7 @@ def run_compile(
     results = {}
     hosts = {
         "current_phantom_version": current_phantom_ip,
+        "next_phantom_version": next_phantom_ip,
         "previous_phantom_version": previous_phantom_ip,
     }
 
