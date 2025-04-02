@@ -1,7 +1,10 @@
 name: Reusable Push Workflow
 
 on:
-  workflow_call:
+  pull_request:
+    types:
+      - opened
+      - synchronize
 
 jobs:
   pre-commit:
