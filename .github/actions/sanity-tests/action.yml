@@ -1,10 +1,6 @@
 name: "Sanity Tests"
 description: "Runs sanity tests on the app"
 inputs:
-  fips_compliant:
-    description: "Is the connector fips compliant"
-    required: true
-    default: "false"
   phantom_ip:
     description: "Phantom instance the tests are ran on"
     required: true
@@ -35,9 +31,6 @@ runs:
       shell: bash
       run: |
         phantom_ip=${{ inputs.phantom_ip }}
-        if [[ "${{ inputs.fips_compliant }}" == "true" && "${{ inputs.version }}" == "current" ]]; then
-          phantom_ip=$PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP
-        fi
         export PHANTOM_URL="https://$phantom_ip"
         python ${{ github.action_path }}/../../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
         if [[ "${{ inputs.app_repo }}" == *"aws"* ]]; then

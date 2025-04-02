@@ -1,10 +1,7 @@
 name: Reusable Push Workflow
 
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
+  workflow_call:
 
 jobs:
   pre-commit:
@@ -36,7 +33,7 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-          next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
+          next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
           previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           phantom_username: ${{ vars.PHANTOM_USERNAME }}
 
@@ -101,16 +98,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - version: "current"
-            ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-          - version: "next"
-            ip: ${{ vars.PHANTOM_INSTANCE_NEXT_VERSION_IP }}
+          - version: "next_ol8"
+            ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
+          - version: "next_ol9"
+            ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL9_VERSION_IP }}
+          - version: "next_amzn2023"
+            ip: ${{ vars.PHANTOM_INSTANCE_NEXT_AMZN2023_VERSION_IP }}
           - version: "previous"
             ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           - version: "cloud"
             ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
-          - version: "rhel"
-            ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_RHEL_VERSION_IP }}
     env:
       AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
@@ -129,7 +126,6 @@ jobs:
       - name: Run Sanity Tests
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
-          fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
           phantom_ip: ${{ matrix.ip }}
           version: ${{ matrix.version }}
           app_repo: ${{ github.event.repository.name }}
@@ -142,8 +138,8 @@ jobs:
     needs: test-setup
     if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
     env:
-      PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_IP }}
-      PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_IP_FIPS }}
+      PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+      PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
       AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
