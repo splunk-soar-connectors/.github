@@ -89,7 +89,7 @@ def _send_release_message(
         "app_name": app_json["name"],
         "app_logo": app_json["logo"],
         "repo_name": repo_name,
-        "release_notes": release_notes,
+        "release_notes": release_notes.split("\n"),
         "release_version": app_json["app_version"],
         "new_app": new_app,
     }
