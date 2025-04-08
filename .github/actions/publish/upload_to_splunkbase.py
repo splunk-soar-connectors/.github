@@ -55,7 +55,7 @@ def get_release_notes(tarball: str, version: str) -> Optional[str]:
                 full_release_notes = tar.extractfile(name).read().decode()
                 release_notes = []
                 for line in full_release_notes.splitlines():
-                    if "unreleased" not in line.lower() and "**" not in line:
+                    if not ("unreleased" in line.lower() and "**" in line):
                         release_notes.append(line)
                 return "\n".join(release_notes)
 
