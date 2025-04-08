@@ -55,9 +55,7 @@ def get_release_notes(tarball: str, version: str) -> Optional[str]:
                 full_release_notes = tar.extractfile(name).read().decode()
                 release_notes = []
                 for line in full_release_notes.splitlines():
-                    if "unreleased" in line.lower() and "**" in line:
-                        pass
-                    else:
+                    if "unreleased" not in line.lower() and "**" not in line:
                         release_notes.append(line)
                 return "\n".join(release_notes)
 
@@ -158,7 +156,7 @@ def main(args):
         logging.info("Failed to validate upload: \n%s", json.dumps(response, indent=2))
         return 1
 
-    print(
+    logging.info(
         f"sending a release message with repo_name={app_repo_name}, new_app={not apps}, release_notes={release_notes}"
     )
     _send_release_message(
