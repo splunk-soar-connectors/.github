@@ -6,7 +6,6 @@ import argparse
 import json
 import logging
 import os
-import re
 from pathlib import Path
 import sys
 import tarfile
@@ -53,14 +52,15 @@ def get_release_notes(tarball: str, version: str) -> Optional[str]:
     with tarfile.open(tarball, "r") as tar:
         for name in tar.getnames():
             if filename in name:
-                release_notes = tar.extractfile(name).read().decode()
-                # Remove the **UNRELEASED** header if it exists
-                return re.sub(
-                    r"^\** *unreleased *\**\s*$",
-                    "",
-                    release_notes,
-                    flags=re.IGNORECASE | re.MULTILINE,
-                )
+                full_release_notes = tar.extractfile(name).read().decode()
+                release_notes = []
+                for line in full_release_notes.splitlines():
+                    if "unreleased" in line.lower() and "**" in line:
+                        pass
+                    else:
+                        release_notes.append(line)
+                return "\n".join(release_notes)
+
     return None
 
 
@@ -158,7 +158,9 @@ def main(args):
         logging.info("Failed to validate upload: \n%s", json.dumps(response, indent=2))
         return 1
 
-    print(f"sending a release message with repo_name={app_repo_name}, new_app={not apps}")
+    print(
+        f"sending a release message with repo_name={app_repo_name}, new_app={not apps}, release_notes={release_notes}"
+    )
     _send_release_message(
         repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
     )
