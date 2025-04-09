@@ -73,7 +73,12 @@ def generate_release_notes(new_version: str) -> None:
         if not release_notes:
             print("Release notes not formatted correctly, not adding to official release notes")
             exit(1)
-        f.write(release_notes)
+        versioned_release_notes = []
+        for line in release_notes.splitlines():
+            if not ("unreleased" in line.lower() and "**" in line):
+                versioned_release_notes.append(line)
+        for line in versioned_release_notes:
+            f.write(line + "\n")
 
     # Clear release notes from unreleased.md
     with open("release_notes/unreleased.md", "w") as f:
