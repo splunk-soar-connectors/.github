@@ -3,6 +3,7 @@
 import os
 import json
 import argparse
+from pathlib import Path
 import re
 from datetime import datetime, timezone
 
@@ -62,6 +63,21 @@ def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None
         f.write("\n")
 
 
+def update_app_version_in_readme(readme_path: Path, new_version: str) -> None:
+    with open(readme_path) as f:
+        lines = f.readlines()
+
+    # Update the version in the matching line
+    with open(readme_path, "w") as f:
+        for line in lines:
+            # Match the line with "Connector Version: x.x.x"
+            if line.startswith("Connector Version:"):
+                line = re.sub(
+                    r"Connector Version: \d+\.\d+\.\d+", f"Connector Version: {new_version}", line
+                )
+            f.write(line)
+
+
 def generate_release_notes(new_version: str) -> None:
     print("Generating new release notes from unreleased.md")
     # Get release notes from unreleased.md
@@ -73,7 +89,12 @@ def generate_release_notes(new_version: str) -> None:
         if not release_notes:
             print("Release notes not formatted correctly, not adding to official release notes")
             exit(1)
-        f.write(release_notes)
+        versioned_release_notes = []
+        for line in release_notes.splitlines():
+            if not ("unreleased" in line.lower() and "**" in line):
+                versioned_release_notes.append(line)
+        for line in versioned_release_notes:
+            f.write(line + "\n")
 
     # Clear release notes from unreleased.md
     with open("release_notes/unreleased.md", "w") as f:
@@ -103,10 +124,18 @@ def main(**kwargs):
 
     new_version = kwargs.get("new_version")
 
+    # Look for the app json file in the current directory
     app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith(".json")])
     print(f"Found one top-level json file: {app_json_name}")
 
     update_app_version_in_app_json(app_json_name, new_version)
+
+    # Look for a file named "README" in the current directory
+    readme_path = os.path.join(os.getcwd(), "README.md")
+    if not os.path.exists(readme_path):
+        print("README.md file not found in the current directory")
+        exit(1)
+    update_app_version_in_readme(readme_path, new_version)
 
     generate_release_notes(new_version)
 
