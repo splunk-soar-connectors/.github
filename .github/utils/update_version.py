@@ -91,7 +91,7 @@ def generate_release_notes(new_version: str) -> None:
             exit(1)
         versioned_release_notes = []
         for line in release_notes.splitlines():
-            if not ("unreleased" in line.lower() and "**" in line) and line != "":
+            if line.strip() and not ("unreleased" in line.lower() and "**" in line):
                 versioned_release_notes.append(line)
         if versioned_release_notes:
             for line in versioned_release_notes[:-1]:
