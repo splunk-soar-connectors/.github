@@ -91,10 +91,16 @@ def generate_release_notes(new_version: str) -> None:
             exit(1)
         versioned_release_notes = []
         for line in release_notes.splitlines():
-            if not ("unreleased" in line.lower() and "**" in line):
+            if line.strip() and not ("unreleased" in line.lower() and "**" in line):
                 versioned_release_notes.append(line)
-        for line in versioned_release_notes:
-            f.write(line + "\n")
+        if versioned_release_notes:
+            for line in versioned_release_notes[:-1]:
+                f.write(line + "\n")
+            # Write the last line without a newline
+            f.write(versioned_release_notes[-1])
+        else:
+            print("No valid release notes found, not adding to official release notes")
+            exit(1)
 
     # Clear release notes from unreleased.md
     with open("release_notes/unreleased.md", "w") as f:
