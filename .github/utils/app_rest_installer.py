@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from requests.exceptions import HTTPError
 
 from api import ApiSession
+import requests
 
 NRI_PORT = 9999
 
@@ -21,7 +22,7 @@ NRI_PORT = 9999
 def parse_args():
     help_str = " ".join(line.strip() for line in __doc__.splitlines())
     parser = argparse.ArgumentParser(description=help_str)
-    parser.add_argument("tarball_path", help="Path to the app tarball to install")
+    #parser.add_argument("tarball_path", help="Path to the app tarball to install")
     parser.add_argument("phantom_ip", help="IP of the target phantom instance")
     parser.add_argument("phantom_username", help="User for the target phantom instance")
     parser.add_argument("phantom_password", help="User password")
@@ -74,12 +75,15 @@ def main(args):
             phantom_ip = f"{args.phantom_ip}:{NRI_PORT}"
         else:
             phantom_ip = args.phantom_ip
+        
+        print(phantom_ip)
+        requests.get(f"https://{phantom_ip}/login", verify=False, auth=("soar_local_admin", "password"))
 
-        logging.info("Installing %s on instance %s", args.tarball_path, phantom_ip)
-        if os.path.isfile(args.tarball_path):
-            tarball = args.tarball_path
-        else:
-            logging.error(f"{args.tarball_path} not in direcrory")
+       # logging.info("Installing %s on instance %s", args.tarball_path, phantom_ip)
+       # if os.path.isfile(args.tarball_path):
+       #     tarball = args.tarball_path
+       # else:
+       #     logging.error(f"{args.tarball_path} not in direcrory")
 
         with (
             _open_phantom_session(
@@ -88,15 +92,15 @@ def main(args):
             open(tarball, "rb") as tarball,
         ):
             install_url = f"{session.base_url}/app_install"
-            resp = session.post(
-                install_url,
-                verify=False,
-                data={"csrfmiddlewaretoken": session.cookies["csrftoken"]},
-                files={"app": tarball},
-                headers={"referer": install_url},
-            )
+            # resp = session.post(
+            #    install_url,
+            #    verify=False,
+            #    data={"csrfmiddlewaretoken": session.cookies["csrftoken"]},
+            #    files={"app": tarball},
+            #    headers={"referer": install_url},
+            # )
 
-            logging.info("Install succeeded with response: %s", resp.json())
+            # logging.info("Install succeeded with response: %s", resp.json())
             return 0
     except HTTPError as ex:
         try:

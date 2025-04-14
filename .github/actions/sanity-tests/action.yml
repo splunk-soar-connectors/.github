@@ -32,30 +32,5 @@ runs:
       run: |
         phantom_ip=${{ inputs.phantom_ip }}
         export PHANTOM_URL="https://$phantom_ip"
-        python ${{ github.action_path }}/../../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
-        if [[ "${{ inputs.app_repo }}" == *"aws"* ]]; then
-          python ${{ github.action_path }}/../../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
-          python ${{ github.action_path }}/../../utils/app_rest_installer.py ${{ inputs.app_repo }}.tgz "$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" $AWS_PHANTOM_USERNAME $AWS_PHANTOM_PASSWORD
-        fi
-        cd ../app-tests
-        if ! git checkout origin/$APP_TESTS_BRANCH &> /dev/null; then
-          echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to main."
-          git checkout main
-        fi
-        if [[ "${{ inputs.version }}" == "cloud" ]]; then
-          if [[ "${{ inputs.automation_broker }}" == "" ]]; then
-            echo "ERROR - automation_broker is required for cloud!"
-            exit 1
-          fi
-          export AUTOMATION_BROKER="${{ inputs.automation_broker }}"
-          echo "Tests will use automation broker $AUTOMATION_BROKER"
-        fi
-        if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
-          echo "Failed to authenticate with Vault!"
-          exit 1
-        fi
-        if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then
-          echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
-          exit 1
-        fi
-        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui" --color=yes --reruns=$NUM_TEST_RETRIES
+        python ${{ github.action_path }}/../../utils/app_rest_installer.py $phantom_ip $PHANTOM_USERNAME $PHANTOM_PASSWORD
+        

@@ -36,6 +36,7 @@ class ApiSession(requests.Session):
         # Port specification on https is often broken
         if url.startswith("https"):
             url = re.sub(r"(\.com):\d+/", r"\1/", url)
+        print(f"kwargs are {kwargs}")
         resp = super().request(method, url, **kwargs)
         resp.raise_for_status()
         return resp
