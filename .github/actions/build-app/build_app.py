@@ -226,7 +226,7 @@ class AppBuilder:
         directory = self.output_dir or self.app_code_dir
         tarfile_path = os.path.join(directory, tarfile_name)
         exclude_cmds = self._get_tar_excludes(excludes)
-        tar_command = f"tar {exclude_cmds} --dereference -zcf {tarfile_path} {os.path.basename(self.app_code_dir)}"
+        tar_command = f"tar {exclude_cmds} --dereference --warning=no-file-changed -zcf {tarfile_path} {os.path.basename(self.app_code_dir)}"
 
         with change_current_directory("../"):
             run_command(tar_command)
