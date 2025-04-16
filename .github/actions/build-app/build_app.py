@@ -337,6 +337,7 @@ def main(**kwargs):
     if os.path.isdir(kwargs.get("app", "")):
         kwargs["local_code"] = os.path.realpath(kwargs["app"])
         kwargs["app_repo_name"] = kwargs.pop("app").rsplit("/", 1)[-1]
+        log("App is already cloned, using local copy")
 
     # We're gonna need to clone the app
     else:
