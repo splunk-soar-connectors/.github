@@ -53,6 +53,9 @@ jobs:
 
       - name: Build Application
         uses: splunk-soar-connectors/.github/.github/actions/build-app@main
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Upload app tar file as artifact
         uses: actions/upload-artifact@v4
