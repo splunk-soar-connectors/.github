@@ -223,8 +223,7 @@ class AppBuilder:
         Creates a tar file of the app's source code and returns it
         """
         tarfile_name = f"{app_repo_name}.tgz"
-        directory = self.output_dir or self.app_code_dir
-        tarfile_path = os.path.join(directory, tarfile_name)
+        tarfile_path = os.path.join("/tmp", tarfile_name)
         exclude_cmds = self._get_tar_excludes(excludes)
         tar_command = f"tar {exclude_cmds} --dereference --warning=no-file-changed -zcf {tarfile_path} {os.path.basename(self.app_code_dir)}"
 
