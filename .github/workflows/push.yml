@@ -61,7 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-tar
-          path: ${{ github.event.repository.name }}.tgz
+          path: /tmp/${{ github.event.repository.name }}.tgz
 
   test-setup:
     runs-on: ubuntu-latest
