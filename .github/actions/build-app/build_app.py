@@ -35,6 +35,7 @@ from utils.phantom_constants import (
 )
 
 DIR = os.path.realpath(os.path.dirname(__file__))
+LOCAL_REPO_DIRECTORY = os.getenv("GITHUB_WORKSPACE", ".")
 
 # Required json fields and how to validate them
 REQ_FIELDS = {
@@ -74,7 +75,7 @@ class AppBuilder:
         self.app_repo_name = app_repo_name
         self.branch = app_branch
 
-        self._local_code = kwargs.pop("local_code", False)
+        self._local_code = LOCAL_REPO_DIRECTORY
 
         self.git_api = GitHubApi(token=GITHUB_API_KEY)
 
@@ -134,18 +135,14 @@ class AppBuilder:
         if self._local_code:
             log(f"Building existing local copy of app: {self._local_code}")
             repo = git.Repo(self._local_code)
-            remote = repo.remote("origin")
-            if self.branch not in repo.heads:
-                repo.create_head(self.branch, remote.refs[self.branch])
-                repo.heads[self.branch].checkout()
-            else:
-                repo.heads[self.branch].checkout()
-                repo.head.reset(
-                    f"origin/{self.branch}", working_tree=True
-                )  # working_tree causes a hard reset
-            repo.heads[self.branch].checkout()
             for submodule in repo.submodules:
-                submodule.update(init=True)
+                try:
+                    submodule.update(init=True)
+                except git.exc.GitCommandError as e:
+                    print(
+                        f"WARNING: Failed to clone Git submodules. Some dependency tests may fail. Error message: {e}"
+                    )
+                    break
             yield repo
 
         else:
@@ -332,19 +329,8 @@ def main(**kwargs):
         log(
             "THIS IS A DRY-RUN. NOTHING WILL BE POSTED TO AWS S3, AND NO VERSION BUMPS WILL BE COMMITTED"
         )
-
-    # App is already cloned
-    if os.path.isdir(kwargs.get("app", "")):
-        kwargs["local_code"] = os.path.realpath(kwargs["app"])
-        kwargs["app_repo_name"] = kwargs.pop("app").rsplit("/", 1)[-1]
-        log("App is already cloned, using local copy")
-
-    # We're gonna need to clone the app
-    else:
-        kwargs["app_repo_name"] = kwargs.pop("app")
-
+    kwargs["app_repo_name"] = kwargs.pop("app")
     kwargs["app_branch"] = kwargs.pop("branch")
-
     AppBuilder(**kwargs).run()
 
 
