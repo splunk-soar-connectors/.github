@@ -31,4 +31,7 @@ runs:
           \"APP_REPO_OWNER\":\"${{ github.event.pull_request.head.repo.owner.login }}\",
           \"SPLUNK_SUPPORTED\":\"$is_splunk_supported\"
         }"
+        if [[ "$is_splunk_supported" == "false" ]]; then
+          exit 0
+        fi
       shell: bash
