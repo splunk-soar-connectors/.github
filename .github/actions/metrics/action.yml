@@ -28,6 +28,8 @@ runs:
           echo "No JSON file found."
           exit 0
         fi
-
+        temp_old_json_file=$(mktemp)
         old_json=$(git show HEAD^:"$APP_JSON_NAME" 2>/dev/null || echo "{}")
-        python ${{ github.action_path }}/send_metrics.py "$APP_JSON" "$old_json" --publish-code ${{ inputs.publish_return_code }} -t 600
+        echo "$old_json" > "$temp_old_json_file"
+        python ${{ github.action_path }}/send_metrics.py "$APP_JSON" "$temp_old_json_file" --publish-code ${{ inputs.publish_return_code }} -t 600
+        rm -f "$temp_file"
