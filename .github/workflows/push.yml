@@ -89,7 +89,7 @@ jobs:
         id: set-outputs
         run: |
           echo "${{ env.publisher }}"
-          echo "publisher='${{ env.publisher }}'" >> $GITHUB_OUTPUT
+          echo publisher="${{ env.publisher }}" >> $GITHUB_OUTPUT
           echo "fips_compliant=${{ env.fips_compliant }}" >> $GITHUB_OUTPUT
 
   test-coverage:
