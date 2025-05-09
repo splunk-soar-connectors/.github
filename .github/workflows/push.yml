@@ -26,9 +26,25 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+      - name: Determine if community app
+        id: community_app_check
+        run: |
+          app_json=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
+          publisher=$(jq -r '.publisher' "$app_json")
+          is_splunk_supported=false
+          if [[ "$publisher" == "Splunk" ]]; then
+            is_splunk_supported=true
+          else
+            echo "Security scans will not fail for community or developer supported apps. The SOAR team will handle the results"
+          fi
+          echo "is_splunk_supported=$is_splunk_supported" >> $GITHUB_OUTPUT
+      - name: run fossa scan
+        run: |
+          curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
+          fossa analyze
+          fossa test
+        continue-on-error: ${{ !fromJson(steps.community_app_check.outputs.is_splunk_supported) }}
 
-      - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
 
   compile:
     runs-on:
