@@ -1,10 +1,7 @@
 name: Reusable Push Workflow
 
 on:
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
+  workflow_call:
 
 jobs:
   pre-commit:
@@ -16,7 +13,7 @@ jobs:
       - name: Pre-commit
         uses: splunk-soar-connectors/.github/.github/actions/pre-commit@main
 
-  security-scans:
+  fossa-scan:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
@@ -26,9 +23,15 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+      - name: debug
+        run: |
+          echo $FOSSA_API_KEY
+      - name: run fossa scan
+        run: |
+          curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
+          fossa analyze
+          fossa test
 
-      - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
 
   compile:
     runs-on:
