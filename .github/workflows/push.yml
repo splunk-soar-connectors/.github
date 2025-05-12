@@ -35,10 +35,10 @@ jobs:
           if [[ "$publisher" == "Splunk" ]]; then
             is_splunk_supported=true
           else
-            echo "Security scans will not fail for community or developer supported apps. The SOAR team will handle the results"
+            echo "Security scans will not fail for community or developer supported apps. The SOAR team will handle the results."
           fi
           echo "is_splunk_supported=$is_splunk_supported" >> $GITHUB_OUTPUT
-      - name: run fossa scan
+      - name: Run fossa scan
         run: |
           curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash
           fossa analyze
