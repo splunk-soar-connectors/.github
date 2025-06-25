@@ -1,10 +1,7 @@
 name: Reusable Push Workflow
 
 on:
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
+  workflow_call:
 
 jobs:
   pre-commit:
@@ -42,7 +39,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Compile Application
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@tapishj/PAPP-36384-better-AB-support
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
@@ -127,6 +124,8 @@ jobs:
             ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           - version: "cloud"
             ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
+          - version: "cloud_next"
+            ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_NEXT_HOST }}
     env:
       AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
@@ -144,12 +143,13 @@ jobs:
           name: app-tar
 
       - name: Run Sanity Tests
-        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
+        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@tapishj/PAPP-36384-better-AB-support
         with:
           phantom_ip: ${{ matrix.ip }}
           version: ${{ matrix.version }}
           app_repo: ${{ github.event.repository.name }}
           automation_broker: ${{ vars.AUTOMATION_BROKER_NAME }}
+          automation_broker_next: ${{ vars.AUTOMATION_BROKER_NEXT_NAME }}
 
   integration-test:
     runs-on:
