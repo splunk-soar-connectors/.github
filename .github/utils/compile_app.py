@@ -28,7 +28,15 @@ def compile_app(
 ) -> dict[str, Union[bool, str]]:
     logging.info(f"running {phantom_version} test")
 
-    compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app -i"
+    # As of 5/7/25 compile_command uses phenv compile_app -i on both current and next
+    # The next test instance upgrade will make this on previous_phantom_version as well
+    # and we can get rid of this if statement
+    if version == "next_phantom_version" or version == "current_phantom_version":
+        compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app -i"
+    else:
+        compile_command = (
+            f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
+        )
     logging.info(compile_command)
 
     _, stdout, stderr = phantom_client.exec_command(compile_command)

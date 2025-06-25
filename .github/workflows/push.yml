@@ -1,7 +1,10 @@
 name: Reusable Push Workflow
 
 on:
-  workflow_call:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
 
 jobs:
   pre-commit:
@@ -39,7 +42,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Compile Application
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@tapishj/PAPP-36384-better-AB-support
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
@@ -143,7 +146,7 @@ jobs:
           name: app-tar
 
       - name: Run Sanity Tests
-        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@tapishj/PAPP-36384-better-AB-support
+        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
           phantom_ip: ${{ matrix.ip }}
           version: ${{ matrix.version }}
