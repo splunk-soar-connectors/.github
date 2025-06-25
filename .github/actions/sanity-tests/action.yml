@@ -50,6 +50,14 @@ runs:
           export AUTOMATION_BROKER="${{ inputs.automation_broker }}"
           echo "Tests will use automation broker $AUTOMATION_BROKER"
         fi
+        if [[ "${{ inputs.version }}" == "cloud_next" ]]; then
+          if [[ "${{ inputs.automation_broker_next }}" == "" ]]; then
+            echo "ERROR - automation_broker is required for cloud!"
+            exit 1
+          fi
+          export AUTOMATION_BROKER="${{ inputs.automation_broker_next }}"
+          echo "Tests will use automation broker $AUTOMATION_BROKER"
+        fi
         if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
           echo "Failed to authenticate with Vault!"
           exit 1

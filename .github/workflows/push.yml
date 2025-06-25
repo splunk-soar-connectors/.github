@@ -127,6 +127,8 @@ jobs:
             ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           - version: "cloud"
             ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_HOST }}
+          - version: "cloud_next"
+            ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_NEXT_HOST }}
     env:
       AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
@@ -150,6 +152,7 @@ jobs:
           version: ${{ matrix.version }}
           app_repo: ${{ github.event.repository.name }}
           automation_broker: ${{ vars.AUTOMATION_BROKER_NAME }}
+          automation_broker_next: ${{ vars.AUTOMATION_BROKER_NEXT_NAME }}
 
   integration-test:
     runs-on:
