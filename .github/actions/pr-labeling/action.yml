@@ -8,8 +8,8 @@ inputs:
   jira-user:
     description: 'Jira username'
     required: false
-  jira-password:
-    description: 'Jira password'
+  jira-api-key:
+    description: 'Jira API key'
     required: false
   repo-name:
     description: 'Repository name'
@@ -31,7 +31,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         JIRA_USER: ${{ inputs.jira-user }}
-        JIRA_PASSWORD: ${{ inputs.jira-password }}
+        JIRA_API_KEY: ${{ inputs.jira-api-key }}
         REPO_NAME: ${{ inputs.repo-name }}
         PR_NUMBER: ${{ inputs.pr-number }}
       run: |
