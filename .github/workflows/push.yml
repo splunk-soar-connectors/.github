@@ -7,6 +7,23 @@ on:
       - synchronize
 
 jobs:
+  pr-labeling:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Assign PR Labels
+        uses: splunk-soar-connectors/.github/.github/actions/pr-labeling@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          jira-user: ${{ secrets.JIRA_USER }}
+          jira-password: ${{ secrets.JIRA_PASSWORD }}
+          repo-name: ${{ github.repository }}
+          pr-number: ${{ github.event.pull_request.number }}
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
