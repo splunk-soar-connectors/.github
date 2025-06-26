@@ -97,6 +97,28 @@ def create_jira_ticket(jira_user, jira_password, app_name, is_certified, pr_info
         return None
 
 
+def find_app_json_name(json_filenames):
+    """ Return most likely app json"""
+    filtered_json_filenames = []
+    for fname in json_filenames:
+        # Ignore the postman collection JSON files
+        if "postman_collection" in fname.lower():
+            continue
+        filtered_json_filenames.append(fname)
+
+    if len(filtered_json_filenames) == 0:
+        raise ValueError("No JSON file found in top level of app repo! Aborting tests...")
+
+    if len(filtered_json_filenames) > 1:
+        raise ValueError(
+            f"Multiple JSON files found in top level of app repo: {filtered_json_filenames}."
+            "Aborting because there should be exactly one top level JSON file."
+        )
+
+    # Only one json file in the top level, must be the app's json
+    return filtered_json_filenames[0]
+
+
 def get_app_json_from_repo(github_client, repo_name, pr_number):
     """Attempt to read the app JSON from the app's repository"""
     repo = github_client.get_repo(repo_name)
@@ -104,17 +126,25 @@ def get_app_json_from_repo(github_client, repo_name, pr_number):
     # First try the default branch
     try:
         default_branch = repo.default_branch
-        contents = repo.get_contents("app.json", ref=default_branch)
-        return json.loads(contents.decoded_content.decode('utf-8'))
+        contents = repo.get_contents("", ref=default_branch)  # Get root directory contents
+        json_files = [item.name for item in contents if item.name.endswith(".json")]
+        app_json_name = find_app_json_name(json_files)
+        
+        app_json_contents = repo.get_contents(app_json_name, ref=default_branch)
+        return json.loads(app_json_contents.decoded_content.decode('utf-8'))
     except Exception:
-        logging.info("Could not find app.json in default branch of %s", repo_name)
+        logging.info("Could not find app JSON in default branch of %s", repo_name)
     
     try:
         pr = repo.get_pull(pr_number)
-        contents = repo.get_contents("app.json", ref=pr.head.sha)
-        return json.loads(contents.decoded_content.decode('utf-8'))
+        contents = repo.get_contents("", ref=pr.head.sha)  # Get root directory contents
+        json_files = [item.name for item in contents if item.name.endswith(".json")]
+        app_json_name = find_app_json_name(json_files)
+        
+        app_json_contents = repo.get_contents(app_json_name, ref=pr.head.sha)
+        return json.loads(app_json_contents.decoded_content.decode('utf-8'))
     except Exception:
-        logging.info("Could not find app.json in PR head branch for %s", repo_name)
+        logging.info("Could not find app JSON in PR head branch for %s", repo_name)
         return None
 
 
