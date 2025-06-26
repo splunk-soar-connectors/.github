@@ -1,0 +1,38 @@
+name: 'PR Labeling'
+description: 'Assigns labels to PRs based on contributor type and app properties'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  jira-user:
+    description: 'Jira username'
+    required: false
+  jira-password:
+    description: 'Jira password'
+    required: false
+  repo-name:
+    description: 'Repository name'
+    required: true
+  pr-number:
+    description: 'Pull request number'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: |
+        pip install requests PyGithub gitpython
+    
+    - name: Run PR labeling
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        JIRA_USER: ${{ inputs.jira-user }}
+        JIRA_PASSWORD: ${{ inputs.jira-password }}
+        REPO_NAME: ${{ inputs.repo-name }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+      run: |
+        python ${{ github.action_path }}/assign_pr_labels.py
