@@ -16,7 +16,7 @@ jobs:
       contents: read
     steps:
       - name: Assign PR Labels
-        uses: splunk-soar-connectors/.github/.github/actions/pr-labeling@grokas-PAPP-36392-external_label_application
+        uses: splunk-soar-connectors/.github/.github/actions/pr-labeling@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           jira-user: ${{ secrets.JIRA_USER }}

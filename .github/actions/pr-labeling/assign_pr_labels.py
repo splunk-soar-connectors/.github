@@ -97,28 +97,30 @@ def create_jira_ticket(jira_user, jira_api_key, app_name, is_certified, pr_info)
         return None
 
 
-def check_org_membership(github_token, user, org_name):
-    """Check if the given user is a member of the organization"""
+def check_if_internal_contributor(github_client, repo_name, user):
+    """Check if user is internal by checking repository collaborator status"""
     try:
-        response = requests.get(
-            f"https://api.github.com/orgs/{org_name}/members/{user}",
-            headers={
-                "Authorization": f"token {github_token}",
-                "Accept": "application/vnd.github.v3+json"
-            },
-            timeout=30
-        )
+        repo = github_client.get_repo(repo_name)
         
-        return response.status_code == 204
-    except requests.exceptions.RequestException:
-        # If API call fails, assume external
+        # Check if user is a collaborator on the repository
+        try:
+            permission = repo.get_collaborator_permission(user)
+            logging.info("User %s has '%s' permission on repository %s", user, permission, repo_name)
+            return permission in GITHUB_ROLES_WITH_WRITE_PERMISSION
+        except Exception:
+            logging.info("User %s is not a direct collaborator on repository %s", user, repo_name)
+            return False
+            
+    except Exception as e:
+        logging.warning("Could not check collaborator status: %s", str(e))
         return False
 
 
 def find_app_json_name(json_filenames):
-    """ Return most likely app json"""
+    """Return most likely app json"""
     filtered_json_filenames = []
     for fname in json_filenames:
+
         # Ignore the postman collection JSON files
         if "postman_collection" in fname.lower():
             continue
@@ -144,7 +146,7 @@ def get_app_json_from_repo(github_client, repo_name, pr_number):
     # First try the default branch
     try:
         default_branch = repo.default_branch
-        contents = repo.get_contents("", ref=default_branch)  # Get root directory contents
+        contents = repo.get_contents("", ref=default_branch)
         json_files = [item.name for item in contents if item.name.endswith(".json")]
         app_json_name = find_app_json_name(json_files)
         
@@ -155,7 +157,7 @@ def get_app_json_from_repo(github_client, repo_name, pr_number):
     
     try:
         pr = repo.get_pull(pr_number)
-        contents = repo.get_contents("", ref=pr.head.sha)  # Get root directory contents
+        contents = repo.get_contents("", ref=pr.head.sha)
         json_files = [item.name for item in contents if item.name.endswith(".json")]
         app_json_name = find_app_json_name(json_files)
         
@@ -195,26 +197,23 @@ def assign_pr_labels():
         logging.error("Missing required environment variables")
         return 1
     
-    # Initialize GitHub client
     github_client = Github(github_token)
     repo = github_client.get_repo(repo_name)
     pr = repo.get_pull(pr_number)
     
-    # Get user information
     user = pr.user.login
     
     # Check if user is external contributor
-    org_name = repo_name.split('/')[0]
-    is_external_contributor = not check_org_membership(github_token, user, org_name)
+    is_internal = check_if_internal_contributor(github_client, repo_name, user)
+    is_external_contributor = not is_internal
     
-    logging.info("User %s is %s contributor in organization %s", 
-                user, "external" if is_external_contributor else "internal", org_name)
+    logging.info("User %s is %s contributor", 
+                user, "external" if is_external_contributor else "internal")
     
     
     labels_to_add = []
     existing_labels = {label.name for label in pr.labels}
     
-    # Add external contributor label if applicable
     if is_external_contributor:
         labels_to_add.append(EXTERNAL_CONTRIBUTOR_LABEL)
         logging.info("Adding label %s for external contributor %s", EXTERNAL_CONTRIBUTOR_LABEL, user)
@@ -233,13 +232,13 @@ def assign_pr_labels():
                 labels_to_add.append(CERTIFIED_LABEL if is_certified else NOT_CERTIFIED_LABEL)
                 logging.info("Adding label %s for app %s", labels_to_add[-1], repo_name)
             
-            # Create JIRA ticket for external contributors (even if they have repo permissions)
+            # Create JIRA ticket for external contributors
             if (is_external_contributor and 
                 not any(JIRA_LABEL_PATTERN.match(lb) for lb in existing_labels)):
                 
                 jira_ticket = create_jira_ticket(
                     jira_user, jira_api_key, 
-                    repo_name.split('/')[-1],  # Use repo name as app name
+                    repo_name.split('/')[-1],
                     is_certified, pr
                 )
                 if jira_ticket:
