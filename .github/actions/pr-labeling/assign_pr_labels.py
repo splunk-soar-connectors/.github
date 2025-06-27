@@ -97,6 +97,24 @@ def create_jira_ticket(jira_user, jira_api_key, app_name, is_certified, pr_info)
         return None
 
 
+def check_org_membership(github_token, user, org_name):
+    """Check if the given user is a member of the organization"""
+    try:
+        response = requests.get(
+            f"https://api.github.com/orgs/{org_name}/members/{user}",
+            headers={
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json"
+            },
+            timeout=30
+        )
+        
+        return response.status_code == 204
+    except requests.exceptions.RequestException:
+        # If API call fails, assume external
+        return False
+
+
 def find_app_json_name(json_filenames):
     """ Return most likely app json"""
     filtered_json_filenames = []
@@ -186,40 +204,12 @@ def assign_pr_labels():
     user = pr.user.login
     
     # Check if user is external contributor
-    try:
-        # Get organization from repo name
-        org_name = repo_name.split('/')[0]
-        logging.info("Checking membership for user '%s' in organization '%s'", user, org_name)
-        org = github_client.get_organization(org_name)
-        
-        # Check if user is a member of the organization
-        is_member = org.has_in_members(github_client.get_user(user))
-        is_external_contributor = not is_member
-        
-        logging.info("Organization membership check result:")
-        logging.info("  User: %s", user)
-        logging.info("  Organization: %s", org_name)
-        logging.info("  Is member: %s", is_member)
-        logging.info("  Is external contributor: %s", is_external_contributor)
-        
-    except Exception as e:
-        # If we can't check membership, assume external
-        is_external_contributor = True
-        logging.warning("Could not check organization membership for %s: %s", user, str(e))
-        logging.warning("Defaulting to external contributor = True")
+    org_name = repo_name.split('/')[0]
+    is_external_contributor = not check_org_membership(github_token, user, org_name)
     
-    # Check repository permissions
-    try:
-        collaborator_permission = repo.get_collaborator_permission(user)
-        is_partner = collaborator_permission in GITHUB_ROLES_WITH_WRITE_PERMISSION
-        logging.info("Repository permission check result:")
-        logging.info("  User: %s", user)
-        logging.info("  Permission: %s", collaborator_permission)
-        logging.info("  Is partner (has write access): %s", is_partner)
-    except Exception as e:
-        is_partner = False
-        logging.warning("Could not check repository permissions for %s: %s", user, str(e))
-        logging.warning("Defaulting to is_partner = False")
+    logging.info("User %s is %s contributor in organization %s", 
+                user, "external" if is_external_contributor else "internal", org_name)
+    
     
     labels_to_add = []
     existing_labels = {label.name for label in pr.labels}
@@ -229,8 +219,8 @@ def assign_pr_labels():
         labels_to_add.append(EXTERNAL_CONTRIBUTOR_LABEL)
         logging.info("Adding label %s for external contributor %s", EXTERNAL_CONTRIBUTOR_LABEL, user)
         
-        if not is_partner:
-            post_acknowledging_comment(github_client, repo_name, pr_number)
+        # All external contributors get an acknowledgment comment
+        post_acknowledging_comment(github_client, repo_name, pr_number)
     
     try:
         app_json = get_app_json_from_repo(github_client, repo_name, pr_number)
@@ -243,18 +233,10 @@ def assign_pr_labels():
                 labels_to_add.append(CERTIFIED_LABEL if is_certified else NOT_CERTIFIED_LABEL)
                 logging.info("Adding label %s for app %s", labels_to_add[-1], repo_name)
             
-            # Create JIRA ticket for external contributors
-            logging.info("Checking JIRA ticket creation conditions:")
-            logging.info("  is_external_contributor: %s", is_external_contributor)
-            logging.info("  is_partner: %s", is_partner)
-            logging.info("  existing_labels: %s", existing_labels)
-            logging.info("  JIRA labels matching pattern: %s", [lb for lb in existing_labels if JIRA_LABEL_PATTERN.match(lb)])
-            
+            # Create JIRA ticket for external contributors (even if they have repo permissions)
             if (is_external_contributor and 
-                not is_partner and 
                 not any(JIRA_LABEL_PATTERN.match(lb) for lb in existing_labels)):
                 
-                logging.info("All conditions met, creating JIRA ticket...")
                 jira_ticket = create_jira_ticket(
                     jira_user, jira_api_key, 
                     repo_name.split('/')[-1],  # Use repo name as app name
@@ -263,10 +245,6 @@ def assign_pr_labels():
                 if jira_ticket:
                     labels_to_add.append(jira_ticket)
                     logging.info("Adding new JIRA ticket label %s", jira_ticket)
-                else:
-                    logging.warning("JIRA ticket creation returned None")
-            else:
-                logging.info("JIRA ticket creation skipped due to conditions not met")
     except Exception as e:
         logging.exception("Error processing app JSON: %s", e)
     
