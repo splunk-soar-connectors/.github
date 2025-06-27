@@ -194,8 +194,7 @@ def assign_pr_labels():
     pr_number = int(os.getenv('PR_NUMBER'))
     
     if not all([github_token, repo_name, pr_number]):
-        logging.error("Missing required environment variables")
-        return 1
+        raise ValueError("Missing required environment variables: GITHUB_TOKEN, REPO_NAME, or PR_NUMBER")
     
     github_client = Github(github_token)
     repo = github_client.get_repo(repo_name)
@@ -230,7 +229,7 @@ def assign_pr_labels():
             if (CERTIFIED_LABEL not in existing_labels and 
                 NOT_CERTIFIED_LABEL not in existing_labels):
                 labels_to_add.append(CERTIFIED_LABEL if is_certified else NOT_CERTIFIED_LABEL)
-                logging.info("Adding label %s for app %s", labels_to_add[-1], repo_name)
+                logging.info(f"Adding label {labels_to_add[-1]} for app {repo_name}")
             
             # Create JIRA ticket for external contributors
             if (is_external_contributor and 
@@ -245,7 +244,7 @@ def assign_pr_labels():
                     labels_to_add.append(jira_ticket)
                     logging.info("Adding new JIRA ticket label %s", jira_ticket)
     except Exception as e:
-        logging.exception("Error processing app JSON: %s", e)
+        raise RuntimeError(f"Error when processing app JSON: {e}") from e
     
     # Apply labels
     if labels_to_add:
@@ -255,10 +254,12 @@ def assign_pr_labels():
         logging.info("Added labels: %s", labels_to_add)
     else:
         logging.info("No labels to add!")
-    
-    return 0
 
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-    sys.exit(assign_pr_labels())
+    try:
+        assign_pr_labels()
+    except Exception:
+        logging.exception("PR label application failed")
+        sys.exit(1)
