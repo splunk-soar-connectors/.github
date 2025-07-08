@@ -13,6 +13,9 @@ inputs:
   automation_broker:
     description: "Automation broker to use for cloud tests"
     required: false
+  automation_broker_next:
+    description: "Automation broker to use for next cloud tests"
+    required: false
 runs:
   using: "composite"
   steps:
