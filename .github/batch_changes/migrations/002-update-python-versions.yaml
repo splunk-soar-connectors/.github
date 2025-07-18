@@ -1,0 +1,30 @@
+name: 002-update-python-versions-3.13
+description: Update python_version to support 3.9 and 3.13 in app JSON files
+
+on:
+  - repositoriesMatchingQuery: repo:^github\.com/splunk-soar-connectors/ -repo:^github\.com/splunk-soar-connectors/\.github -repo:^github\.com/splunk-soar-connectors/frictionless_connectors_test
+
+steps:
+  - container: quay.io/pypa/manylinux_2_28_x86_64
+    run: |
+      # Find and update python_version in app JSON files
+      find . -name "*.json" | while read file; do
+        if grep -q '"python_version": "3"' "$file"; then
+          # Update the python_version field
+          sed -i 's/"python_version": "3"/"python_version": \["3.9", "3.13"\]/g' "$file"
+          echo "Updated $file"
+        fi
+      done
+      # Add release note for Python 3.13
+      echo "* Update Python version for 3.13" >> release_notes/unreleased.md
+
+changesetTemplate:
+  title: Update python_version for 3.13
+  body: |
+    - Update python_version in app JSON files to support Python 3.9 and 3.13
+  branch: update-python-versions-3.13
+  commit:
+    message: |
+      fix: updates related to support for Python 3.13 in SOAR 7.0
+
+      [batch update]
