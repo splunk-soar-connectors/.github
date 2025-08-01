@@ -168,10 +168,9 @@ def main(args):
     # else:
     #     logging.info("SEND_RELEASE_MESSAGE is not set to true; skipping release message.")
 
-    # TODO: Add back when wanting release messages
-    # _send_release_message(
-    #         repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
-    #     )
+    _send_release_message(
+        repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
+    )
 
     if not apps:
         sb_client.add_app_editor(sb_appid)
