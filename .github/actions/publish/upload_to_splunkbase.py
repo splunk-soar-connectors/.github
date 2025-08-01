@@ -156,16 +156,22 @@ def main(args):
         logging.info("Failed to validate upload: \n%s", json.dumps(response, indent=2))
         return 1
 
-    send_release_message = os.getenv("SEND_RELEASE_MESSAGE", "false").lower() in ("1", "true")
-    if send_release_message:
-        logging.info(
-            f"sending a release message with repo_name={app_repo_name}, new_app={not apps}, release_notes={release_notes}"
-        )
-        _send_release_message(
-            repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
-        )
-    else:
-        logging.info("SEND_RELEASE_MESSAGE is not set to true; skipping release message.")
+    # TODO: Change to get this to work correctly
+    # send_release_message = os.getenv("SEND_RELEASE_MESSAGE", "false").lower() in ("1", "true")
+    # if send_release_message:
+    #     logging.info(
+    #         f"sending a release message with repo_name={app_repo_name}, new_app={not apps}, release_notes={release_notes}"
+    #     )
+    #     _send_release_message(
+    #         repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
+    #     )
+    # else:
+    #     logging.info("SEND_RELEASE_MESSAGE is not set to true; skipping release message.")
+
+    # TODO: Add back when wanting release messages
+    # _send_release_message(
+    #         repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
+    #     )
 
     if not apps:
         sb_client.add_app_editor(sb_appid)
