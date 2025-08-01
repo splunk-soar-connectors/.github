@@ -11,3 +11,5 @@ runs:
       return_code=$?
       echo return_code=$return_code >> $GITHUB_ENV
     shell: bash
+    env:
+      SEND_RELEASE_MESSAGE: ${{ vars.SEND_RELEASE_MESSAGE }}
