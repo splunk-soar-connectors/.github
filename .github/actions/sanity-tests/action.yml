@@ -69,4 +69,15 @@ runs:
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
-        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native
+        # Run tests and capture output
+        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native -v --tb=short | tee /tmp/sanity-test-output.txt
+
+        # Save test results for aggregation
+        echo "Test run completed for ${{ inputs.version }} environment" >> /tmp/sanity-test-output.txt
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()  # Upload even if tests failed
+      with:
+        name: test-results-sanity-${{ inputs.version }}
+        path: /tmp/sanity-test-output.txt

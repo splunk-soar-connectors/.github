@@ -1,0 +1,26 @@
+name: "Sanity Test Results Aggregation"
+description: "Aggregates and analyzes sanity test results across 6 different Phantom environments"
+inputs:
+  app_repo:
+    description: "Connector repo being tested"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Download all test result artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: test-results-*
+        path: test-results/
+        merge-multiple: true
+
+    - name: Aggregate and analyze test results
+      shell: bash
+      run: |
+        python ${{ github.action_path }}/analyze_test_results.py ${{ inputs.app_repo }}
