@@ -162,15 +162,6 @@ jobs:
         with:
           name: app-tar
 
-      - name: Debug - Show workspace before tests
-        run: |
-          echo "=== WORKSPACE DEBUG INFO ==="
-          echo "GitHub workspace: $GITHUB_WORKSPACE"
-          echo "Current directory: $(pwd)"
-          echo "Workspace contents:"
-          ls -la
-          echo "=== END DEBUG ==="
-
       - name: Run Sanity Tests
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
@@ -180,31 +171,6 @@ jobs:
           automation_broker: ${{ vars.AUTOMATION_BROKER_NAME }}
           automation_broker_next: ${{ vars.AUTOMATION_BROKER_NEXT_NAME }}
 
-      - name: Debug - Show test results after tests
-        if: always()
-        run: |
-          echo "=== POST-TEST DEBUG INFO ==="
-          echo "Current directory after tests: $(pwd)"
-          echo "Current directory contents:"
-          ls -la
-          echo ""
-          echo "Changing to GitHub workspace:"
-          cd "$GITHUB_WORKSPACE"
-          echo "Now in: $(pwd)"
-          echo "GitHub workspace contents after tests:"
-          ls -la
-          echo ""
-          if [ -d "test-results" ]; then
-            echo "test-results directory found! Contents:"
-            find test-results -type f -ls
-          else
-            echo "test-results directory not found in workspace!"
-          fi
-          echo ""
-          echo "Looking for test-results anywhere in workspace tree:"
-          find . -name "test-results" -type d 2>/dev/null || echo "No test-results directories found"
-          echo "=== END POST-TEST DEBUG ==="
-
       - name: Upload Sanity Test Results
         uses: actions/upload-artifact@v4
         if: always()
@@ -212,6 +178,23 @@ jobs:
           name: sanity-test-results-${{ matrix.version }}
           path: ${{ github.workspace }}/test-results/
           retention-days: 1
+
+  aggregate-sanity-results:
+    runs-on: ubuntu-latest
+    needs: sanity-test
+    if: always()
+    steps:
+      - name: Download All Sanity Test Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sanity-test-results-*
+          path: downloaded-artifacts/
+          merge-multiple: false
+
+      - name: Aggregate Test Results
+        uses: splunk-soar-connectors/.github/.github/actions/aggregate-sanity-results@main
+        with:
+          artifacts_path: downloaded-artifacts
 
   integration-test:
     runs-on:

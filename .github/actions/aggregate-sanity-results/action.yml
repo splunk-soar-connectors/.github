@@ -1,0 +1,19 @@
+name: "Aggregate Sanity Results"
+description: "Aggregates sanity test results from all matrix jobs and creates a summary report"
+inputs:
+  artifacts_path:
+    description: 'Path where sanity test artifacts are downloaded'
+    required: false
+    default: 'downloaded-artifacts'
+runs:
+  using: "composite"
+  steps:
+    - name: Install Requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+
+    - name: Aggregate Results
+      run: |
+        set -e
+        python ${{ github.action_path }}/aggregate_results.py --artifacts-path ${{ inputs.artifacts_path }}
+      shell: bash
