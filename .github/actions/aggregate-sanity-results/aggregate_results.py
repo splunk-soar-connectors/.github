@@ -43,8 +43,23 @@ def parse_pytest_log(log_file_path: str) -> dict:
     """Parse pytest log file and extract test results."""
     print(f"  DEBUG: Checking log file: {log_file_path}")
 
-    if not os.path.exists(log_file_path):
-        print(f"  DEBUG: Log file does not exist: {log_file_path}")
+    # Check for multiple possible log file names
+    possible_log_files = [
+        log_file_path,  # pytest-output.log (preferred)
+        log_file_path.replace(
+            "pytest-output.log", "pytest-output-raw.log"
+        ),  # pytest-output-raw.log (fallback)
+    ]
+
+    actual_log_file = None
+    for possible_file in possible_log_files:
+        if os.path.exists(possible_file):
+            actual_log_file = possible_file
+            print(f"  DEBUG: Found log file: {actual_log_file}")
+            break
+
+    if not actual_log_file:
+        print(f"  DEBUG: No log file found at: {possible_log_files}")
         return {
             "status": "⚠️ NO LOG",
             "passed": 0,
@@ -54,6 +69,9 @@ def parse_pytest_log(log_file_path: str) -> dict:
             "log_exists": False,
             "failure_details": [],
         }
+
+    # Use the actual log file found
+    log_file_path = actual_log_file
 
     try:
         with open(log_file_path, encoding="utf-8") as f:
@@ -320,9 +338,16 @@ def extract_individual_test_results(results: list[TestResult]) -> dict[str, dict
 
         # Try to find the log file and extract individual test results
         artifact_dir = f"downloaded-artifacts/sanity-test-results-{version}"
-        log_file = os.path.join(artifact_dir, "pytest-output.log")
+        log_file_preferred = os.path.join(artifact_dir, "pytest-output.log")
+        log_file_fallback = os.path.join(artifact_dir, "pytest-output-raw.log")
 
-        if not os.path.exists(log_file):
+        log_file = None
+        if os.path.exists(log_file_preferred):
+            log_file = log_file_preferred
+        elif os.path.exists(log_file_fallback):
+            log_file = log_file_fallback
+
+        if not log_file:
             continue
 
         try:
