@@ -162,6 +162,15 @@ jobs:
         with:
           name: app-tar
 
+      - name: Debug - Show workspace before tests
+        run: |
+          echo "=== WORKSPACE DEBUG INFO ==="
+          echo "GitHub workspace: $GITHUB_WORKSPACE"
+          echo "Current directory: $(pwd)"
+          echo "Workspace contents:"
+          ls -la
+          echo "=== END DEBUG ==="
+
       - name: Run Sanity Tests
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
@@ -171,12 +180,37 @@ jobs:
           automation_broker: ${{ vars.AUTOMATION_BROKER_NAME }}
           automation_broker_next: ${{ vars.AUTOMATION_BROKER_NEXT_NAME }}
 
+      - name: Debug - Show test results after tests
+        if: always()
+        run: |
+          echo "=== POST-TEST DEBUG INFO ==="
+          echo "Current directory after tests: $(pwd)"
+          echo "Current directory contents:"
+          ls -la
+          echo ""
+          echo "Changing to GitHub workspace:"
+          cd "$GITHUB_WORKSPACE"
+          echo "Now in: $(pwd)"
+          echo "GitHub workspace contents after tests:"
+          ls -la
+          echo ""
+          if [ -d "test-results" ]; then
+            echo "test-results directory found! Contents:"
+            find test-results -type f -ls
+          else
+            echo "test-results directory not found in workspace!"
+          fi
+          echo ""
+          echo "Looking for test-results anywhere in workspace tree:"
+          find . -name "test-results" -type d 2>/dev/null || echo "No test-results directories found"
+          echo "=== END POST-TEST DEBUG ==="
+
       - name: Upload Sanity Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: sanity-test-results-${{ matrix.version }}
-          path: test-results/
+          path: ${{ github.workspace }}/test-results/
           retention-days: 1
 
   integration-test:
