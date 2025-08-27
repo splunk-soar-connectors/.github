@@ -70,10 +70,5 @@ runs:
           exit 1
         fi
         # Create results directory and run pytest with output capture
-        mkdir -p test-results
-        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native | tee test-results/pytest-output.log
-        # Capture the pytest exit code from the pipeline
-        PYTEST_EXIT_CODE=${PIPESTATUS[0]}
-        # Copy test results back to the original working directory for artifact upload
-        cp -r test-results "${{ github.workspace }}/test-results" 2>/dev/null || true
-        exit $PYTEST_EXIT_CODE
+        mkdir -p ../test-results
+        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native | tee ../test-results/pytest-output.log
