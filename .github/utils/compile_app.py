@@ -29,9 +29,7 @@ def compile_app(
     test_directory: Path,
 ) -> dict[str, Union[bool, str]]:
     logging.info(f"running {phantom_version} test")
-    compile_command = (
-        f"cd {test_directory}; pwd; ls; phenv compile_app --compile-app --exclude-flake"
-    )
+    compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app -i"
     logging.info(compile_command)
 
     _, stdout, stderr = phantom_client.exec_command(compile_command)
