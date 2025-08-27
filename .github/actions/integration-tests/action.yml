@@ -48,7 +48,6 @@ runs:
           exit 1
         fi
         pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native
-
     - name: Clean Up
       shell: bash
       if: always()

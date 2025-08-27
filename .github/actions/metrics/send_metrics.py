@@ -17,9 +17,7 @@ from utils.api.gitlab import GitLabApi
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("app_json_path", help="Path to the JSON file in the Git repository")
-    parser.add_argument(
-        "old_app_json_path", help="Path to file containing app json before the merge"
-    )
+    parser.add_argument("old_app_json_path", help="Path to file containing app json before the merge")
     parser.add_argument(
         "-t", "--timeout", type=int, default=1200, help="Max time in seconds to wait for completion"
     )
