@@ -11,6 +11,21 @@ import glob
 from typing import NamedTuple
 
 
+def strip_ansi_codes(text: str) -> str:
+    """Remove ANSI color codes from text."""
+    # Pattern to match ANSI escape sequences including ESC character (\x1b or \033)
+    # This handles: \x1b[31m, \033[1m, \x1b[0m, etc.
+    ansi_pattern = r"\x1b\[[0-9;]*[a-zA-Z]"
+    # Also handle bracket-only patterns like [31m that might remain
+    bracket_pattern = r"\[[\d;]*m"
+
+    # Apply both patterns
+    text = re.sub(ansi_pattern, "", text)
+    text = re.sub(bracket_pattern, "", text)
+
+    return text
+
+
 class TestResult(NamedTuple):
     """Test result data for a single matrix job."""
 
@@ -42,54 +57,86 @@ def parse_pytest_log(log_file_path: str) -> dict:
 
     try:
         with open(log_file_path, encoding="utf-8") as f:
-            content = f.read()
+            raw_content = f.read()
 
-        print(f"  DEBUG: Log file size: {len(content)} characters")
+        # Strip ANSI color codes for easier parsing
+        content = strip_ansi_codes(raw_content)
+
+        print(
+            f"  DEBUG: Log file size: {len(raw_content)} characters (raw), {len(content)} characters (clean)"
+        )
 
         # Check if there are failures or errors
         has_failures = "FAILED" in content or "ERROR" in content
         status = "❌ FAIL" if has_failures else "✅ PASS"
         print(f"  DEBUG: Has failures: {has_failures}, Status: {status}")
 
-        # Find the summary line (e.g., "2 failed, 23 passed, 4 deselected, 2 errors, 4 rerun in 428.31s")
-        summary_pattern = r"=+ (.+) in ([\d:.]+)s? =+$"
-        summary_matches = re.findall(summary_pattern, content, re.MULTILINE)
-        print(f"  DEBUG: Found {len(summary_matches)} summary lines")
-
-        if summary_matches:
-            print(f"  DEBUG: Last summary line: {summary_matches[-1]}")
+        # Count individual test results instead of relying on summary
+        # Look for lines like: "suite/apps/test.py::TestClass::test_method PASSED [  3%]"
+        lines = content.split("\n")
 
         passed = failed = errors = 0
         time = "N/A"
 
-        if summary_matches:
-            summary_text, time_str = summary_matches[-1]  # Get the last (final) summary
-            time = f"{time_str}s"
-            print(f"  DEBUG: Summary text: '{summary_text}', Time: {time}")
+        # Parse pytest output format:
+        # 1. Test name on its own line: "suite/apps/test.py::TestClass::test_name[param]"
+        # 2. Various log output follows
+        # 3. Result on separate line with ANSI: "[color]RESULT[0m[color]...[ nn%][0m"
 
-            # Extract numbers from summary text
-            passed_match = re.search(r"(\d+) passed", summary_text)
-            failed_match = re.search(r"(\d+) failed", summary_text)
-            error_match = re.search(r"(\d+) error", summary_text)
+        individual_results = []
+        current_test = None
 
-            passed = int(passed_match.group(1)) if passed_match else 0
-            failed = int(failed_match.group(1)) if failed_match else 0
-            errors = int(error_match.group(1)) if error_match else 0
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
 
-            print(f"  DEBUG: Parsed - Passed: {passed}, Failed: {failed}, Errors: {errors}")
-        else:
-            print("  DEBUG: No summary matches found, trying alternative patterns")
-            # Try alternative patterns for summary lines
-            alt_patterns = [
-                r"== (\d+) failed, (\d+) passed.*in ([\d:.]+)s ==",
-                r"== (\d+) passed.*in ([\d:.]+)s ==",
-                r"(\d+) failed, (\d+) passed",
-            ]
+            # Check if this line is a test name (starts with suite/apps/ and ends with ])
+            if line.startswith("suite/apps/") and line.endswith("]"):
+                # This is a new test starting
+                current_test = line
+                continue
 
-            for pattern in alt_patterns:
-                matches = re.search(pattern, content)
-                if matches:
-                    print(f"  DEBUG: Found alternative pattern: {matches.groups()}")
+            # Check if this line contains a test result
+            # After ANSI stripping, results appear as just: "PASSED", "FAILED", "ERROR"
+            result_match = re.match(r"^(PASSED|FAILED|ERROR)\s+\[\s*\d+%\]", line)
+            if result_match:
+                result = result_match.group(1)
+
+                if current_test:
+                    individual_results.append((current_test, result))
+
+                    if result == "PASSED":
+                        passed += 1
+                    elif result == "FAILED":
+                        failed += 1
+                    elif result == "ERROR":
+                        errors += 1
+
+                    # Reset for next test
+                    current_test = None
+                else:
+                    # Found result without test name, just count it
+                    if result == "PASSED":
+                        passed += 1
+                    elif result == "FAILED":
+                        failed += 1
+                    elif result == "ERROR":
+                        errors += 1
+
+        print("  DEBUG: Individual test parsing found:")
+        print(f"    - PASSED: {passed}")
+        print(f"    - FAILED: {failed}")
+        print(f"    - ERROR: {errors}")
+        print(f"    - Total individual results parsed: {len(individual_results)}")
+
+        # Try to extract overall execution time from summary line if available
+        for line in lines:
+            if "==" in line and "in " in line and "s" in line:
+                time_match = re.search(r"in ([\d:.]+)s", line)
+                if time_match:
+                    time = f"{time_match.group(1)}s"
+                    print(f"  DEBUG: Extracted time from summary: {time}")
                     break
 
         # Extract failure details if there are failures
@@ -202,21 +249,49 @@ def extract_individual_test_results(results: list[TestResult]) -> dict[str, dict
 
         try:
             with open(log_file, encoding="utf-8") as f:
-                content = f.read()
+                raw_content = f.read()
 
+            # Strip ANSI color codes for easier parsing
+            content = strip_ansi_codes(raw_content)
             lines = content.split("\n")
-            for line in lines:
-                # Look for individual test results (PASSED, FAILED, ERROR)
-                if "PASSED" in line or "FAILED" in line or "ERROR" in line:
-                    # Extract test name - pattern like: suite/apps/maxmind/test::TestClass::test_method PASSED
-                    match = re.match(r"^([^:]+::[^:]+::[^:\s]+)\s+(PASSED|FAILED|ERROR)", line)
-                    if match:
-                        test_name = match.group(1).strip()
-                        test_status = match.group(2).strip()
 
-                        if test_name not in test_results:
-                            test_results[test_name] = {}
-                        test_results[test_name][version] = test_status
+            # Use the same logic as in parse_pytest_log for consistency
+            # Parse pytest output format:
+            # 1. Test name on its own line: "suite/apps/test.py::TestClass::test_name[param]"
+            # 2. Various log output follows
+            # 3. Result on separate line with ANSI: "[color]RESULT[0m[color]...[ nn%][0m"
+
+            version_results = []
+            current_test = None
+
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Check if this line is a test name (starts with suite/apps/ and ends with ])
+                if line.startswith("suite/apps/") and line.endswith("]"):
+                    # This is a new test starting
+                    current_test = line
+                    continue
+
+                # Check if this line contains a test result
+                # After ANSI stripping, results appear as just: "PASSED", "FAILED", "ERROR"
+                result_match = re.match(r"^(PASSED|FAILED|ERROR)\s+\[\s*\d+%\]", line)
+                if result_match:
+                    test_status = result_match.group(1)
+
+                    if current_test:
+                        version_results.append((current_test, test_status))
+
+                        if current_test not in test_results:
+                            test_results[current_test] = {}
+                        test_results[current_test][version] = test_status
+
+                        # Reset for next test
+                        current_test = None
+
+            print(f"    Found {len(version_results)} individual test results for {version}")
 
         except Exception as e:
             print(f"  DEBUG: Error extracting individual tests from {log_file}: {e}")
