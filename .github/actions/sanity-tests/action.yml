@@ -69,4 +69,39 @@ runs:
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
-        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native
+                # Create output directory
+        mkdir -p /tmp/test-results
+
+        # Run tests and capture ALL output (stdout + stderr), preserve exit code
+        echo "=== Starting sanity tests for ${{ inputs.version }} environment ===" > /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "Timestamp: $(date)" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "Environment: ${{ inputs.version }}" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "App: ${{ inputs.app_repo }}" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "========================================" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+
+        # Run pytest and capture both stdout and stderr, preserve exit code
+        set +e  # Don't exit on pytest failure - we want to capture the output
+        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native -v --tb=short > /tmp/test-results/pytest-output.txt 2>&1
+        PYTEST_EXIT_CODE=$?
+        set -e
+
+        # Append pytest output to our results file
+        cat /tmp/test-results/pytest-output.txt >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+
+        # Add completion info
+        echo "" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "========================================" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "Test run completed for ${{ inputs.version }} environment" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "Exit code: $PYTEST_EXIT_CODE" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+        echo "Completed at: $(date)" >> /tmp/test-results/sanity-${{ inputs.version }}-output.txt
+
+        # Preserve the original pytest exit code
+        exit $PYTEST_EXIT_CODE
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()  # Upload even if tests failed
+      with:
+        name: test-results-sanity-${{ inputs.version }}
+        path: /tmp/test-results/sanity-${{ inputs.version }}-output.txt

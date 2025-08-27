@@ -197,3 +197,15 @@ jobs:
         with:
           fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
           app_repo: ${{ github.event.repository.name }}
+
+  sanity-test-results-aggregation:
+    runs-on: ubuntu-latest
+    needs: [test-setup, sanity-test]
+    if: always() && needs.test-setup.outputs.publisher == 'Splunk'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Aggregate Sanity Test Results
+        uses: splunk-soar-connectors/.github/.github/actions/test-results-aggregation@main
+        with:
+          app_repo: ${{ github.event.repository.name }}
