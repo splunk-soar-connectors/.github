@@ -13,17 +13,19 @@ from typing import NamedTuple
 
 def strip_ansi_codes(text: str) -> str:
     """Remove ANSI color codes from text."""
-    # Pattern to match ANSI escape sequences including ESC character (\x1b or \033)
-    # This handles: \x1b[31m, \033[1m, \x1b[0m, etc.
-    ansi_pattern = r"\x1b\[[0-9;]*[a-zA-Z]"
-    # Also handle bracket-only patterns like [31m that might remain
-    bracket_pattern = r"\[[\d;]*m"
+    # Comprehensive pattern to match various ANSI escape sequences
+    ansi_patterns = [
+        r"\x1b\[[0-9;]*[a-zA-Z]",  # Standard ANSI codes like \x1b[31m, \x1b[0m
+        r"\033\[[0-9;]*[a-zA-Z]",  # Octal variant \033[31m
+        r"\[[\d;]*m",  # Bracket codes that might remain [31m, [0m
+        r"\[[\d;]*[a-zA-Z]",  # Other bracket variants [31A, [2K
+    ]
 
-    # Apply both patterns
-    text = re.sub(ansi_pattern, "", text)
-    text = re.sub(bracket_pattern, "", text)
+    clean_text = text
+    for pattern in ansi_patterns:
+        clean_text = re.sub(pattern, "", clean_text)
 
-    return text
+    return clean_text
 
 
 class TestResult(NamedTuple):
@@ -103,43 +105,128 @@ def parse_pytest_log(log_file_path: str) -> dict:
 
         individual_results = []
         current_test = None
+        debug_lines_checked = 0
+        debug_test_names_found = 0
+        debug_results_found = 0
 
         for i, line in enumerate(lines):
+            debug_lines_checked += 1
             line = line.strip()
             if not line:
                 continue
 
-            # Check if this line is a test name (starts with suite/apps/ and ends with ])
-            if line.startswith("suite/apps/") and line.endswith("]"):
-                # This is a new test starting
-                current_test = line
-                continue
+            # Check if this line is a test name (starts with suite/apps/)
+            # Handle both patterns:
+            # 1. Test name only: "suite/apps/maxmind/maxmind_sanity_test.py::TestApp::test_connectivity_test[maxmind]"
+            # 2. Test name + result: "suite/apps/.../test_action[maxmind-geolocate_ip] [32mPASSED[0m[31m [ 18%][0m"
+            if line.startswith("suite/apps/") and "::" in line:
+                debug_test_names_found += 1
 
-            # Check if this line contains a test result
-            # After ANSI stripping, results appear as just: "PASSED", "FAILED", "ERROR"
-            result_match = re.match(r"^(PASSED|FAILED|ERROR)\s+\[\s*\d+%\]", line)
-            if result_match:
-                result = result_match.group(1)
+                # Check if this line also contains a result (pattern 2)
+                same_line_result = None
+                if "PASSED" in line or "FAILED" in line or "ERROR" in line:
+                    # Extract the test name part (before any ANSI codes or result indicators)
+                    test_name_match = re.match(r"^(suite/apps/[^\[]*\[[^\]]+\])", line)
+                    if test_name_match:
+                        current_test = test_name_match.group(1)
 
-                if current_test:
-                    individual_results.append((current_test, result))
+                        # Extract result from the same line
+                        if "PASSED" in line:
+                            same_line_result = "PASSED"
+                        elif "FAILED" in line:
+                            same_line_result = "FAILED"
+                        elif "ERROR" in line:
+                            same_line_result = "ERROR"
+                else:
+                    # Pattern 1: Test name only, result will be on next lines
+                    if line.endswith("]"):
+                        current_test = line
+                    else:
+                        # Handle cases where test name might be cut off
+                        bracket_pos = line.rfind("]")
+                        if bracket_pos > 0:
+                            current_test = line[: bracket_pos + 1]
+                        else:
+                            current_test = line
 
-                    if result == "PASSED":
+                if debug_test_names_found <= 8:  # Show first 8 test names found
+                    print(f"  DEBUG: Found test {debug_test_names_found}: {current_test}")
+                    if same_line_result:
+                        print(f"    Same-line result: {same_line_result}")
+
+                # Process same-line result immediately
+                if same_line_result and current_test:
+                    individual_results.append((current_test, same_line_result))
+                    debug_results_found += 1
+
+                    if same_line_result == "PASSED":
                         passed += 1
-                    elif result == "FAILED":
+                    elif same_line_result == "FAILED":
                         failed += 1
-                    elif result == "ERROR":
+                    elif same_line_result == "ERROR":
                         errors += 1
 
+                    if debug_results_found <= 12:
+                        print(
+                            f"    → Same-line result {debug_results_found}: {same_line_result} for {current_test.split('::')[-1]}"
+                        )
+
+                    # Reset since we processed this test
+                    current_test = None
+
+                continue
+
+            # Check for separate-line results (original pattern)
+            # Look for patterns like: "[32mPASSED[0m[32m                    [  3%][0m"
+            result_patterns = [
+                r"(PASSED|FAILED|ERROR)\s+\[\s*\d+%\]",  # Original pattern
+                r"\[[\d;]*m(PASSED|FAILED|ERROR)\[[\d;]*m.*\[\s*\d+%\]",  # With ANSI codes
+            ]
+
+            result_found = None
+            for pattern in result_patterns:
+                result_match = re.search(pattern, line)
+                if result_match:
+                    result_found = result_match.group(1)
+                    break
+
+            if result_found:
+                debug_results_found += 1
+
+                if debug_results_found <= 12:  # Show first 12 results found
+                    print(
+                        f"  DEBUG: Found result {debug_results_found}: '{result_found}' on line {i + 1}"
+                    )
+                    print(
+                        f"    Line: '{line[:80]}...' " + ("(truncated)" if len(line) > 80 else "")
+                    )
+                    print(
+                        f"    Current test: {current_test.split('::')[-1] if current_test and '::' in current_test else current_test}"
+                    )
+
+                if current_test:
+                    individual_results.append((current_test, result_found))
+
+                    if result_found == "PASSED":
+                        passed += 1
+                    elif result_found == "FAILED":
+                        failed += 1
+                    elif result_found == "ERROR":
+                        errors += 1
+
+                    print(
+                        f"    → Associated with test: {current_test.split('::')[-1] if '::' in current_test else current_test}"
+                    )
                     # Reset for next test
                     current_test = None
                 else:
+                    print("    → No current test to associate with!")
                     # Found result without test name, just count it
-                    if result == "PASSED":
+                    if result_found == "PASSED":
                         passed += 1
-                    elif result == "FAILED":
+                    elif result_found == "FAILED":
                         failed += 1
-                    elif result == "ERROR":
+                    elif result_found == "ERROR":
                         errors += 1
 
         print("  DEBUG: Individual test parsing found:")
@@ -360,12 +447,7 @@ def extract_individual_test_results(results: list[TestResult]) -> dict[str, dict
 
             lines = content.split("\n")
 
-            # Use the same logic as in parse_pytest_log for consistency
-            # Parse pytest output format:
-            # 1. Test name on its own line: "suite/apps/test.py::TestClass::test_name[param]"
-            # 2. Various log output follows
-            # 3. Result on separate line with ANSI: "[color]RESULT[0m[color]...[ nn%][0m"
-
+            # Use the same enhanced logic as in parse_pytest_log for consistency
             version_results = []
             current_test = None
 
@@ -374,27 +456,70 @@ def extract_individual_test_results(results: list[TestResult]) -> dict[str, dict
                 if not line:
                     continue
 
-                # Check if this line is a test name (starts with suite/apps/ and ends with ])
-                if line.startswith("suite/apps/") and line.endswith("]"):
-                    # This is a new test starting
-                    current_test = line
-                    continue
+                # Handle both same-line and separate-line patterns
+                if line.startswith("suite/apps/") and "::" in line:
+                    # Check if this line also contains a result (same-line pattern)
+                    same_line_result = None
+                    if "PASSED" in line or "FAILED" in line or "ERROR" in line:
+                        # Extract the test name part
+                        test_name_match = re.match(r"^(suite/apps/[^\[]*\[[^\]]+\])", line)
+                        if test_name_match:
+                            current_test = test_name_match.group(1)
 
-                # Check if this line contains a test result
-                # After ANSI stripping, results appear as just: "PASSED", "FAILED", "ERROR"
-                result_match = re.match(r"^(PASSED|FAILED|ERROR)\s+\[\s*\d+%\]", line)
-                if result_match:
-                    test_status = result_match.group(1)
+                            # Extract result from the same line
+                            if "PASSED" in line:
+                                same_line_result = "PASSED"
+                            elif "FAILED" in line:
+                                same_line_result = "FAILED"
+                            elif "ERROR" in line:
+                                same_line_result = "ERROR"
+                    else:
+                        # Test name only, result will be on next lines
+                        if line.endswith("]"):
+                            current_test = line
+                        else:
+                            # Handle cases where test name might be cut off
+                            bracket_pos = line.rfind("]")
+                            if bracket_pos > 0:
+                                current_test = line[: bracket_pos + 1]
+                            else:
+                                current_test = line
 
-                    if current_test:
-                        version_results.append((current_test, test_status))
+                    # Process same-line result immediately
+                    if same_line_result and current_test:
+                        version_results.append((current_test, same_line_result))
 
                         if current_test not in test_results:
                             test_results[current_test] = {}
-                        test_results[current_test][version] = test_status
+                        test_results[current_test][version] = same_line_result
 
-                        # Reset for next test
+                        # Reset since we processed this test
                         current_test = None
+
+                    continue
+
+                # Check for separate-line results (original pattern)
+                result_patterns = [
+                    r"(PASSED|FAILED|ERROR)\s+\[\s*\d+%\]",  # Original pattern
+                    r"\[[\d;]*m(PASSED|FAILED|ERROR)\[[\d;]*m.*\[\s*\d+%\]",  # With ANSI codes
+                ]
+
+                test_status = None
+                for pattern in result_patterns:
+                    result_match = re.search(pattern, line)
+                    if result_match:
+                        test_status = result_match.group(1)
+                        break
+
+                if test_status and current_test:
+                    version_results.append((current_test, test_status))
+
+                    if current_test not in test_results:
+                        test_results[current_test] = {}
+                    test_results[current_test][version] = test_status
+
+                    # Reset for next test
+                    current_test = None
 
             print(f"    Found {len(version_results)} individual test results for {version}")
 
