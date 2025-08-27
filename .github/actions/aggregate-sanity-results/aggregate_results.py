@@ -57,14 +57,14 @@ def parse_pytest_log(log_file_path: str) -> dict:
 
     try:
         with open(log_file_path, encoding="utf-8") as f:
-            raw_content = f.read()
+            content = f.read()
 
-        # Strip ANSI color codes for easier parsing
-        content = strip_ansi_codes(raw_content)
+        # Fallback: Strip ANSI codes if they're still present (in case sed failed)
+        if "\x1b[" in content:
+            print("  DEBUG: ANSI codes detected, stripping as fallback")
+            content = strip_ansi_codes(content)
 
-        print(
-            f"  DEBUG: Log file size: {len(raw_content)} characters (raw), {len(content)} characters (clean)"
-        )
+        print(f"  DEBUG: Log file size: {len(content)} characters")
 
         # Check if there are failures or errors
         has_failures = "FAILED" in content or "ERROR" in content
@@ -130,30 +130,108 @@ def parse_pytest_log(log_file_path: str) -> dict:
         print(f"    - ERROR: {errors}")
         print(f"    - Total individual results parsed: {len(individual_results)}")
 
-        # Try to extract overall execution time from summary line if available
+        # Store individual parsing results for comparison
+        individual_passed, individual_failed, individual_errors = passed, failed, errors
+
+        # Parse the summary line for authoritative totals and time
+        # Format: "== 2 failed, 23 passed, 4 deselected, 2 errors, 4 rerun in 412.28s (0:06:52) ==="
+        summary_passed = summary_failed = summary_errors = 0
+
         for line in lines:
-            if "==" in line and "in " in line and "s" in line:
+            # Look for the specific pytest summary line format
+            # == 2 failed, 23 passed, 4 deselected, 2 errors, 4 rerun in 414.38s (0:06:52) ===
+            if (
+                line.strip().startswith("==")
+                and line.strip().endswith("===")
+                and ("failed" in line or "passed" in line)
+            ):
+                print(f"  DEBUG: Found summary line: '{line.strip()}'")
+
+                # Extract counts from summary
+                passed_match = re.search(r"(\d+) passed", line)
+                failed_match = re.search(r"(\d+) failed", line)
+                error_match = re.search(r"(\d+) error", line)
+
+                if passed_match:
+                    summary_passed = int(passed_match.group(1))
+                if failed_match:
+                    summary_failed = int(failed_match.group(1))
+                if error_match:
+                    summary_errors = int(error_match.group(1))
+
+                # Extract time
                 time_match = re.search(r"in ([\d:.]+)s", line)
                 if time_match:
                     time = f"{time_match.group(1)}s"
-                    print(f"  DEBUG: Extracted time from summary: {time}")
-                    break
 
-        # Extract failure details if there are failures
+                print(
+                    f"  DEBUG: Summary counts - Passed: {summary_passed}, Failed: {summary_failed}, Errors: {summary_errors}"
+                )
+                break
+
+        # Use summary counts as authoritative (individual parsing may miss some tests)
+        if summary_passed > 0 or summary_failed > 0 or summary_errors > 0:
+            print("  DEBUG: Using summary counts as authoritative")
+
+            # Validate summary counts are reasonable
+            total_summary = summary_passed + summary_failed + summary_errors
+            if total_summary > 1000 or total_summary < 0:
+                print(f"  WARNING: Summary counts seem unrealistic: {total_summary} total tests")
+
+            # Show comparison between individual parsing and summary
+            if (
+                individual_passed != summary_passed
+                or individual_failed != summary_failed
+                or individual_errors != summary_errors
+            ):
+                print("  DEBUG: Discrepancy detected!")
+                print(
+                    f"    Individual: {individual_passed}P/{individual_failed}F/{individual_errors}E"
+                )
+                print(f"    Summary:    {summary_passed}P/{summary_failed}F/{summary_errors}E")
+                if summary_passed > individual_passed:
+                    print(
+                        f"    Missing PASSED tests in individual parsing: {summary_passed - individual_passed}"
+                    )
+
+            passed, failed, errors = summary_passed, summary_failed, summary_errors
+        else:
+            print("  DEBUG: No summary found, using individual parsing counts")
+
+            # Validate individual counts as well
+            total_individual = individual_passed + individual_failed + individual_errors
+            if total_individual == 0:
+                print(
+                    "  WARNING: No tests found in either summary or individual parsing - possible parsing error"
+                )
+
+        # Extract failure details from "short test summary info" section
         failure_details = []
         if has_failures:
-            # Find lines with FAILED or ERROR and some context
-            lines = content.split("\n")
-            for i, line in enumerate(lines):
-                if "FAILED" in line or "ERROR" in line:
-                    # Get some context around the failure
-                    start = max(0, i - 1)
-                    end = min(len(lines), i + 5)
-                    context = "\n".join(lines[start:end])
-                    failure_details.append(context)
-                    if len(failure_details) >= 3:  # Limit to first 3 failures
-                        break
-            print(f"  DEBUG: Found {len(failure_details)} failure details")
+            in_summary_section = False
+            for line in lines:
+                line_stripped = line.strip()
+
+                # Check if we're entering the short test summary section
+                if "short test summary info" in line_stripped:
+                    in_summary_section = True
+                    continue
+
+                # Check if we're leaving the summary section (next == line)
+                if in_summary_section and line_stripped.startswith("=="):
+                    break
+
+                # Extract FAILED/ERROR test names from summary section
+                if in_summary_section and (
+                    line_stripped.startswith("FAILED ") or line_stripped.startswith("ERROR ")
+                ):
+                    # Extract just the test name part
+                    parts = line_stripped.split(" ", 1)
+                    if len(parts) > 1:
+                        test_name = parts[1].strip()
+                        failure_details.append(f"{parts[0]}: {test_name}")
+
+            print(f"  DEBUG: Found {len(failure_details)} failure details from summary section")
 
         return {
             "status": status,
@@ -249,10 +327,12 @@ def extract_individual_test_results(results: list[TestResult]) -> dict[str, dict
 
         try:
             with open(log_file, encoding="utf-8") as f:
-                raw_content = f.read()
+                content = f.read()
 
-            # Strip ANSI color codes for easier parsing
-            content = strip_ansi_codes(raw_content)
+            # Fallback: Strip ANSI codes if they're still present (in case sed failed)
+            if "\x1b[" in content:
+                content = strip_ansi_codes(content)
+
             lines = content.split("\n")
 
             # Use the same logic as in parse_pytest_log for consistency
@@ -329,6 +409,91 @@ def find_inconsistent_tests(
     return inconsistent
 
 
+def analyze_regressions(test_results: dict[str, dict[str, str]], all_versions: list[str]) -> dict:
+    """
+    Analyze for potential regressions - tests that fail on 'next' versions but pass on stable versions.
+
+    Returns:
+        dict with 'regressions', 'improvements', and 'new_failures' keys
+    """
+    regressions = []
+    improvements = []
+    new_failures = []
+
+    # Define version categories
+    stable_versions = [v for v in all_versions if v in ["cloud", "previous"]]
+    next_versions = [v for v in all_versions if "next" in v.lower()]
+
+    print(
+        f"  DEBUG: Analyzing regressions - Stable versions: {stable_versions}, Next versions: {next_versions}"
+    )
+
+    for test_name, version_results in test_results.items():
+        # Get outcomes for stable vs next versions
+        stable_outcomes = {
+            v: version_results.get(v, "MISSING") for v in stable_versions if v in version_results
+        }
+        next_outcomes = {
+            v: version_results.get(v, "MISSING") for v in next_versions if v in version_results
+        }
+
+        # Skip if we don't have results for both categories
+        if not stable_outcomes or not next_outcomes:
+            continue
+
+        # Check for regressions (passes on stable, fails on next)
+        stable_passing = any(outcome == "PASSED" for outcome in stable_outcomes.values())
+        next_failing = any(outcome in ["FAILED", "ERROR"] for outcome in next_outcomes.values())
+
+        if stable_passing and next_failing:
+            regressions.append(
+                {
+                    "test_name": test_name,
+                    "stable_results": stable_outcomes,
+                    "next_results": next_outcomes,
+                    "severity": "HIGH"
+                    if all(outcome in ["FAILED", "ERROR"] for outcome in next_outcomes.values())
+                    else "MEDIUM",
+                }
+            )
+
+        # Check for improvements (fails on stable, passes on next)
+        stable_failing = any(outcome in ["FAILED", "ERROR"] for outcome in stable_outcomes.values())
+        next_passing = any(outcome == "PASSED" for outcome in next_outcomes.values())
+
+        if stable_failing and next_passing:
+            improvements.append(
+                {
+                    "test_name": test_name,
+                    "stable_results": stable_outcomes,
+                    "next_results": next_outcomes,
+                }
+            )
+
+        # Check for new failures (only fails on next, no stable data or all stable pass)
+        all_stable_pass = (
+            all(outcome == "PASSED" for outcome in stable_outcomes.values())
+            if stable_outcomes
+            else False
+        )
+        all_next_fail = (
+            all(outcome in ["FAILED", "ERROR"] for outcome in next_outcomes.values())
+            if next_outcomes
+            else False
+        )
+
+        if all_stable_pass and all_next_fail:
+            new_failures.append(
+                {
+                    "test_name": test_name,
+                    "stable_results": stable_outcomes,
+                    "next_results": next_outcomes,
+                }
+            )
+
+    return {"regressions": regressions, "improvements": improvements, "new_failures": new_failures}
+
+
 def generate_github_summary(results: list[TestResult]):
     """Generate GitHub step summary with test results."""
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -387,13 +552,73 @@ def generate_github_summary(results: list[TestResult]):
         test_results = extract_individual_test_results(results)
         inconsistent_tests = find_inconsistent_tests(test_results, all_versions)
 
+        # Add regression analysis
+        print("Analyzing for potential regressions...")
+        regression_analysis = analyze_regressions(test_results, all_versions)
+
+        # Show regressions first as they're most critical
+        if regression_analysis["regressions"]:
+            f.write("## 🚨 POTENTIAL REGRESSIONS\n")
+            f.write(
+                f"**⚠️ Found {len(regression_analysis['regressions'])} tests that pass on stable versions but fail on next versions!**\n\n"
+            )
+
+            high_severity = [
+                r for r in regression_analysis["regressions"] if r["severity"] == "HIGH"
+            ]
+            medium_severity = [
+                r for r in regression_analysis["regressions"] if r["severity"] == "MEDIUM"
+            ]
+
+            if high_severity:
+                f.write("### 🔥 HIGH SEVERITY (Fail on ALL next versions)\n")
+                for reg in high_severity[:5]:  # Show top 5 high severity
+                    test_short_name = reg["test_name"].split("::")[-1]
+                    f.write(f"#### 🔍 `{test_short_name}`\n")
+                    f.write(
+                        f"- **✅ Stable:** {', '.join(f'{v}({s})' for v, s in reg['stable_results'].items())}\n"
+                    )
+                    f.write(
+                        f"- **❌ Next:** {', '.join(f'{v}({s})' for v, s in reg['next_results'].items())}\n\n"
+                    )
+
+            if medium_severity:
+                f.write("### ⚠️ MEDIUM SEVERITY (Fail on some next versions)\n")
+                for reg in medium_severity[:3]:  # Show top 3 medium severity
+                    test_short_name = reg["test_name"].split("::")[-1]
+                    f.write(f"#### 🔍 `{test_short_name}`\n")
+                    f.write(
+                        f"- **✅ Stable:** {', '.join(f'{v}({s})' for v, s in reg['stable_results'].items())}\n"
+                    )
+                    f.write(
+                        f"- **❌ Next:** {', '.join(f'{v}({s})' for v, s in reg['next_results'].items())}\n\n"
+                    )
+
+        # Show improvements (fixes)
+        if regression_analysis["improvements"]:
+            f.write("## 🎉 IMPROVEMENTS\n")
+            f.write(
+                f"Found {len(regression_analysis['improvements'])} tests that were fixed in next versions:\n\n"
+            )
+
+            for imp in regression_analysis["improvements"][:3]:  # Show top 3 improvements
+                test_short_name = imp["test_name"].split("::")[-1]
+                f.write(f"### ✅ `{test_short_name}`\n")
+                f.write(
+                    f"- **❌ Stable:** {', '.join(f'{v}({s})' for v, s in imp['stable_results'].items())}\n"
+                )
+                f.write(
+                    f"- **✅ Next:** {', '.join(f'{v}({s})' for v, s in imp['next_results'].items())}\n\n"
+                )
+
+        # General inconsistencies (less critical but still useful)
         if inconsistent_tests:
-            f.write("## ⚠️ Version-Specific Test Issues\n")
+            f.write("## 📊 All Version Inconsistencies\n")
             f.write(
                 f"Found {len(inconsistent_tests)} tests with different results across versions:\n\n"
             )
 
-            for issue in inconsistent_tests[:10]:  # Limit to first 10 for readability
+            for issue in inconsistent_tests[:5]:  # Reduced to 5 since regressions are shown above
                 test_short_name = issue["test_name"].split("::")[
                     -1
                 ]  # Get just the test method name
@@ -405,8 +630,8 @@ def generate_github_summary(results: list[TestResult]):
                     f.write(f"- **✅ Passed on:** {', '.join(sorted(issue['passed_versions']))}\n")
                 f.write("\n")
 
-            if len(inconsistent_tests) > 10:
-                f.write(f"... and {len(inconsistent_tests) - 10} more inconsistent tests\n\n")
+            if len(inconsistent_tests) > 5:
+                f.write(f"... and {len(inconsistent_tests) - 5} more inconsistent tests\n\n")
         else:
             f.write("## ✅ Test Consistency\n")
             f.write("All tests show consistent results across versions.\n\n")
