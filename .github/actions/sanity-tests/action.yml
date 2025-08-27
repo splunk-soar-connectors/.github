@@ -69,4 +69,6 @@ runs:
           echo "ERROR - expected to find test suite for Splunk supported app ${{ inputs.app_repo }}"
           exit 1
         fi
-        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native
+        # Create results directory and run pytest with output capture
+        mkdir -p test-results
+        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native | tee test-results/pytest-output.log
