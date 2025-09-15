@@ -181,8 +181,8 @@ jobs:
 
   aggregate-sanity-results:
     runs-on: ubuntu-latest
-    needs: sanity-test
-    if: always()
+    needs: [sanity-test, test-setup]
+    if: always() && needs.test-setup.outputs.publisher == 'Splunk'
     steps:
       - name: Download All Sanity Test Artifacts
         uses: actions/download-artifact@v4
