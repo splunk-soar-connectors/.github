@@ -1,10 +1,7 @@
 name: Reusable Push Workflow
 
 on:
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
+  workflow_call:
 
 jobs:
   pr-labeling:
@@ -24,6 +21,42 @@ jobs:
           repo-name: ${{ github.repository }}
           pr-number: ${{ github.event.pull_request.number }}
 
+  detect-app-type:
+    runs-on: ubuntu-latest
+    outputs:
+      is_sdkfied: ${{ steps.detect.outputs.is_sdkfied }}
+      uv_lock_directory: ${{ steps.detect.outputs.uv_lock_directory }}
+    steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Detect App Type
+        id: detect
+        run: |
+          echo "Detecting app type..."
+          
+          # Find uv.lock file and get its parent directory
+          UV_LOCK_PATH=$(find . -name "uv.lock" -type f | head -1)
+          
+          if [ -n "$UV_LOCK_PATH" ]; then
+            UV_LOCK_DIR=$(dirname "$UV_LOCK_PATH")
+            echo "Found uv.lock in directory: $UV_LOCK_DIR"
+            echo "This is an SDKfied app"
+            echo "is_sdkfied=true" >> $GITHUB_OUTPUT
+            echo "uv_lock_directory=$UV_LOCK_DIR" >> $GITHUB_OUTPUT
+          else
+            echo "No uv.lock found"
+            echo "This is a traditional app"
+            echo "is_sdkfied=false" >> $GITHUB_OUTPUT
+            echo "uv_lock_directory=" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "App detection completed"
+        shell: bash
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
@@ -37,20 +70,57 @@ jobs:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: detect-app-type
+    env:
+      IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
     steps:
       - name: Check out app repo
         uses: actions/checkout@v4
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+      
+      - name: Install uv for SDKfied apps
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+      
+      - name: Setup UV Environment
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          cd "${{ env.UV_LOCK_DIRECTORY }}"
+          uv add splunk-soar-sdk
+          uv sync
+          echo "UV environment setup completed successfully"
+
+      - name: Create temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          uv run --project "${{ env.UV_LOCK_DIRECTORY }}" soarapps manifests create temp_app.json "${{ env.UV_LOCK_DIRECTORY }}"
+          echo "Created temporary manifest: temp_app.json"
+        shell: bash
 
       - name: Run Security Scans
         uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
+      
+      - name: Clean up temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          rm -f temp_app.json
+          echo "Deleted temporary manifest: temp_app.json"
+        shell: bash
 
   compile:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: detect-app-type
+    env:
+      IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
     steps:
       - name: Check out app repo
         uses: actions/checkout@v4
@@ -59,18 +129,24 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Compile Application
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
           previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           phantom_username: ${{ vars.PHANTOM_USERNAME }}
+          phantom_password: password
+          is_sdkfied: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+          uv_lock_directory: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
 
   build:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: [compile]
+    needs: [compile, detect-app-type]
+    env:
+      IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,7 +154,31 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Build Application
-        uses: splunk-soar-connectors/.github/.github/actions/build-app@main
+        if: env.IS_SDKFIED == 'false'
+        uses: splunk-soar-connectors/.github/.github/actions/build-app@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+      
+      - name: Install uv
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Setup UV Environment
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          cd "${{ env.UV_LOCK_DIRECTORY }}"
+          uv add splunk-soar-sdk
+          uv sync
+          echo "UV environment setup completed successfully"
+      
+      - name: Build SDK app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          cd "${{ env.UV_LOCK_DIRECTORY }}"
+          echo "Building SDKfied app using soarapps CLI"
+          uv run soarapps package build . --output-file /tmp/${{ github.event.repository.name }}.tgz
+          echo "SDKfied app build completed successfully"
 
       - name: Upload app tar file as artifact
         uses: actions/upload-artifact@v4
@@ -88,7 +188,10 @@ jobs:
 
   test-setup:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, detect-app-type]
+    env:
+      IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
     outputs:
       fips_compliant: ${{ steps.set-outputs.outputs.fips_compliant }}
       publisher: ${{ steps.set-outputs.outputs.publisher }}
@@ -99,8 +202,43 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
 
+      - name: Setup Python 3.13 for SDKfied apps
+        if: env.IS_SDKFIED == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv for SDKfied apps
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+      
+      - name: Setup UV Environment
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          cd "${{ env.UV_LOCK_DIRECTORY }}"
+          uv add splunk-soar-sdk
+          uv sync
+          echo "UV environment setup completed successfully"
+
+      - name: Create temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          uv run --project "${{ env.UV_LOCK_DIRECTORY }}" soarapps manifests create temp_app.json "${{ env.UV_LOCK_DIRECTORY }}"
+          echo "Created temporary manifest: temp_app.json"
+        shell: bash
+
       - name: Set sanity tests environment variables
         uses: splunk-soar-connectors/.github/.github/actions/test-setup@main
+
+      - name: Clean up temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          rm -f temp_app.json
+          echo "Deleted temporary manifest: temp_app.json"
+        shell: bash
 
       - name: Set outputs
         id: set-outputs
@@ -113,16 +251,48 @@ jobs:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: test-setup
+    needs: [test-setup, detect-app-type]
+    env:
+      IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
     if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install uv for SDKfied apps
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+      
+      - name: Setup UV Environment
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          cd "${{ env.UV_LOCK_DIRECTORY }}"
+          uv add splunk-soar-sdk
+          uv sync
+          echo "UV environment setup completed successfully"
+
+      - name: Create temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          uv run --project "${{ env.UV_LOCK_DIRECTORY }}" soarapps manifests create temp_app.json "${{ env.UV_LOCK_DIRECTORY }}"
+          echo "Created temporary manifest: temp_app.json"
+        shell: bash
+
       - name: Run Test Coverage
         uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
         with:
           app_repo: ${{ github.event.repository.name }}
+      
+      - name: Clean up temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          rm -f temp_app.json
+          echo "Deleted temporary manifest: temp_app.json"
+        shell: bash
 
   sanity-test:
     runs-on:
