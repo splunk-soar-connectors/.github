@@ -24,6 +24,9 @@ def find_app_json(directory: Path) -> str:
         raise ValueError("No JSON file found in top level of app repo! Aborting tests...")
 
     if len(filtered_json_filenames) > 1:
+        # special case for SDKfied apps
+        if "temp_app.json" in filtered_json_filenames:
+            return "temp_app.json"
         raise ValueError(
             f"Multiple JSON files found in top level of app repo: {filtered_json_filenames}."
             "Aborting because there should be exactly one top level JSON file."

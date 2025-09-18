@@ -80,9 +80,48 @@ jobs:
               rm -rf dotgithub
               rm -f update_version.py
 
+  detect-app-type:
+    runs-on: ubuntu-latest
+    outputs:
+      is_sdkfied: ${{ steps.detect.outputs.is_sdkfied }}
+      uv_lock_directory: ${{ steps.detect.outputs.uv_lock_directory }}
+    steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Detect App Type
+        id: detect
+        run: |
+          echo "Detecting app type..."
+          
+          # Find uv.lock file and get its parent directory
+          UV_LOCK_PATH=$(find . -name "uv.lock" -type f | head -1)
+          
+          if [ -n "$UV_LOCK_PATH" ]; then
+            UV_LOCK_DIR=$(dirname "$UV_LOCK_PATH")
+            echo "Found uv.lock in directory: $UV_LOCK_DIR"
+            echo "This is an SDKfied app"
+            echo "is_sdkfied=true" >> $GITHUB_OUTPUT
+            echo "uv_lock_directory=$UV_LOCK_DIR" >> $GITHUB_OUTPUT
+          else
+            echo "No uv.lock found"
+            echo "This is a traditional app"
+            echo "is_sdkfied=false" >> $GITHUB_OUTPUT
+            echo "uv_lock_directory=" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "App detection completed"
+        shell: bash
+  
   build:
     runs-on: ubuntu-latest
-    needs: semantic-version
+    needs: [semantic-version, detect-app-type]
+    env:
+      IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
     steps:
       - name: Check out app repo
         uses: actions/checkout@v4
@@ -96,13 +135,30 @@ jobs:
           python-version: '3.9'
 
       - name: Cache pip
+        if: env.IS_SDKFIED == 'false'
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
 
       - name: Build Application
+        if: env.IS_SDKFIED == 'false'
         uses: splunk-soar-connectors/.github/.github/actions/build-app@main
+      
+      - name: Setup SDKfied App Environment
+        if: env.IS_SDKFIED == 'true'
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
+      
+      - name: Build SDK app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+
+          cd "${{ env.UV_LOCK_DIRECTORY }}"
+          echo "Building SDKfied app using soarapps CLI"
+          uv run soarapps package build . --output-file /tmp/${{ github.event.repository.name }}.tgz
+          echo "SDKfied app build completed successfully"
 
       - name: Upload app tar file as artifact
         uses: actions/upload-artifact@v4
@@ -146,8 +202,7 @@ jobs:
             echo "Publish script failed with return code $return_code, failing the job."
             exit $return_code
           fi
-
-
+    
   metrics:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}

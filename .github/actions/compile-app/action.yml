@@ -16,6 +16,12 @@ inputs:
   phantom_password:
     description: 'The password for the Phantom instances'
     required: true
+  is_sdkfied:
+    description: 'Whether this is an SDKfied app (true/false)'
+    required: true
+  uv_lock_directory:
+    description: 'Directory containing uv.lock file (if SDKfied app)'
+    required: false
 runs:
   using: "composite"
   steps:
@@ -23,7 +29,34 @@ runs:
       run: pip install -r ${{ github.action_path }}/requirements.txt
       shell: bash
 
-    - name: Compile App
+    - name: Build and Install SDKfied App
+      if: inputs.is_sdkfied == 'true'
+      env:
+        PHANTOM_PASSWORD: ${{ inputs.phantom_password }}
+      run: |
+        cd "${{ inputs.uv_lock_directory }}"
+        echo "Building SDKfied app using soarapps CLI"
+        uv run soarapps package build .
+        echo "SDKfied app build completed successfully"
+        
+        TARBALL=$(find . -name "*.tgz" | head -1)
+        TARBALL_NAME=$(basename "$TARBALL")
+        echo "Tarball created: $TARBALL_NAME"
+        
+        echo "Installing app on current phantom instance (${{ inputs.current_phantom_ip }})"
+        uv run soarapps package install "$TARBALL_NAME" "${{ inputs.current_phantom_ip }}" --username soar_local_admin
+        
+        echo "Installing app on next phantom instance (${{ inputs.next_phantom_ip }})"
+        uv run soarapps package install "$TARBALL_NAME" "${{ inputs.next_phantom_ip }}" --username soar_local_admin
+        
+        echo "Installing app on previous phantom instance (${{ inputs.previous_phantom_ip }})"
+        uv run soarapps package install "$TARBALL_NAME" "${{ inputs.previous_phantom_ip }}" --username soar_local_admin
+        
+        echo "SDKfied app installation completed on all instances"
+      shell: bash
+
+    - name: Compile Traditional App
+      if: inputs.is_sdkfied == 'false'
       run: |
         set -e
         python ${{ github.action_path }}/compile_app_in_instance.py ${{ github.event.repository.name }} --app-repo-branch ${{ github.head_ref }} --current-phantom-ip ${{ inputs.current_phantom_ip }} --next-phantom-ip ${{ inputs.next_phantom_ip }} --previous-phantom-ip ${{ inputs.previous_phantom_ip }} --phantom-username ${{ inputs.phantom_username }}
