@@ -81,20 +81,11 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
       
-      - name: Install uv for SDKfied apps
+      - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        shell: bash
-      
-      - name: Setup UV Environment
-        if: env.IS_SDKFIED == 'true'
-        run: |
-          cd "${{ env.UV_LOCK_DIRECTORY }}"
-          uv add splunk-soar-sdk
-          uv sync
-          echo "UV environment setup completed successfully"
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Create temporary manifest for SDKfied app
         if: env.IS_SDKFIED == 'true'
@@ -104,7 +95,7 @@ jobs:
         shell: bash
 
       - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
+        uses: splunk-soar-connectors/.github/.github/actions/security-scans@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
       
       - name: Clean up temporary manifest for SDKfied app
         if: env.IS_SDKFIED == 'true'
@@ -127,6 +118,12 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+      
+      - name: Setup SDKfied App Environment
+        if: env.IS_SDKFIED == 'true'
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Compile Application
         uses: splunk-soar-connectors/.github/.github/actions/compile-app@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
@@ -157,20 +154,11 @@ jobs:
         if: env.IS_SDKFIED == 'false'
         uses: splunk-soar-connectors/.github/.github/actions/build-app@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
       
-      - name: Install uv
+      - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        shell: bash
-
-      - name: Setup UV Environment
-        if: env.IS_SDKFIED == 'true'
-        run: |
-          cd "${{ env.UV_LOCK_DIRECTORY }}"
-          uv add splunk-soar-sdk
-          uv sync
-          echo "UV environment setup completed successfully"
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
       
       - name: Build SDK app
         if: env.IS_SDKFIED == 'true'
@@ -208,20 +196,11 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install uv for SDKfied apps
+      - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        shell: bash
-      
-      - name: Setup UV Environment
-        if: env.IS_SDKFIED == 'true'
-        run: |
-          cd "${{ env.UV_LOCK_DIRECTORY }}"
-          uv add splunk-soar-sdk
-          uv sync
-          echo "UV environment setup completed successfully"
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Create temporary manifest for SDKfied app
         if: env.IS_SDKFIED == 'true'
@@ -260,20 +239,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv for SDKfied apps
+      - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        shell: bash
-      
-      - name: Setup UV Environment
-        if: env.IS_SDKFIED == 'true'
-        run: |
-          cd "${{ env.UV_LOCK_DIRECTORY }}"
-          uv add splunk-soar-sdk
-          uv sync
-          echo "UV environment setup completed successfully"
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Create temporary manifest for SDKfied app
         if: env.IS_SDKFIED == 'true'
@@ -283,7 +253,7 @@ jobs:
         shell: bash
 
       - name: Run Test Coverage
-        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
+        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
         with:
           app_repo: ${{ github.event.repository.name }}
       

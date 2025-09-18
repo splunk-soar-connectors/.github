@@ -29,22 +29,6 @@ runs:
       run: pip install -r ${{ github.action_path }}/requirements.txt
       shell: bash
 
-    - name: Install uv
-      if: env.IS_SDKFIED == 'true'
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      shell: bash
-
-    - name: Setup UV Environment
-      if: inputs.is_sdkfied == 'true'
-      run: |
-        cd "${{ inputs.uv_lock_directory }}"
-        uv add splunk-soar-sdk
-        uv sync
-        echo "UV environment setup completed successfully"
-      shell: bash
-
     - name: Build and Install SDKfied App
       if: inputs.is_sdkfied == 'true'
       env:
