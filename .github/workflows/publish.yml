@@ -147,7 +147,7 @@ jobs:
       
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
         with:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
       

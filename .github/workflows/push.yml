@@ -1,7 +1,10 @@
 name: Reusable Push Workflow
 
 on:
-  workflow_call:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
 
 jobs:
   pr-labeling:
@@ -83,7 +86,7 @@ jobs:
       
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
         with:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
@@ -95,7 +98,7 @@ jobs:
         shell: bash
 
       - name: Run Security Scans
-        uses: splunk-soar-connectors/.github/.github/actions/security-scans@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
       
       - name: Clean up temporary manifest for SDKfied app
         if: env.IS_SDKFIED == 'true'
@@ -121,12 +124,12 @@ jobs:
       
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
         with:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Compile Application
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@main
         with:
           current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
@@ -152,11 +155,11 @@ jobs:
 
       - name: Build Application
         if: env.IS_SDKFIED == 'false'
-        uses: splunk-soar-connectors/.github/.github/actions/build-app@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/build-app@main
       
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
         with:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
       
@@ -198,7 +201,7 @@ jobs:
 
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
         with:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
@@ -241,7 +244,7 @@ jobs:
 
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
-        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
         with:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
@@ -253,7 +256,7 @@ jobs:
         shell: bash
 
       - name: Run Test Coverage
-        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@tapishj/PAPP-36785-update-ci-for-sdkfied-apps
+        uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
         with:
           app_repo: ${{ github.event.repository.name }}
       

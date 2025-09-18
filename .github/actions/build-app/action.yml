@@ -1,6 +1,5 @@
 name: "Build App"
 description: "Builds the app"
-
 runs:
   using: "composite"
   steps:
