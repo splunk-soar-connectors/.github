@@ -240,7 +240,11 @@ jobs:
     if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out actions repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
