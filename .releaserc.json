@@ -6,7 +6,7 @@
         [
             "@semantic-release/exec",
             {
-                "prepareCmd": "rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version} '${nextRelease.notes}'"
+                "prepareCmd": "rm -f package.json package-lock.json .releaserc.json && RELEASE_NOTES=\"${nextRelease.notes}\" python update_version.py ${nextRelease.version}"
             }
         ],
         [
