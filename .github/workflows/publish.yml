@@ -182,6 +182,12 @@ jobs:
     steps:
       - name: Check out app repo
         uses: actions/checkout@v4
+      
+      - name: Setup SDKfied App Environment
+        if: env.IS_SDKFIED == 'true'
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Download app tar file for upload
         uses: actions/download-artifact@v4
