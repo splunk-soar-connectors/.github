@@ -171,7 +171,10 @@ jobs:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
-    needs: build
+    needs: [build, detect-app-type]
+    env:
+      IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
     outputs:
       return_code: ${{ steps.set-outputs.outputs.return_code }}
     permissions:
@@ -185,6 +188,13 @@ jobs:
         with:
           name: app-tar
           path: ${{ github.workspace }}/artifacts
+      
+      - name: Create temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          uv run --project "${{ env.UV_LOCK_DIRECTORY }}" soarapps manifests create temp_app.json "${{ env.UV_LOCK_DIRECTORY }}"
+          echo "Created temporary manifest: temp_app.json"
+        shell: bash
 
       - name: Publish
         uses: splunk-soar-connectors/.github/.github/actions/publish@main
@@ -193,6 +203,13 @@ jobs:
           RELEASE_QUEUE_URL: ${{ secrets.release_queue_url }}
           SPLUNKBASE_USER: ${{ secrets.splunkbase_user }}
           SPLUNKBASE_PASSWORD: ${{ secrets.splunkbase_password }}
+      
+      - name: Clean up temporary manifest for SDKfied app
+        if: env.IS_SDKFIED == 'true'
+        run: |
+          rm -f temp_app.json
+          echo "Deleted temporary manifest: temp_app.json"
+        shell: bash
 
       - name: Set outputs
         if: always()
