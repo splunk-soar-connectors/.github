@@ -11,6 +11,7 @@ import sys
 import tarfile
 from packaging.version import parse
 from typing import Any, Optional, Union
+import tomlkit
 
 import boto3
 
@@ -65,10 +66,31 @@ def get_release_notes(tarball: str, version: str) -> Optional[str]:
 def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
     with tarfile.open(tarball, "r") as tar:
         names = tar.getnames()
-        app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1]
-        app_json_name = find_app_json_name(app_json_files)
-        app_json = tar.extractfile(app_json_name).read()
-    return json.loads(app_json)
+        
+        # Check if this is an SDKfied app by looking for uv.lock in the tarball
+        uv_lock_files = [n for n in names if "uv.lock" in n]
+        
+        if uv_lock_files:
+            # SDKfied app - look for temp_app.json in the current working directory
+            # (it's created by the workflow AFTER the tarball is downloaded)
+            logging.info("Detected SDKfied app (found uv.lock in tarball)")
+            temp_manifest_path = Path("temp_app.json")
+            
+            if not temp_manifest_path.exists():
+                raise FileNotFoundError(
+                    "SDKfied app detected but temp_app.json not found in current directory. "
+                )
+            
+            logging.info(f"Reading manifest from {temp_manifest_path}")
+            with open(temp_manifest_path, "r") as f:
+                return json.load(f)
+        else:
+            # Traditional app - extract JSON from the tarball
+            logging.info("Detected traditional app (no uv.lock found in tarball)")
+            app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1]
+            app_json_name = find_app_json_name(app_json_files)
+            app_json = tar.extractfile(app_json_name).read()
+            return json.loads(app_json)
 
 
 def get_license_info(app_json: dict[str, Any]) -> tuple[str, str]:
