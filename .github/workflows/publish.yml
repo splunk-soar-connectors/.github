@@ -62,7 +62,7 @@ jobs:
           run: |
             npm install --save-dev semantic-release
             npm install @semantic-release/changelog @semantic-release/git @semantic-release/exec -D
-            pip install toml
+            pip install tomlkit
 
         - name: Run semantic-release and update version numbers
           env:
