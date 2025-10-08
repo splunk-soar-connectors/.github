@@ -11,7 +11,6 @@ import sys
 import tarfile
 from packaging.version import parse
 from typing import Any, Optional, Union
-import tomlkit
 
 import boto3
 
@@ -19,7 +18,6 @@ import boto3
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 sys.path.append(str(REPO_ROOT))
 
-from utils.update_version import find_app_json_name
 from utils.api.splunkbase import (
     APACHE2_LICENSE_STRING,
     APACHE2_LICENSE_URL,
@@ -87,8 +85,12 @@ def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
         else:
             # Traditional app - extract JSON from the tarball
             logging.info("Detected traditional app (no uv.lock found in tarball)")
-            app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1]
-            app_json_name = find_app_json_name(app_json_files)
+            app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1 and "postman_collection" not in n.lower()]
+            if len(app_json_files) == 0 or len(app_json_files) > 1:
+                raise ValueError(
+                    f"No or multiple JSON files found in top level of app repo: {app_json_files}."
+                )
+            app_json_name = app_json_files[0]
             app_json = tar.extractfile(app_json_name).read()
             return json.loads(app_json)
 
