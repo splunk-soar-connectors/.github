@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from datetime import datetime, timezone
 from typing import Optional
-import toml
+import tomlkit
 
 def find_app_json_name(json_filenames: list[str]) -> str:
     """
@@ -37,10 +37,6 @@ def find_app_json_name(json_filenames: list[str]) -> str:
     # There's only one json file in the top level, so it must be the app's json
     return filtered_json_filenames[0]
 
-def find_app_json_name_sdk(uv_lock_file_path: Path) -> str:
-    with open(uv_lock_path / "pyproject.toml") as f:
-            toml_data = toml.load(f)
-            app_name = toml_data.get("project", {}).get("name")
 
 
 def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None:
@@ -70,11 +66,13 @@ def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None
 
 
 def update_app_version_in_toml(toml_path: Path, new_version: str) -> None:
+    print(f"Updating {toml_path} with new version: {new_version}")
     with open(toml_path) as f:
-        toml_data = toml.load(f)
-        toml_data["project"]["version"] = new_version
+        toml_data = tomlkit.load(f)
+    
+    toml_data["project"]["version"] = new_version
     with open(toml_path, "w") as f:
-        toml.dump(toml_data, f)
+        tomlkit.dump(toml_data, f)
 
 
 def update_app_version_in_readme(readme_path: Path, new_version: str) -> None:
