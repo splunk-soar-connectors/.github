@@ -6,7 +6,8 @@ import argparse
 from pathlib import Path
 import re
 from datetime import datetime, timezone
-
+from typing import Optional
+import toml
 
 def find_app_json_name(json_filenames: list[str]) -> str:
     """
@@ -36,6 +37,11 @@ def find_app_json_name(json_filenames: list[str]) -> str:
     # There's only one json file in the top level, so it must be the app's json
     return filtered_json_filenames[0]
 
+def find_app_json_name_sdk(uv_lock_file_path: Path) -> str:
+    with open(uv_lock_path / "pyproject.toml") as f:
+            toml_data = toml.load(f)
+            app_name = toml_data.get("project", {}).get("name")
+
 
 def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None:
     # First, determine indent level of app json
@@ -61,6 +67,14 @@ def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None
     with open(app_json_name, "w") as f:
         json.dump(json_content, f, indent=len(indent), sort_keys=False, separators=(",", ": "))
         f.write("\n")
+
+
+def update_app_version_in_toml(toml_path: Path, new_version: str) -> None:
+    with open(toml_path) as f:
+        toml_data = toml.load(f)
+        toml_data["project"]["version"] = new_version
+    with open(toml_path, "w") as f:
+        toml.dump(toml_data, f)
 
 
 def update_app_version_in_readme(readme_path: Path, new_version: str) -> None:
@@ -120,6 +134,14 @@ def create_cmdline_parser() -> argparse.ArgumentParser:
 
     return argparser
 
+def find_uv_lock_file(connector_path: Path) -> Optional[Path]:
+    """
+    Find uv.lock file in the connector_path or its subdirectories.
+    Returns the path to the uv.lock file if found, None otherwise.
+    """
+    # By convention, SDK apps are managed by uv and old apps are not
+    for uv_lock_path in connector_path.rglob("uv.lock"):
+        return uv_lock_path
 
 def main(**kwargs):
     if not kwargs.get("new_version") or not re.match(r"^\d+\.\d+\.\d+$", kwargs.get("new_version")):
@@ -134,10 +156,13 @@ def main(**kwargs):
     release_notes = kwargs.get("release_notes") or os.environ.get("RELEASE_NOTES", "")
 
     # Look for the app json file in the current directory
-    app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith(".json")])
-    print(f"Found one top-level json file: {app_json_name}")
-
-    update_app_version_in_app_json(app_json_name, new_version)
+    if uv_lock_file := find_uv_lock_file(Path(os.getcwd())):
+        pyproject_toml_path = uv_lock_file.parent / "pyproject.toml"
+        update_app_version_in_toml(pyproject_toml_path, new_version)
+    else:
+        app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith(".json")])
+        print(f"Found one top-level json file: {app_json_name}")
+        update_app_version_in_app_json(app_json_name, new_version)
 
     # Look for a file named "README" in the current directory
     readme_path = os.path.join(os.getcwd(), "README.md")
