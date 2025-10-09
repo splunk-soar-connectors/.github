@@ -46,14 +46,20 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_release_notes(version: str) -> Optional[str]:
+def get_release_notes(version: str, workspace_path: Optional[Path] = None) -> Optional[str]:
     
-    # Debug: Show current working directory and its contents
-    cwd = Path.cwd()
-    logging.info(f"Current working directory: {cwd}")
-    logging.info(f"Contents: {list(cwd.iterdir())}")
+    # Use GITHUB_WORKSPACE if provided, otherwise fallback to cwd
+    search_root = workspace_path or Path.cwd()
     
-    release_notes_file = f"release_notes/{version}.md"
+    # Debug: Show where we're searching
+    logging.info(f"Searching for release_notes from: {search_root}")
+    if search_root.exists():
+        logging.info(f"Contents: {list(search_root.iterdir())}")
+    else:
+        logging.error(f"Search root does not exist: {search_root}")
+        return None
+    
+    release_notes_file = search_root / "release_notes" / f"{version}.md"
     logging.info(f"Looking for release notes at: {release_notes_file}")
     
     with open(release_notes_file, "r") as f:
@@ -63,7 +69,7 @@ def get_release_notes(version: str) -> Optional[str]:
             if not ("unreleased" in line.lower() and "**" in line):
                 release_notes.append(line)
         return "\n".join(release_notes)
-
+   
 
 def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
     with tarfile.open(tarball, "r") as tar:
@@ -132,7 +138,12 @@ def main(args):
     else:
         logging.info("Version %s will be the first release", app_version)
 
-    release_notes = get_release_notes(app_version)
+    # Get GITHUB_WORKSPACE from environment to find release_notes
+    workspace = os.getenv("GITHUB_WORKSPACE")
+    workspace_path = Path(workspace) if workspace else None
+    logging.info(f"GITHUB_WORKSPACE from environment: {workspace}")
+    
+    release_notes = get_release_notes(app_version, workspace_path)
     if not release_notes:
         logging.error("Could not find release notes in tarball for version %s!", app_version)
         return 1
