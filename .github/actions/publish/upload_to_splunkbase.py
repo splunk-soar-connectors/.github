@@ -163,6 +163,8 @@ def main(args):
     logging.info("Using license info: %s: %s", license_string, license_url)
 
     apps = sb_client.get_apps({"appid": appid})
+    print(apps)
+    exit(0)
     if apps:
         sb_appid = apps[0]["id"]
         logging.info("Found existing app with appid: %s: %s", appid, sb_appid)
