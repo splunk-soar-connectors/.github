@@ -11,7 +11,7 @@ runs:
     id: publish_app
     run: |
       set +e
-      cd $GITHUB_WORKSPACE
+      echo $GITHUB_WORKSPACE
       python ${{ github.action_path }}/upload_to_splunkbase.py ${{ github.event.repository.name }}
       return_code=$?
       echo return_code=$return_code >> $GITHUB_ENV
