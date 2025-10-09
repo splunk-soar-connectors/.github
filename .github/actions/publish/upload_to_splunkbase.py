@@ -47,14 +47,38 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_release_notes(version: str) -> Optional[str]:
-    filename = f"release_notes/{version}.md"
-    release_notes = []
-    with open(filename, "r") as f:
-        full_release_notes = f.read()
-        for line in full_release_notes.splitlines():
-            if not ("unreleased" in line.lower() and "**" in line):
-                release_notes.append(line)
-        return "\n".join(release_notes)
+    
+    # Debug: Show current working directory and its contents
+    cwd = Path.cwd()
+    logging.info(f"Current working directory: {cwd}")
+    logging.info(f"Contents: {list(cwd.iterdir())}")
+    
+    # Recursively search for release_notes directory
+    release_notes_dir = None
+    for path in cwd.rglob("release_notes"):
+        if path.is_dir():
+            release_notes_dir = path
+            logging.info(f"Found release_notes directory at: {release_notes_dir}")
+            break
+    
+    if not release_notes_dir:
+        raise FileNotFoundError(f"Could not find release_notes directory")
+    
+    # Look for the version file in the release_notes directory
+    release_notes_file = release_notes_dir / f"{version}.md"
+    logging.info(f"Looking for release notes at: {release_notes_file}")
+    
+    try:
+        with open(release_notes_file, "r") as f:
+            full_release_notes = f.read()
+            release_notes = []
+            for line in full_release_notes.splitlines():
+                if not ("unreleased" in line.lower() and "**" in line):
+                    release_notes.append(line)
+            return "\n".join(release_notes)
+    except FileNotFoundError:
+        logging.error(f"Release notes file not found: {release_notes_file}")
+        return None
 
 
 def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
