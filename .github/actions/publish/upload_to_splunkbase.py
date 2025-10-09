@@ -46,19 +46,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_release_notes(tarball: str, version: str) -> Optional[str]:
+def get_release_notes(version: str) -> Optional[str]:
     filename = f"release_notes/{version}.md"
-    with tarfile.open(tarball, "r") as tar:
-        for name in tar.getnames():
-            if filename in name:
-                full_release_notes = tar.extractfile(name).read().decode()
-                release_notes = []
-                for line in full_release_notes.splitlines():
-                    if not ("unreleased" in line.lower() and "**" in line):
-                        release_notes.append(line)
-                return "\n".join(release_notes)
-
-    return None
+    release_notes = []
+    with open(filename, "r") as f:
+        full_release_notes = f.read()
+        for line in full_release_notes.splitlines():
+            if not ("unreleased" in line.lower() and "**" in line):
+                release_notes.append(line)
+        return "\n".join(release_notes)
 
 
 def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
@@ -148,7 +144,7 @@ def main(args):
     else:
         logging.info("Version %s will be the first release", app_version)
 
-    release_notes = get_release_notes(tarball, app_version)
+    release_notes = get_release_notes(app_version)
     if not release_notes:
         logging.error("Could not find release notes in tarball for version %s!", app_version)
         return 1
