@@ -12,7 +12,7 @@
         [
             "@semantic-release/git",
             {
-                "assets": ["README.md", "*.json", "release_notes/*"],
+                "assets": ["README.md", "*.json", "release_notes/*", "pyproject.toml"],
                 "message": "chore(release): update version to ${nextRelease.version} [skip ci]"
             }
         ],
