@@ -29,7 +29,7 @@ are looking to contribute to.
 1. Install [pre-commit](https://pre-commit.com/#install) on your system, if not already installed, and then run `pre-commit install` while inside the app repo.
 1. Create a branch.
 1. Make your changes on your branch.
-1. Thoroughly test your changes. See the [Automated Checks](#automated-checks) section for information about basic automated checks we provide for all apps.
+1. Thoroughly test your changes. See the [Testing Details](https://github.com/splunk-soar-connectors/.github/blob/main/.github/TESTING.md) for information about basic automated checks we provide for all apps.
 1. Add your name to the contributors list in the app JSON! [Example](https://github.com/phantomcyber/phantom-apps/pull/488/commits/a02e345ce48e56bcb8711d1c5c4e40dd6e62fd11?diff=split&w=1)
 1. Open a [pull request](https://help.github.com/articles/using-pull-requests/) to the ```main``` branch of the app repo, giving edit access to the maintainers of the repo. Please ensure your pull request adheres to the guidelines mentioned in [PULL REQUEST TEMPLATE](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md).
 
