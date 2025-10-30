@@ -71,14 +71,9 @@ runs:
         fi
         # Create results directory and run pytest with output capture
         mkdir -p "${{ github.workspace }}/test-results"
-        echo "Running tests and capturing output to ${{ github.workspace }}/test-results/pytest-output.log"
+        echo "Running tests and capturing output to ${{ github.workspace }}/test-results/pytest-output-raw.log"
         pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native | tee "${{ github.workspace }}/test-results/pytest-output-raw.log"
-        # Strip ANSI color codes from the file for easier parsing
-        if ! sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' "${{ github.workspace }}/test-results/pytest-output-raw.log" > "${{ github.workspace }}/test-results/pytest-output.log"; then
-          echo "Warning: sed failed, copying raw file as fallback"
-          cp "${{ github.workspace }}/test-results/pytest-output-raw.log" "${{ github.workspace }}/test-results/pytest-output.log"
-        fi
         # Capture the pytest exit code from the pipeline
         PYTEST_EXIT_CODE=${PIPESTATUS[0]}
-        echo "Test output saved to ${{ github.workspace }}/test-results/pytest-output.log (exit code: $PYTEST_EXIT_CODE)"
+        echo "Test output saved to ${{ github.workspace }}/test-results/pytest-output-raw.log (exit code: $PYTEST_EXIT_CODE)"
         exit $PYTEST_EXIT_CODE

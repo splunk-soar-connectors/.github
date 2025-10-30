@@ -8,6 +8,28 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Strip ANSI codes from all artifacts
+      shell: bash
+      run: |
+        echo "Stripping ANSI codes from all test artifacts..."
+        for artifact_dir in ${{ inputs.artifacts_path }}/sanity-test-results-*/; do
+          if [ -d "$artifact_dir" ]; then
+            version=$(basename "$artifact_dir" | sed 's/sanity-test-results-//')
+            echo "Processing $version..."
+
+            raw_log="${artifact_dir}pytest-output-raw.log"
+            clean_log="${artifact_dir}pytest-output.log"
+
+            if [ -f "$raw_log" ]; then
+              python3 ${{ github.action_path }}/strip_ansi.py "$raw_log" "$clean_log"
+              echo "  ✓ Cleaned $version log"
+            else
+              echo "  ⚠ No raw log found for $version"
+            fi
+          fi
+        done
+        echo "ANSI code stripping complete"
+
     - name: Install Requirements
       run: pip install -r ${{ github.action_path }}/requirements.txt
       shell: bash
