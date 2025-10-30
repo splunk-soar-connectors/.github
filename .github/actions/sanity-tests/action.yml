@@ -72,7 +72,7 @@ runs:
         # Create results directory and run pytest with output capture
         mkdir -p "${{ github.workspace }}/test-results"
         echo "Running tests and capturing output to ${{ github.workspace }}/test-results/pytest-output-raw.log"
-        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native | tee "${{ github.workspace }}/test-results/pytest-output-raw.log"
+        pytest suite/apps/"${{ inputs.app_repo }}" -m "not ui and sanity" --verbose --reruns=$NUM_TEST_RETRIES --tb=native --color=yes | tee "${{ github.workspace }}/test-results/pytest-output-raw.log"
         # Capture the pytest exit code from the pipeline
         PYTEST_EXIT_CODE=${PIPESTATUS[0]}
         echo "Test output saved to ${{ github.workspace }}/test-results/pytest-output-raw.log (exit code: $PYTEST_EXIT_CODE)"
