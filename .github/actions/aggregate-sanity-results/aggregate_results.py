@@ -68,10 +68,12 @@ def _parse_summary_line(line: str) -> tuple[int, int, int, str]:
 def _is_summary_line(line: str) -> bool:
     """Check if a line is a pytest summary line."""
     stripped = line.strip()
+    # Match lines like: == 2 failed, 23 passed in 227.61s ==
+    # Note: Can end with == or ===
     return (
         stripped.startswith("==")
-        and stripped.endswith("===")
         and ("failed" in line or "passed" in line)
+        and ("in " in line and "s" in line)  # Has timing info
     )
 
 
