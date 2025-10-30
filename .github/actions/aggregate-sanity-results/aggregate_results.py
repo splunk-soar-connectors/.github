@@ -308,11 +308,7 @@ def parse_pytest_log(log_file_path: str) -> dict:
         with open(log_file, encoding="utf-8") as f:
             content = f.read()
 
-        # Check for failures or errors
-        has_failures = "FAILED" in content or "ERROR" in content
-        status = STATUS_FAIL if has_failures else STATUS_PASS
-
-        # Parse the summary line
+        # Parse the summary line to get counts
         passed = failed = errors = 0
         time = "N/A"
 
@@ -320,6 +316,13 @@ def parse_pytest_log(log_file_path: str) -> dict:
             if _is_summary_line(line):
                 passed, failed, errors, time = _parse_summary_line(line)
                 break
+
+        # Determine status based on actual counts, not string search
+        # (searching for "FAILED" or "ERROR" gives false positives from log messages)
+        if failed > 0 or errors > 0:
+            status = STATUS_FAIL
+        else:
+            status = STATUS_PASS
 
         return {
             "status": status,
