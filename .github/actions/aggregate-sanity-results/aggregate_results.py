@@ -495,35 +495,23 @@ def _write_failure_group(
         show_versions: Whether to show which versions passed/failed
         summary_suffix: Additional text for the summary line (e.g., "on same environment")
     """
-    if len(tests) == 1:
-        # Single test with this error
-        test_param, data = tests[0]
-        f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
-
-        if show_versions:
-            failed_versions = sorted(data["versions"])
-            passed_versions = _get_passed_versions(all_versions, data["versions"])
-
-            if len(failed_versions) == 1:
-                f.write(f"  - ❌ **Failed on:** `{failed_versions[0]}`\n")
-            else:
-                f.write(
-                    f"  - ❌ **Failed on ({len(failed_versions)}):** {', '.join(f'`{v}`' for v in failed_versions)}\n"
-                )
-
-            if passed_versions:
-                f.write(
-                    f"  - ✅ **Passed on ({len(passed_versions)}):** {', '.join(f'`{v}`' for v in passed_versions)}\n"
-                )
-
-        f.write(f"  - Error: {error_msg}\n\n")
-    else:
-        # Multiple tests with same error - use collapsible section
+    # Use collapsible section for all cases when show_versions is True
+    # This ensures consistent formatting across all cross-environment analysis sections
+    if show_versions or len(tests) > 1:
+        # Collapsible section with dropdown
         f.write("<details>\n")
-        summary_text = f"<summary><b>{len(tests)} tests</b> with same error"
-        if summary_suffix:
-            summary_text += f" {summary_suffix}"
-        summary_text += "</summary>\n\n"
+
+        # Summary line
+        if len(tests) == 1:
+            test_param, data = tests[0]
+            summary_text = (
+                f"<summary><b>{data['test_name']}</b> (<code>{test_param}</code>)</summary>\n\n"
+            )
+        else:
+            summary_text = f"<summary><b>{len(tests)} tests</b> with same error"
+            if summary_suffix:
+                summary_text += f" {summary_suffix}"
+            summary_text += "</summary>\n\n"
         f.write(summary_text)
 
         f.write(f"**Error:** {error_msg}\n\n")
@@ -539,10 +527,18 @@ def _write_failure_group(
                 f"- ✅ **Passed on ({len(passed_versions)}):** {', '.join(f'`{v}`' for v in passed_versions)}\n\n"
             )
 
-        f.write("**Affected tests:**\n")
-        for test_param, data in sorted(tests, key=lambda x: x[1]["test_name"]):
-            f.write(f"- `{data['test_name']}` ({test_param})\n")
-        f.write("\n</details>\n\n")
+        if len(tests) > 1:
+            f.write("**Affected tests:**\n")
+            for test_param, data in sorted(tests, key=lambda x: x[1]["test_name"]):
+                f.write(f"- `{data['test_name']}` ({test_param})\n")
+            f.write("\n")
+
+        f.write("</details>\n\n")
+    else:
+        # Simple bullet point (only for non-version sections with single test)
+        test_param, data = tests[0]
+        f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
+        f.write(f"  - Error: {error_msg}\n\n")
 
 
 def generate_github_summary(
