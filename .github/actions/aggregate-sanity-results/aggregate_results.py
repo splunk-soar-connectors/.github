@@ -39,6 +39,7 @@ class FailedTest(NamedTuple):
     app_error: str  # Live application error (SQL, JSON, etc)
     python_error: str  # Python traceback/assertion
     file_location: str
+    error_message: str  # Concise error summary for display
 
 
 def _find_log_file(log_file_path: str) -> Optional[str]:
@@ -240,12 +241,16 @@ def extract_failed_test_details(log_file_path: str) -> list[FailedTest]:
         # pytest/snowflake-disable_user_1_000 -> disable_user (disable user)
         test_name = test_parameter.split("-")[-1] if "-" in test_parameter else test_parameter
 
+        # Compute error message summary
+        error_message = _compute_error_message(app_error, traceback)
+
         failed_test = FailedTest(
             test_name=test_name,
             test_parameter=test_parameter,
             app_error=app_error,
             python_error=traceback,
             file_location=file_location,
+            error_message=error_message,
         )
 
         failed_tests.append(failed_test)
@@ -380,6 +385,44 @@ def _analyze_test_failures_across_versions(
     return {"test_failures": test_failures, "total_versions": total_versions}
 
 
+def _compute_error_message(app_error: str, python_error: str) -> str:
+    """Compute a concise error message from app error and Python error.
+
+    Args:
+        app_error: Application error string (may be "No application error captured")
+        python_error: Python traceback string
+
+    Returns:
+        Concise error message suitable for display
+    """
+    # Try app error first
+    if app_error and app_error != "No application error captured":
+        error_lines = app_error.split("\n")
+        for line in error_lines:
+            if '"message":' in line or "Error Message:" in line:
+                # Extract the message value
+                clean_line = line.strip().replace('"message":', "").replace(",", "").strip()
+                if clean_line:
+                    return clean_line[:150]
+        # Fallback: first ERROR line
+        error_log_lines = [line.strip() for line in error_lines if "ERROR" in line]
+        if error_log_lines:
+            return error_log_lines[0][:150]
+
+    # Try Python error
+    if python_error:
+        error_lines = [line.strip() for line in python_error.split("\n") if line.strip()]
+        if error_lines:
+            return error_lines[-1]
+
+    return "Unknown error"
+
+
+def _get_passed_versions(all_versions: set[str], failed_versions: list[str]) -> list[str]:
+    """Compute which versions passed given the failed versions."""
+    return sorted(all_versions - set(failed_versions))
+
+
 def generate_github_summary(
     results: list[TestResult], failed_tests_by_version: dict[str, list[FailedTest]]
 ):
@@ -496,26 +539,7 @@ def generate_github_summary(
                 for test_param, data in sorted(universal, key=lambda x: x[1]["test_name"]):
                     sample = data["sample_error"]
                     f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
-
-                    # Show actual error from Python traceback or app error
-                    if sample.python_error:
-                        # Get the last line (usually the actual exception)
-                        error_lines = [
-                            line.strip() for line in sample.python_error.split("\n") if line.strip()
-                        ]
-                        if error_lines:
-                            last_error = error_lines[-1]
-                            f.write(f"  - Error: {last_error}\n")
-                    elif sample.app_error and sample.app_error != "No application error captured":
-                        # Extract first meaningful error line
-                        error_lines = [
-                            line.strip()
-                            for line in sample.app_error.split("\n")
-                            if line.strip() and "ERROR" in line
-                        ]
-                        if error_lines:
-                            first_error = error_lines[0][:150]
-                            f.write(f"  - Error: {first_error}\n")
+                    f.write(f"  - Error: {sample.error_message}\n")
                     f.write("\n")
 
             # Isolated failures (most interesting!)
@@ -526,46 +550,16 @@ def generate_github_summary(
                 f.write(
                     "*Failed on only 1 environment - may indicate environment-specific issues*\n\n"
                 )
+                all_versions = set(failed_tests_by_version.keys())
                 for test_param, data in sorted(isolated, key=lambda x: x[1]["test_name"]):
                     sample = data["sample_error"]
                     failed_on = data["versions"][0]
-                    all_versions = set(failed_tests_by_version.keys())
-                    passed_on = sorted(all_versions - set(data["versions"]))
+                    passed_on = _get_passed_versions(all_versions, data["versions"])
 
                     f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
                     f.write(f"  - ❌ **Failed on:** `{failed_on}`\n")
                     f.write(f"  - ✅ **Passed on:** {', '.join(f'`{v}`' for v in passed_on)}\n")
-
-                    # Show actual error message
-                    if sample.app_error and sample.app_error != "No application error captured":
-                        # Find the actual error message from the JSON or logs
-                        error_lines = sample.app_error.split("\n")
-                        for line in error_lines:
-                            if '"message":' in line or "Error Message:" in line:
-                                # Extract the message value
-                                clean_line = (
-                                    line.strip().replace('"message":', "").replace(",", "").strip()
-                                )
-                                if clean_line:
-                                    f.write(f"  - Issue: {clean_line[:150]}\n")
-                                    break
-                        else:
-                            # Fallback: first ERROR line
-                            error_log_lines = [
-                                error_line.strip()
-                                for error_line in error_lines
-                                if "ERROR" in error_line
-                            ]
-                            if error_log_lines:
-                                f.write(f"  - Issue: {error_log_lines[0][:150]}\n")
-                    elif sample.python_error:
-                        # Get the actual exception
-                        error_lines = [
-                            line.strip() for line in sample.python_error.split("\n") if line.strip()
-                        ]
-                        if error_lines:
-                            last_error = error_lines[-1]
-                            f.write(f"  - Issue: {last_error}\n")
+                    f.write(f"  - Issue: {sample.error_message}\n")
                     f.write("\n")
 
             # Partial failures
@@ -574,10 +568,11 @@ def generate_github_summary(
                     f"### 🟡 Partial Failures ({len(partial)} test{'s' if len(partial) != 1 else ''})\n"
                 )
                 f.write("*Failed on some environments - inconsistent behavior*\n\n")
+                all_versions = set(failed_tests_by_version.keys())
                 for test_param, data in sorted(partial, key=lambda x: x[1]["test_name"]):
+                    sample = data["sample_error"]
                     failed_versions = sorted(data["versions"])
-                    all_versions = set(failed_tests_by_version.keys())
-                    passed_versions = sorted(all_versions - set(data["versions"]))
+                    passed_versions = _get_passed_versions(all_versions, data["versions"])
 
                     f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
                     f.write(
@@ -586,6 +581,7 @@ def generate_github_summary(
                     f.write(
                         f"  - ✅ **Passed on ({len(passed_versions)}):** {', '.join(f'`{v}`' for v in passed_versions)}\n"
                     )
+                    f.write(f"  - Issue: {sample.error_message}\n")
                     f.write("\n")
 
             # Majority failures
@@ -596,9 +592,9 @@ def generate_github_summary(
                 f.write(
                     f"*Failed on most environments ({len(majority)} tests failed on 4-5 environments)*\n\n"
                 )
+                all_versions = set(failed_tests_by_version.keys())
                 for test_param, data in sorted(majority, key=lambda x: x[1]["test_name"]):
-                    all_versions = set(failed_tests_by_version.keys())
-                    passed_versions = sorted(all_versions - set(data["versions"]))
+                    passed_versions = _get_passed_versions(all_versions, data["versions"])
 
                     f.write(
                         f"- **{data['test_name']}** (`{test_param}`) - Failed on {data['count']}/{total_versions}\n"
