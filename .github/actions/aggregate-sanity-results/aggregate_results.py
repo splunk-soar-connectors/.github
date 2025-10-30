@@ -97,12 +97,14 @@ def _is_summary_line(line: str) -> bool:
 
     Matches lines like:
     - == 2 failed, 23 passed in 227.61s ==
+    - = 37 failed, 3 passed, 2 skipped in 157.69s =
     - == 25 errors, 25 rerun in 6.91s ==
     """
     stripped = line.strip()
     has_keyword = any(kw in line for kw in ("failed", "passed", "error"))
     has_timing = "in " in line and "s" in line
-    return stripped.startswith("==") and has_keyword and has_timing
+    # Accept both single and double equals
+    return stripped.startswith("=") and has_keyword and has_timing
 
 
 def _extract_test_parameter(line: str) -> Optional[str]:
