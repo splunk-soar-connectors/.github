@@ -423,6 +423,24 @@ def _get_passed_versions(all_versions: set[str], failed_versions: list[str]) -> 
     return sorted(all_versions - set(failed_versions))
 
 
+def _group_by_error(test_list: list[tuple]) -> dict[str, list[tuple]]:
+    """Group tests by their error message.
+
+    Args:
+        test_list: List of (test_param, data) tuples
+
+    Returns:
+        Dict mapping error_message -> list of (test_param, data) tuples with that error
+    """
+    grouped = {}
+    for test_param, data in test_list:
+        error_msg = data["sample_error"].error_message
+        if error_msg not in grouped:
+            grouped[error_msg] = []
+        grouped[error_msg].append((test_param, data))
+    return grouped
+
+
 def generate_github_summary(
     results: list[TestResult], failed_tests_by_version: dict[str, list[FailedTest]]
 ):
@@ -473,31 +491,79 @@ def generate_github_summary(
                     f"**{len(failed_tests)} test{'s' if len(failed_tests) != 1 else ''} failed**\n\n"
                 )
 
-                for i, test in enumerate(failed_tests, 1):
-                    f.write("<details>\n")
-                    f.write(
-                        f"<summary><b>#{i} {test.test_name}</b> — <code>{test.test_parameter}</code></summary>\n\n"
-                    )
+                # Group tests by error message
+                tests_by_error = {}
+                for test in failed_tests:
+                    error_key = test.error_message
+                    if error_key not in tests_by_error:
+                        tests_by_error[error_key] = []
+                    tests_by_error[error_key].append(test)
 
-                    # File location at top for quick reference
-                    if test.file_location:
-                        f.write(f"**📍 Location:** `{test.file_location}`\n\n")
+                # Show grouped results
+                for error_msg, tests in sorted(tests_by_error.items(), key=lambda x: -len(x[1])):
+                    if len(tests) == 1:
+                        # Single test with this error - show full details
+                        test = tests[0]
+                        f.write("<details>\n")
+                        f.write(
+                            f"<summary><b>{test.test_name}</b> — <code>{test.test_parameter}</code></summary>\n\n"
+                        )
 
-                    # Application error
-                    if test.app_error and test.app_error != "No application error captured":
-                        f.write("#### 🔴 Application Error\n\n")
-                        f.write("```log\n")
-                        f.write(f"{test.app_error}\n")
-                        f.write("```\n\n")
+                        # File location at top for quick reference
+                        if test.file_location:
+                            f.write(f"**📍 Location:** `{test.file_location}`\n\n")
 
-                    # Python traceback
-                    if test.python_error:
-                        f.write("#### 🐍 Python Traceback\n\n")
-                        f.write("```python\n")
-                        f.write(f"{test.python_error}\n")
-                        f.write("```\n\n")
+                        # Application error
+                        if test.app_error and test.app_error != "No application error captured":
+                            f.write("#### 🔴 Application Error\n\n")
+                            f.write("```log\n")
+                            f.write(f"{test.app_error}\n")
+                            f.write("```\n\n")
 
-                    f.write("</details>\n\n")
+                        # Python traceback
+                        if test.python_error:
+                            f.write("#### 🐍 Python Traceback\n\n")
+                            f.write("```python\n")
+                            f.write(f"{test.python_error}\n")
+                            f.write("```\n\n")
+
+                        f.write("</details>\n\n")
+                    else:
+                        # Multiple tests with same error - show summary + one detailed example
+                        f.write("<details>\n")
+                        f.write(
+                            f"<summary><b>{len(tests)} tests</b> with same error — click for details</summary>\n\n"
+                        )
+
+                        f.write(f"**Error:** {error_msg}\n\n")
+
+                        f.write("**Affected tests:**\n")
+                        for test in sorted(tests, key=lambda x: x.test_name):
+                            f.write(f"- `{test.test_name}` ({test.test_parameter})\n")
+
+                        f.write("\n---\n\n")
+                        f.write("**Example detailed error** (from first test):\n\n")
+
+                        example = tests[0]
+                        if example.file_location:
+                            f.write(f"**📍 Location:** `{example.file_location}`\n\n")
+
+                        if (
+                            example.app_error
+                            and example.app_error != "No application error captured"
+                        ):
+                            f.write("#### 🔴 Application Error\n\n")
+                            f.write("```log\n")
+                            f.write(f"{example.app_error}\n")
+                            f.write("```\n\n")
+
+                        if example.python_error:
+                            f.write("#### 🐍 Python Traceback\n\n")
+                            f.write("```python\n")
+                            f.write(f"{example.python_error}\n")
+                            f.write("```\n\n")
+
+                        f.write("</details>\n\n")
 
                 f.write("\n")
 
@@ -536,11 +602,25 @@ def generate_github_summary(
                 f.write(
                     f"*Failed on all {total_versions} environments - likely indicates a fundamental issue*\n\n"
                 )
-                for test_param, data in sorted(universal, key=lambda x: x[1]["test_name"]):
-                    sample = data["sample_error"]
-                    f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
-                    f.write(f"  - Error: {sample.error_message}\n")
-                    f.write("\n")
+
+                # Group by error message
+                grouped = _group_by_error(universal)
+
+                for error_msg, tests in sorted(grouped.items(), key=lambda x: -len(x[1])):
+                    if len(tests) == 1:
+                        # Single test with this error - show inline
+                        test_param, data = tests[0]
+                        f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
+                        f.write(f"  - Error: {error_msg}\n\n")
+                    else:
+                        # Multiple tests with same error - use collapsible section
+                        f.write("<details>\n")
+                        f.write(f"<summary><b>{len(tests)} tests</b> with same error</summary>\n\n")
+                        f.write(f"**Error:** {error_msg}\n\n")
+                        f.write("**Affected tests:**\n")
+                        for test_param, data in sorted(tests, key=lambda x: x[1]["test_name"]):
+                            f.write(f"- `{data['test_name']}` ({test_param})\n")
+                        f.write("\n</details>\n\n")
 
             # Isolated failures (most interesting!)
             if isolated:
@@ -551,16 +631,37 @@ def generate_github_summary(
                     "*Failed on only 1 environment - may indicate environment-specific issues*\n\n"
                 )
                 all_versions = set(failed_tests_by_version.keys())
-                for test_param, data in sorted(isolated, key=lambda x: x[1]["test_name"]):
-                    sample = data["sample_error"]
-                    failed_on = data["versions"][0]
-                    passed_on = _get_passed_versions(all_versions, data["versions"])
 
-                    f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
-                    f.write(f"  - ❌ **Failed on:** `{failed_on}`\n")
-                    f.write(f"  - ✅ **Passed on:** {', '.join(f'`{v}`' for v in passed_on)}\n")
-                    f.write(f"  - Issue: {sample.error_message}\n")
-                    f.write("\n")
+                # Group by error message
+                grouped = _group_by_error(isolated)
+
+                for error_msg, tests in sorted(grouped.items(), key=lambda x: -len(x[1])):
+                    if len(tests) == 1:
+                        # Single test with this error
+                        test_param, data = tests[0]
+                        failed_on = data["versions"][0]
+                        passed_on = _get_passed_versions(all_versions, data["versions"])
+
+                        f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
+                        f.write(f"  - ❌ **Failed on:** `{failed_on}`\n")
+                        f.write(f"  - ✅ **Passed on:** {', '.join(f'`{v}`' for v in passed_on)}\n")
+                        f.write(f"  - Issue: {error_msg}\n\n")
+                    else:
+                        # Multiple tests with same error
+                        f.write("<details>\n")
+                        f.write(
+                            f"<summary><b>{len(tests)} tests</b> with same error on same environment</summary>\n\n"
+                        )
+                        f.write(f"**Error:** {error_msg}\n\n")
+                        # Show which environment(s) failed
+                        failed_on = tests[0][1]["versions"][0]
+                        passed_on = _get_passed_versions(all_versions, tests[0][1]["versions"])
+                        f.write(f"- ❌ **Failed on:** `{failed_on}`\n")
+                        f.write(f"- ✅ **Passed on:** {', '.join(f'`{v}`' for v in passed_on)}\n\n")
+                        f.write("**Affected tests:**\n")
+                        for test_param, data in sorted(tests, key=lambda x: x[1]["test_name"]):
+                            f.write(f"- `{data['test_name']}` ({test_param})\n")
+                        f.write("\n</details>\n\n")
 
             # Partial failures
             if partial:
@@ -569,20 +670,47 @@ def generate_github_summary(
                 )
                 f.write("*Failed on some environments - inconsistent behavior*\n\n")
                 all_versions = set(failed_tests_by_version.keys())
-                for test_param, data in sorted(partial, key=lambda x: x[1]["test_name"]):
-                    sample = data["sample_error"]
-                    failed_versions = sorted(data["versions"])
-                    passed_versions = _get_passed_versions(all_versions, data["versions"])
 
-                    f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
-                    f.write(
-                        f"  - ❌ **Failed on ({data['count']}):** {', '.join(f'`{v}`' for v in failed_versions)}\n"
-                    )
-                    f.write(
-                        f"  - ✅ **Passed on ({len(passed_versions)}):** {', '.join(f'`{v}`' for v in passed_versions)}\n"
-                    )
-                    f.write(f"  - Issue: {sample.error_message}\n")
-                    f.write("\n")
+                # Group by error message
+                grouped = _group_by_error(partial)
+
+                for error_msg, tests in sorted(grouped.items(), key=lambda x: -len(x[1])):
+                    if len(tests) == 1:
+                        # Single test with this error
+                        test_param, data = tests[0]
+                        failed_versions = sorted(data["versions"])
+                        passed_versions = _get_passed_versions(all_versions, data["versions"])
+
+                        f.write(f"- **{data['test_name']}** (`{test_param}`)\n")
+                        f.write(
+                            f"  - ❌ **Failed on ({data['count']}):** {', '.join(f'`{v}`' for v in failed_versions)}\n"
+                        )
+                        f.write(
+                            f"  - ✅ **Passed on ({len(passed_versions)}):** {', '.join(f'`{v}`' for v in passed_versions)}\n"
+                        )
+                        f.write(f"  - Issue: {error_msg}\n\n")
+                    else:
+                        # Multiple tests with same error
+                        f.write("<details>\n")
+                        f.write(
+                            f"<summary><b>{len(tests)} tests</b> with same error pattern</summary>\n\n"
+                        )
+                        f.write(f"**Error:** {error_msg}\n\n")
+                        # Show which environments failed (use first test as representative)
+                        failed_versions = sorted(tests[0][1]["versions"])
+                        passed_versions = _get_passed_versions(
+                            all_versions, tests[0][1]["versions"]
+                        )
+                        f.write(
+                            f"- ❌ **Failed on ({len(failed_versions)}):** {', '.join(f'`{v}`' for v in failed_versions)}\n"
+                        )
+                        f.write(
+                            f"- ✅ **Passed on ({len(passed_versions)}):** {', '.join(f'`{v}`' for v in passed_versions)}\n\n"
+                        )
+                        f.write("**Affected tests:**\n")
+                        for test_param, data in sorted(tests, key=lambda x: x[1]["test_name"]):
+                            f.write(f"- `{data['test_name']}` ({test_param})\n")
+                        f.write("\n</details>\n\n")
 
             # Majority failures
             if majority:
