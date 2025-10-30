@@ -30,12 +30,8 @@ runs:
         done
         echo "ANSI code stripping complete"
 
-    - name: Install Requirements
-      run: pip install -r ${{ github.action_path }}/requirements.txt
-      shell: bash
-
     - name: Aggregate Results
       run: |
         set -e
-        python ${{ github.action_path }}/aggregate_results.py --artifacts-path ${{ inputs.artifacts_path }}
+        python3 ${{ github.action_path }}/aggregate_results.py --artifacts-path ${{ inputs.artifacts_path }}
       shell: bash
