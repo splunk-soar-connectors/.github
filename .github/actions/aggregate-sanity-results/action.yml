@@ -30,6 +30,14 @@ runs:
         done
         echo "ANSI code stripping complete"
 
+    - name: Upload cleaned logs as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sanity-test-results-cleaned
+        path: ${{ inputs.artifacts_path }}/*/pytest-output.log
+        retention-days: 7
+        if-no-files-found: warn
+
     - name: Aggregate Results
       run: |
         set -e
