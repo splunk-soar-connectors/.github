@@ -20,11 +20,9 @@ STATUS_NO_LOG = "⚠️ NO LOG"
 STATUS_ERROR = "⚠️ ERROR"
 
 # Regex patterns (compiled for reuse)
-EXECUTION_PATTERN = re.compile(r"(suite/[^\n]+::test_action\[([^\]]+)\])\s*\n-+ live log call -+")
-FAILURES_PATTERN = re.compile(r"_+\s+TestApp\.test_action\[([^\]]+)\]\s+_+")
-ERRORS_PATTERN = re.compile(
-    r"_+\s*ERROR at setup of TestApp\.(test_action|test_connectivity_test)\[([^\]]+)\]\s+_+"
-)
+EXECUTION_PATTERN = re.compile(r"(suite/[^\n]+::test_\w+\[([^\]]+)\])\s*\n-+ live log call -+")
+FAILURES_PATTERN = re.compile(r"_+\s+TestApp\.test_\w+\[([^\]]+)\]\s+_+")
+ERRORS_PATTERN = re.compile(r"_+\s*ERROR at setup of TestApp\.test_\w+\[([^\]]+)\]\s+_+")
 TEST_PARAM_PATTERN = re.compile(r"\[([^\]]+)\]")
 FILE_LOCATION_PATTERN = re.compile(r'File "([^"]+)", line (\d+)')
 
@@ -265,7 +263,7 @@ def extract_failed_test_details(log_file_path: str) -> list[FailedTest]:
 
     # Phase 3: Parse ERRORS section for setup errors
     for match in ERRORS_PATTERN.finditer(content):
-        test_parameter = match.group(2)
+        test_parameter = match.group(1)
         error_pos = match.end()
 
         # Extract Python traceback
