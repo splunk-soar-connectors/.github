@@ -21,8 +21,8 @@ STATUS_ERROR = "⚠️ ERROR"
 
 # Regex patterns (compiled for reuse)
 EXECUTION_PATTERN = re.compile(r"(suite/[^\n]+::test_\w+\[([^\]]+)\])\s*\n-+ live log call -+")
-FAILURES_PATTERN = re.compile(r"_+\s+TestApp\.test_\w+\[([^\]]+)\]\s+_+")
-ERRORS_PATTERN = re.compile(r"_+\s*ERROR at setup of TestApp\.test_\w+\[([^\]]+)\]\s+_+")
+FAILURES_PATTERN = re.compile(r"_+\s+TestApp\d*\.test_\w+\[([^\]]+)\]\s+_+")
+ERRORS_PATTERN = re.compile(r"_+\s*ERROR at setup of TestApp\d*\.test_\w+\[([^\]]+)\]\s+_+")
 TEST_PARAM_PATTERN = re.compile(r"\[([^\]]+)\]")
 FILE_LOCATION_PATTERN = re.compile(r'File "([^"]+)", line (\d+)')
 
@@ -31,6 +31,7 @@ NO_APP_ERROR = "No application error captured"
 SETUP_ERROR = "Setup error - test did not execute"
 CONNECTIVITY_FAILED_1 = "TestConnectivityFailed"
 CONNECTIVITY_FAILED_2 = "Test connectivity failed"
+CONNECTOR_IMPORT_FAILED = "Could not initialize connector"
 
 
 class TestResult(NamedTuple):
@@ -593,6 +594,34 @@ def generate_github_summary(
                     f"**{len(failed_tests)} test{'s' if len(failed_tests) != 1 else ''} failed**\n\n"
                 )
 
+                # Check for connector import failures (CRITICAL - app won't load at all)
+                import_errors = [
+                    t
+                    for t in failed_tests
+                    if CONNECTOR_IMPORT_FAILED in t.error_message
+                    or CONNECTOR_IMPORT_FAILED in t.app_error
+                    or CONNECTOR_IMPORT_FAILED in t.python_error
+                ]
+
+                if import_errors:
+                    f.write("> [!CAUTION]\n")
+                    f.write("> **🚨 CRITICAL: Connector Import Failure**\n")
+                    f.write(">\n")
+                    f.write(
+                        "> The connector module failed to import. This is a **critical error** that prevents the app from loading.\n"
+                    )
+                    f.write(
+                        f"> **{len(import_errors)} test{'s' if len(import_errors) != 1 else ''}** failed because the connector could not be initialized.\n"
+                    )
+                    f.write(">\n")
+                    f.write(
+                        "> 🔴 **Root Cause:** Missing dependencies, syntax errors, or incompatible Python modules.\n"
+                    )
+                    f.write(">\n")
+                    f.write(
+                        "> 💡 **Action Required:** Fix the import issue immediately - no tests can pass until the connector loads successfully.\n\n"
+                    )
+
                 # Check for test connectivity failures (special case)
                 connectivity_errors = [
                     t
@@ -601,7 +630,8 @@ def generate_github_summary(
                     or CONNECTIVITY_FAILED_2 in t.error_message
                 ]
 
-                if connectivity_errors:
+                # Only show connectivity warning if there's no import error (import is more critical)
+                if connectivity_errors and not import_errors:
                     f.write("> [!WARNING]\n")
                     f.write("> **⚠️ Test Connectivity Failed**\n")
                     f.write(">\n")
