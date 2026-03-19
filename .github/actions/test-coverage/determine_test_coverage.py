@@ -43,7 +43,7 @@ def actions_in_app(app_repo_path: Path) -> set:
     return {
         action["action"]
         for action in app_data.get("actions", [])
-        if action["action"] not in {"test connectivity", "on poll"}
+        if action["action"] not in {"test connectivity", "on poll", "on es poll"}
     }
 
 
