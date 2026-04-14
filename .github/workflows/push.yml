@@ -40,10 +40,10 @@ jobs:
         id: detect
         run: |
           echo "Detecting app type..."
-          
+
           # Find uv.lock file and get its parent directory
           UV_LOCK_PATH=$(find . -name "uv.lock" -type f | head -1)
-          
+
           if [ -n "$UV_LOCK_PATH" ]; then
             UV_LOCK_DIR=$(dirname "$UV_LOCK_PATH")
             echo "Found uv.lock in directory: $UV_LOCK_DIR"
@@ -56,7 +56,7 @@ jobs:
             echo "is_sdkfied=false" >> $GITHUB_OUTPUT
             echo "uv_lock_directory=" >> $GITHUB_OUTPUT
           fi
-          
+
           echo "App detection completed"
         shell: bash
 
@@ -83,7 +83,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
-      
+
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
         uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
@@ -99,7 +99,7 @@ jobs:
 
       - name: Run Security Scans
         uses: splunk-soar-connectors/.github/.github/actions/security-scans@main
-      
+
       - name: Clean up temporary manifest for SDKfied app
         if: env.IS_SDKFIED == 'true'
         run: |
@@ -121,7 +121,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
-      
+
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
         uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
@@ -156,13 +156,13 @@ jobs:
       - name: Build Application
         if: env.IS_SDKFIED == 'false'
         uses: splunk-soar-connectors/.github/.github/actions/build-app@main
-      
+
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
         uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
         with:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
-      
+
       - name: Build SDK app
         if: env.IS_SDKFIED == 'true'
         run: |
@@ -263,7 +263,7 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
         with:
           app_repo: ${{ github.event.repository.name }}
-      
+
       - name: Clean up temporary manifest for SDKfied app
         if: env.IS_SDKFIED == 'true'
         run: |
@@ -294,8 +294,6 @@ jobs:
           - version: "cloud_next"
             ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_NEXT_HOST }}
     env:
-      AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-      AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
       VAULT_ROLE: ${{ vars.VAULT_ROLE }}
       PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
@@ -326,9 +324,63 @@ jobs:
           path: ${{ github.workspace }}/test-results/
           retention-days: 1
 
+  aws-sanity-test:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    needs: test-setup
+    if: ${{ needs.test-setup.outputs.publisher == 'Splunk' && contains(github.event.repository.name, 'aws') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: "aws_current"
+            ip: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+          - version: "aws_previous"
+            ip: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+          - version: "aws_next"
+            ip: ${{ vars.AWS_PHANTOM_INSTANCE_NEXT_VERSION_IP }}
+    env:
+      AWS_PHANTOM_URL: https://${{ matrix.ip }}
+      AWS_PHANTOM_USERNAME: ${{ vars.AWS_PHANTOM_USERNAME }}
+      AWS_PHANTOM_PASSWORD: ${{ secrets.AWS_PHANTOM_PASSWORD }}
+      NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
+      VAULT_ROLE: ${{ vars.VAULT_ROLE }}
+
+    steps:
+      - name: Validate AWS instance IP
+        shell: bash
+        run: |
+          if [[ -z "${{ matrix.ip }}" ]]; then
+            echo "::error::AWS Phantom instance IP is not set for version '${{ matrix.version }}'. Set the corresponding repository variable."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Download app tar file
+        uses: actions/download-artifact@v4
+        with:
+          name: app-tar
+
+      - name: Run Sanity Tests
+        uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
+        with:
+          phantom_ip: ${{ matrix.ip }}
+          version: ${{ matrix.version }}
+          app_repo: ${{ github.event.repository.name }}
+
+      - name: Upload Sanity Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sanity-test-results-${{ matrix.version }}
+          path: ${{ github.workspace }}/test-results/
+          retention-days: 1
+
   aggregate-sanity-results:
     runs-on: ubuntu-latest
-    needs: [sanity-test, test-setup]
+    needs: [sanity-test, aws-sanity-test, test-setup]
     if: always() && needs.test-setup.outputs.publisher == 'Splunk'
     steps:
       - name: Download All Sanity Test Artifacts
@@ -352,8 +404,6 @@ jobs:
     env:
       PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
-      AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-      AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
       VAULT_ROLE: ${{ vars.VAULT_ROLE }}
     steps:
