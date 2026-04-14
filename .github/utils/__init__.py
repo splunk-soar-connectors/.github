@@ -1,6 +1,5 @@
 import functools
 import json
-import re
 from contextlib import contextmanager
 
 from utils.phantom_constants import APPID_TO_NAME_FILEPATH
@@ -89,16 +88,10 @@ def manage_data_file(data_file_name, save=True):
 
 def validate_app_id(appid, app_name):
     """
-    Makes sure that an app id is in the correct format and doesn't already map to a different app
+    Makes sure an app id is registered and maps to the expected app name.
     """
     with manage_data_file(APPID_TO_NAME_FILEPATH, save=False) as app_guid_to_name:
-        try:
-            return app_guid_to_name[appid] == app_name
-        except KeyError:
-            return bool(
-                re.match(
-                    r"[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}",
-                    appid,
-                    flags=re.I,
-                )
-            )
+        mapped_app_name = app_guid_to_name.get(appid)
+        if mapped_app_name is None:
+            return False
+        return mapped_app_name == app_name
