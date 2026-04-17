@@ -335,26 +335,33 @@ jobs:
       matrix:
         include:
           - version: "aws_current"
-            ip: ${{ secrets.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           - version: "aws_previous"
-            ip: ${{ secrets.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           - version: "aws_next"
-            ip: ${{ secrets.AWS_PHANTOM_INSTANCE_NEXT_VERSION_IP }}
     env:
-      AWS_PHANTOM_URL: https://${{ matrix.ip }}
+      AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP: ${{ secrets.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+      AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP: ${{ secrets.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+      AWS_PHANTOM_INSTANCE_NEXT_VERSION_IP: ${{ secrets.AWS_PHANTOM_INSTANCE_NEXT_VERSION_IP }}
       AWS_PHANTOM_USERNAME: ${{ vars.AWS_PHANTOM_USERNAME }}
       AWS_PHANTOM_PASSWORD: ${{ secrets.AWS_PHANTOM_PASSWORD }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
       VAULT_ROLE: ${{ vars.VAULT_ROLE }}
 
     steps:
-      - name: Validate AWS instance IP
+      - name: Resolve AWS Phantom IP
+        id: resolve-ip
         shell: bash
         run: |
-          if [[ -z "${{ matrix.ip }}" ]]; then
+          case "${{ matrix.version }}" in
+            aws_current)  ip="$AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP" ;;
+            aws_previous) ip="$AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP" ;;
+            aws_next)     ip="$AWS_PHANTOM_INSTANCE_NEXT_VERSION_IP" ;;
+          esac
+          if [[ -z "$ip" ]]; then
             echo "::error::AWS Phantom instance IP is not set for version '${{ matrix.version }}'. Set the corresponding repository secret."
             exit 1
           fi
+          echo "ip=$ip" >> "$GITHUB_OUTPUT"
+          echo "AWS_PHANTOM_URL=https://$ip" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4
 
@@ -366,7 +373,7 @@ jobs:
       - name: Run Sanity Tests
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
-          phantom_ip: ${{ matrix.ip }}
+          phantom_ip: ${{ steps.resolve-ip.outputs.ip }}
           version: ${{ matrix.version }}
           app_repo: ${{ github.event.repository.name }}
 
