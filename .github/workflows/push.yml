@@ -335,11 +335,11 @@ jobs:
       matrix:
         include:
           - version: "aws_current"
-            ip: ${{ vars.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+            ip: ${{ secrets.AWS_PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
           - version: "aws_previous"
-            ip: ${{ vars.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+            ip: ${{ secrets.AWS_PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
           - version: "aws_next"
-            ip: ${{ vars.AWS_PHANTOM_INSTANCE_NEXT_VERSION_IP }}
+            ip: ${{ secrets.AWS_PHANTOM_INSTANCE_NEXT_VERSION_IP }}
     env:
       AWS_PHANTOM_URL: https://${{ matrix.ip }}
       AWS_PHANTOM_USERNAME: ${{ vars.AWS_PHANTOM_USERNAME }}
@@ -352,7 +352,7 @@ jobs:
         shell: bash
         run: |
           if [[ -z "${{ matrix.ip }}" ]]; then
-            echo "::error::AWS Phantom instance IP is not set for version '${{ matrix.version }}'. Set the corresponding repository variable."
+            echo "::error::AWS Phantom instance IP is not set for version '${{ matrix.version }}'. Set the corresponding repository secret."
             exit 1
           fi
 
