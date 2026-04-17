@@ -70,7 +70,10 @@ def _open_phantom_session(phantom_instance_ip, phantom_username, phantom_passwor
 
 def main(args):
     try:
-        if _is_port_in_use(args.phantom_ip, NRI_PORT):
+        # phantom_ip may already include a port (e.g. "hostname:8172" for NLB targets)
+        if ":" in args.phantom_ip:
+            phantom_ip = args.phantom_ip
+        elif _is_port_in_use(args.phantom_ip, NRI_PORT):
             phantom_ip = f"{args.phantom_ip}:{NRI_PORT}"
         else:
             phantom_ip = args.phantom_ip
