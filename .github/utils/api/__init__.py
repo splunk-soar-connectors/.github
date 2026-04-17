@@ -1,5 +1,3 @@
-import re
-
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
@@ -33,9 +31,6 @@ class ApiSession(requests.Session):
         if "://" not in url:
             assert url.startswith("/")
             url = self.base_url + url
-        # Port specification on https is often broken
-        if url.startswith("https"):
-            url = re.sub(r"(\.com):\d+/", r"\1/", url)
         resp = super().request(method, url, **kwargs)
         resp.raise_for_status()
         return resp
