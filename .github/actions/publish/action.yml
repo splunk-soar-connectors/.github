@@ -4,6 +4,31 @@ inputs:
   is_sdkfied:
     description: 'Whether this is an SDKfied app (true/false)'
     required: true
+outputs:
+  app_name:
+    description: "Name of the published app"
+    value: ${{ steps.publish_app.outputs.app_name }}
+  app_logo:
+    description: "Path to the app logo SVG within the repo"
+    value: ${{ steps.publish_app.outputs.app_logo }}
+  repo_name:
+    description: "GitHub repository name"
+    value: ${{ steps.publish_app.outputs.repo_name }}
+  release_version:
+    description: "Published version"
+    value: ${{ steps.publish_app.outputs.release_version }}
+  release_notes:
+    description: "JSON-encoded list of release note lines"
+    value: ${{ steps.publish_app.outputs.release_notes }}
+  new_app:
+    description: "Whether this is a new app (true/false)"
+    value: ${{ steps.publish_app.outputs.new_app }}
+  support_tag:
+    description: "Splunkbase support tag (splunk, developer, not_supported)"
+    value: ${{ steps.publish_app.outputs.support_tag }}
+  splunk_base_url:
+    description: "URL to the app on Splunkbase"
+    value: ${{ steps.publish_app.outputs.splunk_base_url }}
 runs:
   using: "composite"
   steps:

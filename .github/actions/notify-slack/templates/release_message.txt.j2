@@ -1,0 +1,9 @@
+*Hello* :wave:
+
+{% if new_app %}A new{% else %}An updated{% endif %} *{{ support_alias }}* app is now available on Splunkbase! :release:
+
+:splunk-arrow: <{{ splunk_base_url }}|*{{ app_name }}*>
+
+{%- for note in release_notes %}
+{{ note }}
+{%- endfor %}
