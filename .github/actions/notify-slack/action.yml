@@ -1,0 +1,68 @@
+name: "Notify Slack on App Release"
+description: "Posts a release notification to the appropriate Slack channel"
+inputs:
+  app_name:
+    description: "Name of the published app"
+    required: true
+  app_logo:
+    description: "Path to the app logo SVG within the checked-out repo"
+    required: true
+  repo_name:
+    description: "GitHub repository name"
+    required: true
+  release_version:
+    description: "Published version"
+    required: true
+  release_notes:
+    description: "JSON-encoded list of release note lines"
+    required: true
+  new_app:
+    description: "Whether this is a new app ('true' or 'false')"
+    required: true
+  support_tag:
+    description: "Splunkbase support tag (splunk, developer, not_supported)"
+    required: true
+  splunk_base_url:
+    description: "URL to the app on Splunkbase"
+    required: true
+  slack_internal_token:
+    description: "Slack bot token for the internal channel"
+    required: true
+  slack_community_token:
+    description: "Slack bot token for the community channel"
+    required: true
+  slack_internal_channel:
+    description: "Internal Slack channel ID or name"
+    required: false
+    default: "soar-apps"
+  slack_community_channel:
+    description: "Community Slack channel ID or name"
+    required: false
+    default: "soar-app-changes"
+runs:
+  using: "composite"
+  steps:
+    - name: Install system dependencies
+      run: yum install -y cairo || apt-get install -y libcairo2 || true
+      shell: bash
+
+    - name: Install Python requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+
+    - name: Send Slack notification
+      env:
+        APP_NAME: ${{ inputs.app_name }}
+        APP_LOGO: ${{ inputs.app_logo }}
+        REPO_NAME: ${{ inputs.repo_name }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        RELEASE_NOTES: ${{ inputs.release_notes }}
+        NEW_APP: ${{ inputs.new_app }}
+        SUPPORT_TAG: ${{ inputs.support_tag }}
+        SPLUNK_BASE_URL: ${{ inputs.splunk_base_url }}
+        SLACK_INTERNAL_TOKEN: ${{ inputs.slack_internal_token }}
+        SLACK_COMMUNITY_TOKEN: ${{ inputs.slack_community_token }}
+        SLACK_INTERNAL_CHANNEL: ${{ inputs.slack_internal_channel }}
+        SLACK_COMMUNITY_CHANNEL: ${{ inputs.slack_community_channel }}
+      run: python ${{ github.action_path }}/notify_slack.py
+      shell: bash

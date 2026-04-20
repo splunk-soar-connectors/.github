@@ -12,8 +12,6 @@ import tarfile
 from packaging.version import parse
 from typing import Any, Optional, Union
 
-import boto3
-
 # Add utils to the import path
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 sys.path.append(str(REPO_ROOT))
@@ -32,11 +30,8 @@ NEW_APP_WARNING_MESSAGE = (
     "See: http://go/new-soar-app-in-splunkbase for more."
 )
 
-RELEASE_QUEUE_URL = os.getenv("RELEASE_QUEUE_URL")
-SOAR_APPS_TOKEN = os.getenv("SOAR_APPS_TOKEN")
 SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
-RELEASE_QUEUE_REGION = "us-west-2"
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,10 +42,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_release_notes(version: str, workspace_path: Optional[Path] = None) -> Optional[str]:
-    
     # Use GITHUB_WORKSPACE if provided, otherwise fallback to cwd
     search_root = workspace_path or Path.cwd()
-    
+
     # Debug: Show where we're searching
     logging.info(f"Searching for release_notes from: {search_root}")
     if search_root.exists():
@@ -58,24 +52,28 @@ def get_release_notes(version: str, workspace_path: Optional[Path] = None) -> Op
     else:
         logging.error(f"Search root does not exist: {search_root}")
         return None
-    
+
     release_notes_file = search_root / "release_notes" / f"{version}.md"
     logging.info(f"Looking for release notes at: {release_notes_file}")
-    
-    with open(release_notes_file, "r") as f:
+
+    with open(release_notes_file) as f:
         full_release_notes = f.read()
         release_notes = []
         for line in full_release_notes.splitlines():
             if not ("unreleased" in line.lower() and "**" in line):
                 release_notes.append(line)
         return "\n".join(release_notes)
-   
+
 
 def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
     with tarfile.open(tarball, "r") as tar:
         names = tar.getnames()
-        
-        app_json_files = [n for n in names if n.endswith(".json") and n.count("/") == 1 and "postman_collection" not in n.lower()]
+
+        app_json_files = [
+            n
+            for n in names
+            if n.endswith(".json") and n.count("/") == 1 and "postman_collection" not in n.lower()
+        ]
         if len(app_json_files) == 0 or len(app_json_files) > 1:
             raise ValueError(
                 f"No or multiple JSON files found in top level of app repo: {app_json_files}."
@@ -92,23 +90,33 @@ def get_license_info(app_json: dict[str, Any]) -> tuple[str, str]:
     return (APACHE2_LICENSE_STRING, APACHE2_LICENSE_URL)
 
 
-def _send_release_message(
-    repo_name: str, new_app: bool, release_notes: str, app_json: dict[str, Any]
+def _write_github_outputs(
+    app_json: dict[str, Any],
+    repo_name: str,
+    release_notes: str,
+    new_app: bool,
+    sb_appid: str,
+    support_tag: str,
 ) -> None:
-    sqs = boto3.resource("sqs", region_name=RELEASE_QUEUE_REGION)
-    queue = sqs.Queue(RELEASE_QUEUE_URL)
+    github_output = os.getenv("GITHUB_OUTPUT")
+    if not github_output:
+        logging.info("GITHUB_OUTPUT not set, skipping output writing")
+        return
 
-    message = {
-        "app_id": app_json["appid"],
-        "app_name": app_json["name"],
-        "app_logo": app_json["logo"],
-        "repo_name": repo_name,
-        "release_notes": release_notes.split("\n"),
-        "release_version": app_json["app_version"],
-        "new_app": new_app,
-    }
+    splunk_base_url = f"https://splunkbase.splunk.com/app/{sb_appid}"
+    release_notes_json = json.dumps(release_notes.split("\n"))
 
-    queue.send_message(MessageBody=json.dumps(message))
+    with open(github_output, "a") as f:
+        f.write(f"app_name={app_json['name']}\n")
+        f.write(f"app_logo={app_json['logo']}\n")
+        f.write(f"repo_name={repo_name}\n")
+        f.write(f"release_version={app_json['app_version']}\n")
+        f.write(f"new_app={'true' if new_app else 'false'}\n")
+        f.write(f"support_tag={support_tag}\n")
+        f.write(f"splunk_base_url={splunk_base_url}\n")
+        f.write(f"release_notes={release_notes_json}\n")
+
+    logging.info("Wrote GitHub outputs for %s v%s", app_json["name"], app_json["app_version"])
 
 
 def main(args):
@@ -142,7 +150,7 @@ def main(args):
     workspace = os.getenv("GITHUB_WORKSPACE")
     workspace_path = Path(workspace) if workspace else None
     logging.info(f"GITHUB_WORKSPACE from environment: {workspace}")
-    
+
     release_notes = get_release_notes(app_version, workspace_path)
     if not release_notes:
         logging.error("Could not find release notes in tarball for version %s!", app_version)
@@ -175,27 +183,28 @@ def main(args):
         logging.info("Failed to validate upload: \n%s", json.dumps(response, indent=2))
         return 1
 
-    # TODO: Change to get this to work correctly
-    # send_release_message = os.getenv("SEND_RELEASE_MESSAGE", "false").lower() in ("1", "true")
-    # if send_release_message:
-    #     logging.info(
-    #         f"sending a release message with repo_name={app_repo_name}, new_app={not apps}, release_notes={release_notes}"
-    #     )
-    #     _send_release_message(
-    #         repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
-    #     )
-    # else:
-    #     logging.info("SEND_RELEASE_MESSAGE is not set to true; skipping release message.")
-
-    _send_release_message(
-        repo_name=app_repo_name, new_app=not apps, app_json=app_json, release_notes=release_notes
-    )
-
     if not apps:
+        support_tag = "splunk" if app_json.get("publisher") == "Splunk" else "developer"
+        _write_github_outputs(
+            app_json,
+            app_repo_name,
+            release_notes,
+            new_app=True,
+            sb_appid=sb_appid,
+            support_tag=support_tag,
+        )
         sb_client.add_app_editor(sb_appid)
         logging.warning(NEW_APP_WARNING_MESSAGE)
         return 2
 
+    _write_github_outputs(
+        app_json,
+        app_repo_name,
+        release_notes,
+        new_app=False,
+        sb_appid=sb_appid,
+        support_tag=apps[0]["support"],
+    )
     return 0
 
 
