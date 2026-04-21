@@ -115,13 +115,24 @@ def _build_message(
 
 def _convert_svg_logo_to_png(repo_name, repo_svg_logo_path):
     """
-    Reads the SVG logo from the local checkout (GITHUB_WORKSPACE) and converts to PNG bytes.
-    In the Lambda, this fetches from the GitHub API; here we have the repo checked out already.
+    Reads the SVG logo from the local checkout (GITHUB_WORKSPACE) and returns PNG bytes.
+    If the SVG embeds a raster image (data:image/png;base64,...), extract it directly
+    rather than using cairosvg, which doesn't handle embedded bitmaps.
     """
+    import base64
+    import re as _re
+
     workspace = os.getenv("GITHUB_WORKSPACE", ".")
     svg_path = Path(workspace) / repo_svg_logo_path
     logging.info("Reading SVG logo from %s (repo: %s)", svg_path, repo_name)
-    return cairosvg.svg2png(bytestring=svg_path.read_bytes())
+    svg_bytes = svg_path.read_bytes()
+
+    match = _re.search(rb'href=["\']data:image/png;base64,([A-Za-z0-9+/=\s]+)["\']', svg_bytes)
+    if match:
+        logging.info("Extracting embedded PNG from SVG")
+        return base64.b64decode(match.group(1).replace(b"\n", b"").replace(b" ", b""))
+
+    return cairosvg.svg2png(bytestring=svg_bytes)
 
 
 def _notify_slack_channel(slack_client, slack_channel, release_data):
