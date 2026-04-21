@@ -266,5 +266,3 @@ jobs:
           splunk_base_url: ${{ needs.publish.outputs.splunk_base_url }}
           slack_internal_token: ${{ secrets.slack_internal_token }}
           slack_community_token: ${{ secrets.slack_community_token }}
-          slack_internal_channel: ${{ inputs.slack_internal_channel }}
-          slack_community_channel: ${{ inputs.slack_community_channel }}
