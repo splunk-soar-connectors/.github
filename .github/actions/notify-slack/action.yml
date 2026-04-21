@@ -32,13 +32,11 @@ inputs:
     description: "Slack bot token for the community channel"
     required: true
   slack_internal_channel:
-    description: "Internal Slack channel ID or name"
-    required: false
-    default: "soar-apps"
+    description: "Internal Slack channel ID"
+    required: true
   slack_community_channel:
-    description: "Community Slack channel ID or name"
-    required: false
-    default: "soar-app-changes"
+    description: "Community Slack channel ID"
+    required: true
 runs:
   using: "composite"
   steps:
