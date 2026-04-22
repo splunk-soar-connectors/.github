@@ -5,8 +5,6 @@ on:
     types:
       - opened
       - synchronize
-    branches-ignore:
-      - 'mnordby/update-publish-secrets'
 
 jobs:
   pr-labeling:
