@@ -204,16 +204,19 @@ def main():
         "splunk_base_url": os.environ["SPLUNK_BASE_URL"],
     }
 
-    # Route: splunk-supported → internal channel, everything else → community channel
+    # Route: splunk-supported → internal + community channels, everything else → community only
     if release_data["support_tag"] == "splunk":
-        slack_bot_token = os.environ["SLACK_INTERNAL_TOKEN"]
-        slack_channel = os.environ["SLACK_INTERNAL_CHANNEL"]
-    else:
-        slack_bot_token = os.environ["SLACK_COMMUNITY_TOKEN"]
-        slack_channel = os.environ["SLACK_COMMUNITY_CHANNEL"]
+        _notify_slack_channel(
+            WebClient(token=os.environ["SLACK_INTERNAL_TOKEN"]),
+            os.environ["SLACK_INTERNAL_CHANNEL"],
+            release_data,
+        )
 
-    slack_client = WebClient(token=slack_bot_token)
-    _notify_slack_channel(slack_client, slack_channel, release_data)
+    _notify_slack_channel(
+        WebClient(token=os.environ["SLACK_COMMUNITY_TOKEN"]),
+        os.environ["SLACK_COMMUNITY_CHANNEL"],
+        release_data,
+    )
 
 
 if __name__ == "__main__":
