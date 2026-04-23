@@ -63,7 +63,7 @@ jobs:
         - name: Install dependencies
           run: |
             npm install --save-dev semantic-release
-            npm install @semantic-release/changelog @semantic-release/git @semantic-release/exec -D
+            npm install @semantic-release/changelog @semantic-release/git @semantic-release/exec conventional-changelog-conventionalcommits -D
             pip install tomlkit
 
         - name: Run semantic-release and update version numbers
