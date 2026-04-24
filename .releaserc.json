@@ -1,8 +1,20 @@
 {
-    "branches": ["main"],
+    "branches": [
+        "main"
+    ],
     "plugins": [
-        "@semantic-release/commit-analyzer",
-        "@semantic-release/release-notes-generator",
+        [
+            "@semantic-release/commit-analyzer",
+            {
+                "preset": "conventionalcommits"
+            }
+        ],
+        [
+            "@semantic-release/release-notes-generator",
+            {
+                "preset": "conventionalcommits"
+            }
+        ],
         [
             "@semantic-release/exec",
             {
@@ -12,7 +24,12 @@
         [
             "@semantic-release/git",
             {
-                "assets": ["README.md", "*.json", "release_notes/*", "pyproject.toml"],
+                "assets": [
+                    "README.md",
+                    "*.json",
+                    "release_notes/*",
+                    "pyproject.toml"
+                ],
                 "message": "chore(release): update version to ${nextRelease.version} [skip ci]"
             }
         ],
