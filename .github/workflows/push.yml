@@ -363,6 +363,13 @@ jobs:
           echo "ip=$ip" >> "$GITHUB_OUTPUT"
           echo "AWS_PHANTOM_URL=https://$ip" >> "$GITHUB_ENV"
 
+      - name: Show runner egress IP
+        run: |
+          echo "Egress IP:"
+          curl -fsS --max-time 10 https://checkip.amazonaws.com || echo "failed"
+          echo "Traceroute (best effort):"
+          which traceroute && traceroute -n -m 8 3.131.33.63 || true
+
       - uses: actions/checkout@v4
 
       - name: Download app tar file
