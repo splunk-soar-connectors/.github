@@ -21,6 +21,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           jira-user: ${{ secrets.JIRA_USER }}
           jira-api-key: ${{ secrets.JIRA_API_KEY }}
+          splunkbase-user: ${{ secrets.splunkbase_user }}
+          splunkbase-password: ${{ secrets.splunkbase_password }}
           repo-name: ${{ github.repository }}
           pr-number: ${{ github.event.pull_request.number }}
 
