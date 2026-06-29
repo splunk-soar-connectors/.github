@@ -11,6 +11,12 @@ inputs:
   jira-api-key:
     description: 'Jira API key'
     required: false
+  splunkbase-user:
+    description: 'Splunkbase username (used to look up support status for existing apps)'
+    required: false
+  splunkbase-password:
+    description: 'Splunkbase password (used to look up support status for existing apps)'
+    required: false
   repo-name:
     description: 'Repository name'
     required: true
@@ -24,7 +30,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        pip install requests PyGithub gitpython
+        pip install requests PyGithub gitpython backoff
     
     - name: Run PR labeling
       shell: bash
@@ -32,6 +38,8 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         JIRA_USER: ${{ inputs.jira-user }}
         JIRA_API_KEY: ${{ inputs.jira-api-key }}
+        SPLUNKBASE_USER: ${{ inputs.splunkbase-user }}
+        SPLUNKBASE_PASSWORD: ${{ inputs.splunkbase-password }}
         REPO_NAME: ${{ inputs.repo-name }}
         PR_NUMBER: ${{ inputs.pr-number }}
       run: |
