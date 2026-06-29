@@ -3,6 +3,7 @@
 Assigns labels to PRs based on properties of the PR
 """
 
+import ast
 import json
 import logging
 import os
@@ -219,10 +220,56 @@ def _read_traditional_manifest_at_ref(repo, ref):
     }
 
 
-def _grab_app_kwarg(block, key):
-    """Pull a string keyword value from the ``App(...)`` constructor block."""
-    match = re.search(rf"""{key}\s*=\s*["']([^"']*)["']""", block)
-    return match.group(1) if match else None
+def _module_string_constants(tree):
+    """Map top-level ``NAME = "literal"`` assignments to their string values.
+
+    Lets us resolve kwargs that reference module constants (e.g. real apps
+    write ``appid=APP_ID`` / ``name=APP_NAME``) rather than inline literals.
+    """
+    constants = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
+            continue
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = value.value
+    return constants
+
+
+def _find_app_call(tree):
+    """Return the ``ast.Call`` node for ``App(...)``, or None.
+
+    Matches the constructor by callee name, so chained calls like
+    ``App(...).enable_webhooks(...)`` and unrelated ``name=`` kwargs on action
+    decorators are handled correctly by AST structure (not text proximity).
+    """
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "App":
+            return node
+    return None
+
+
+def _app_kwarg(call, key, constants):
+    """Resolve a string kwarg from the ``App(...)`` call, or None.
+
+    Accepts inline string literals and references to module-level string
+    constants; anything else (computed expressions) is left as None.
+    """
+    for keyword in call.keywords:
+        if keyword.arg != key:
+            continue
+        value = keyword.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            return value.value
+        if isinstance(value, ast.Name):
+            return constants.get(value.id)
+        return None
+    return None
 
 
 def _read_sdk_manifest_at_ref(repo, ref):
@@ -230,19 +277,25 @@ def _read_sdk_manifest_at_ref(repo, ref):
 
     SDK apps do not commit a manifest; ``publisher``/``appid``/``name`` are
     declared as keyword arguments to ``App(...)`` in the authored entry point.
+    Parsed via AST so nested parens, multi-line calls, and constant references
+    are handled robustly.
     """
     try:
         raw = repo.get_contents(SDK_APP_ENTRY, ref=ref).decoded_content.decode("utf-8")
     except Exception:
         return None
-    # Isolate the App(...) call so unrelated name= kwargs (e.g. on action
-    # decorators) are not picked up. The constructor has no nested parens.
-    call = re.search(r"App\((.*?)\)", raw, re.DOTALL)
-    block = call.group(1) if call else raw
+    try:
+        tree = ast.parse(raw)
+    except SyntaxError:
+        return None
+    call = _find_app_call(tree)
+    if call is None:
+        return None
+    constants = _module_string_constants(tree)
     return {
-        "publisher": _grab_app_kwarg(block, "publisher"),
-        "appid": _grab_app_kwarg(block, "appid"),
-        "name": _grab_app_kwarg(block, "name"),
+        "publisher": _app_kwarg(call, "publisher", constants),
+        "appid": _app_kwarg(call, "appid", constants),
+        "name": _app_kwarg(call, "name", constants),
         "format": "sdk",
     }
 
@@ -327,13 +380,12 @@ def determine_is_certified(metadata, is_new_app):
     Existing -> Splunkbase ``support`` field decides; falls back to the
                 publisher field only when Splunkbase is undecided.
     """
-    publisher = (metadata or {}).get("publisher")
-    publisher_supported = publisher == CERTIFIED_PUBLISHER
+    publisher_supported = metadata.get("publisher") == CERTIFIED_PUBLISHER
 
     if is_new_app:
         return publisher_supported
 
-    sb_supported = splunkbase_is_supported((metadata or {}).get("appid"))
+    sb_supported = splunkbase_is_supported(metadata.get("appid"))
     if sb_supported is None:
         logging.info("Falling back to publisher field for support decision.")
         return publisher_supported
@@ -393,8 +445,6 @@ def assign_pr_labels():
         post_acknowledging_comment(github_client, repo_name, pr_number)
     
     try:
-        # Resolve app metadata in a format-agnostic way so SDK apps (which have
-        # no committed manifest) are handled identically to traditional apps.
         metadata, is_new_app = get_app_context(github_client, repo_name, pr_number)
 
         if metadata is None:

@@ -299,6 +299,79 @@ class AppContextTests(unittest.TestCase):
         self.assertFalse(is_new)
 
 
+class _RawSdkRepo:
+    """Returns arbitrary ``src/app.py`` text so we can test the AST parser."""
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def get_contents(self, path, ref=None):
+        if path == assign_pr_labels.SDK_APP_ENTRY:
+            return FakeContentFile(path, self._raw.encode("utf-8"))
+        raise RuntimeError("only app.py available")
+
+
+class SdkManifestParsingTests(unittest.TestCase):
+    """AST-based parsing of src/app.py (robust to constants/chaining/decorators)."""
+
+    def _read(self, raw):
+        return assign_pr_labels._read_sdk_manifest_at_ref(_RawSdkRepo(raw), "ref")
+
+    def test_resolves_module_constants_and_chained_call(self):
+        # Mirrors microsoft365: appid/name reference module constants and the
+        # constructor is chained with .enable_webhooks(...).
+        raw = (
+            "from soar_sdk.app import App\n"
+            'APP_NAME = "Microsoft 365 (MS Graph)"\n'
+            'APP_ID = "abc-123"\n'
+            "app = App(\n"
+            "    name=APP_NAME,\n"
+            '    publisher="Splunk",\n'
+            "    appid=APP_ID,\n"
+            "    asset_cls=Asset,\n"
+            ").enable_webhooks(default_requires_auth=False)\n"
+        )
+        meta = self._read(raw)
+        self.assertEqual(meta["format"], "sdk")
+        self.assertEqual(meta["publisher"], "Splunk")
+        self.assertEqual(meta["appid"], "abc-123")
+        self.assertEqual(meta["name"], "Microsoft 365 (MS Graph)")
+
+    def test_ignores_action_decorator_name_kwarg(self):
+        raw = (
+            "from soar_sdk.app import App\n"
+            "app = App(\n"
+            '    name="Real App",\n'
+            '    publisher="Acme",\n'
+            "    asset_cls=Asset,\n"
+            ")\n"
+            '@app.action(name="some action", identifier="act")\n'
+            "def act():\n"
+            "    pass\n"
+        )
+        meta = self._read(raw)
+        self.assertEqual(meta["name"], "Real App")
+        self.assertEqual(meta["publisher"], "Acme")
+
+    def test_computed_expression_value_is_none(self):
+        raw = (
+            "from soar_sdk.app import App\n"
+            "app = App(\n"
+            '    name="X",\n'
+            "    publisher=os.environ['P'],\n"
+            ")\n"
+        )
+        meta = self._read(raw)
+        self.assertEqual(meta["name"], "X")
+        self.assertIsNone(meta["publisher"])
+
+    def test_no_app_call_returns_none(self):
+        self.assertIsNone(self._read("x = 1\n"))
+
+    def test_syntax_error_returns_none(self):
+        self.assertIsNone(self._read("app = App(\n"))
+
+
 class DetermineIsCertifiedTests(unittest.TestCase):
     def test_new_app_publisher_splunk_is_certified(self):
         meta = {"publisher": "Splunk", "appid": "x"}
