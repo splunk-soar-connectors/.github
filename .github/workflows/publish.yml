@@ -172,7 +172,7 @@ jobs:
   publish:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:41690eb58c44f2ae281de68d8d765ff24c35eee2
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: build
     outputs:
       return_code: ${{ steps.set-outputs.outputs.return_code }}
@@ -220,7 +220,7 @@ jobs:
   metrics:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:41690eb58c44f2ae281de68d8d765ff24c35eee2
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: publish
     if: always()
     steps:
@@ -243,7 +243,7 @@ jobs:
   notify-slack:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:41690eb58c44f2ae281de68d8d765ff24c35eee2
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
     needs: publish
     if: always() && vars.SEND_RELEASE_MESSAGE == 'true' && (needs.publish.outputs.return_code == '0' || needs.publish.outputs.return_code == '2')
     steps:
