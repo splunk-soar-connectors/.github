@@ -9,6 +9,7 @@ open by printing "true" so a broken check never blocks a real install/test run.
 import argparse
 import json
 import logging
+import os
 import sys
 import tarfile
 from pathlib import Path
@@ -91,6 +92,12 @@ def main(args):
     except Exception as e:
         logging.warning(
             "Version compatibility check failed, defaulting to compatible: %s", e
+        )
+        logging.warning(
+            "Diagnostics: tarball_path=%r, cwd=%s, cwd_contents=%s",
+            args.tarball_path,
+            os.getcwd(),
+            os.listdir("."),
         )
         compatible = True
 
