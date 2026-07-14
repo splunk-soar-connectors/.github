@@ -1,0 +1,26 @@
+name: "Version Check"
+description: "Checks whether a Phantom instance is running a version at or above the app's min_phantom_version"
+inputs:
+  tarball_name:
+    description: 'Name of the built app tarball, e.g. "myapp.tgz"'
+    required: true
+  phantom_ip:
+    description: 'IP or hostname of the target Phantom instance'
+    required: true
+outputs:
+  compatible:
+    description: "true if the instance's version is at or above the app's min_phantom_version"
+    value: ${{ steps.check.outputs.compatible }}
+runs:
+  using: "composite"
+  steps:
+    - name: Install Requirements
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+
+    - name: Check version compatibility
+      id: check
+      run: |
+        COMPATIBLE=$(python ${{ github.action_path }}/../../utils/version_compat.py "${{ inputs.tarball_name }}" "${{ inputs.phantom_ip }}" "$PHANTOM_USERNAME" "$PHANTOM_PASSWORD")
+        echo "compatible=$COMPATIBLE" >> $GITHUB_OUTPUT
+      shell: bash

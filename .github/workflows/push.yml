@@ -307,7 +307,15 @@ jobs:
         with:
           name: app-tar
 
+      - name: Check version compatibility
+        id: version-check
+        uses: splunk-soar-connectors/.github/.github/actions/version-check@main
+        with:
+          tarball_name: ${{ github.event.repository.name }}.tgz
+          phantom_ip: ${{ matrix.ip }}
+
       - name: Run Sanity Tests
+        if: steps.version-check.outputs.compatible == 'true'
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
           phantom_ip: ${{ matrix.ip }}
@@ -318,7 +326,7 @@ jobs:
 
       - name: Upload Sanity Test Results
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.version-check.outputs.compatible == 'true'
         with:
           name: sanity-test-results-${{ matrix.version }}
           path: ${{ github.workspace }}/test-results/
