@@ -42,16 +42,34 @@ runs:
         TARBALL=$(find . -name "*.tgz" | head -1)
         TARBALL_NAME=$(basename "$TARBALL")
         echo "Tarball created: $TARBALL_NAME"
-        
-        echo "Installing app on current phantom instance (${{ inputs.current_phantom_ip }})"
-        uv run soarapps package install "$TARBALL_NAME" "${{ inputs.current_phantom_ip }}" --username soar_local_admin
-        
-        echo "Installing app on next phantom instance (${{ inputs.next_phantom_ip }})"
-        uv run soarapps package install "$TARBALL_NAME" "${{ inputs.next_phantom_ip }}" --username soar_local_admin
-        
-        echo "Installing app on previous phantom instance (${{ inputs.previous_phantom_ip }})"
-        uv run soarapps package install "$TARBALL_NAME" "${{ inputs.previous_phantom_ip }}" --username soar_local_admin
-        
+
+        echo "Checking version compatibility for current phantom instance (${{ inputs.current_phantom_ip }})"
+        COMPATIBLE=$(python ${{ github.action_path }}/../../utils/version_compat.py "$TARBALL_NAME" "${{ inputs.current_phantom_ip }}" soar_local_admin "$PHANTOM_PASSWORD")
+        if [ "$COMPATIBLE" == "true" ]; then
+          echo "Installing app on current phantom instance (${{ inputs.current_phantom_ip }})"
+          uv run soarapps package install "$TARBALL_NAME" "${{ inputs.current_phantom_ip }}" --username soar_local_admin
+        else
+          echo "Skipping install on current phantom instance (${{ inputs.current_phantom_ip }}): app's min_phantom_version is not supported by this instance"
+        fi
+
+        echo "Checking version compatibility for next phantom instance (${{ inputs.next_phantom_ip }})"
+        COMPATIBLE=$(python ${{ github.action_path }}/../../utils/version_compat.py "$TARBALL_NAME" "${{ inputs.next_phantom_ip }}" soar_local_admin "$PHANTOM_PASSWORD")
+        if [ "$COMPATIBLE" == "true" ]; then
+          echo "Installing app on next phantom instance (${{ inputs.next_phantom_ip }})"
+          uv run soarapps package install "$TARBALL_NAME" "${{ inputs.next_phantom_ip }}" --username soar_local_admin
+        else
+          echo "Skipping install on next phantom instance (${{ inputs.next_phantom_ip }}): app's min_phantom_version is not supported by this instance"
+        fi
+
+        echo "Checking version compatibility for previous phantom instance (${{ inputs.previous_phantom_ip }})"
+        COMPATIBLE=$(python ${{ github.action_path }}/../../utils/version_compat.py "$TARBALL_NAME" "${{ inputs.previous_phantom_ip }}" soar_local_admin "$PHANTOM_PASSWORD")
+        if [ "$COMPATIBLE" == "true" ]; then
+          echo "Installing app on previous phantom instance (${{ inputs.previous_phantom_ip }})"
+          uv run soarapps package install "$TARBALL_NAME" "${{ inputs.previous_phantom_ip }}" --username soar_local_admin
+        else
+          echo "Skipping install on previous phantom instance (${{ inputs.previous_phantom_ip }}): app's min_phantom_version is not supported by this instance"
+        fi
+
         echo "SDKfied app installation completed on all instances"
       shell: bash
 

@@ -1,1 +1,3 @@
 scp==0.15.0
+requests
+packaging
