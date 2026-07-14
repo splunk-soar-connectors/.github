@@ -309,11 +309,10 @@ jobs:
 
       - name: Check version compatibility
         id: version-check
-        run: |
-          pip install requests packaging
-          COMPATIBLE=$(python .github/utils/version_compat.py "${{ github.event.repository.name }}.tgz" "${{ matrix.ip }}" "$PHANTOM_USERNAME" "$PHANTOM_PASSWORD")
-          echo "compatible=$COMPATIBLE" >> $GITHUB_OUTPUT
-        shell: bash
+        uses: splunk-soar-connectors/.github/.github/actions/version-check@main
+        with:
+          tarball_name: ${{ github.event.repository.name }}.tgz
+          phantom_ip: ${{ matrix.ip }}
 
       - name: Run Sanity Tests
         if: steps.version-check.outputs.compatible == 'true'
