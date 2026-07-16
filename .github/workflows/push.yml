@@ -124,6 +124,11 @@ jobs:
             version_number=$(<release_version.txt)
             release_notes=$(<release_notes.txt)
             printf -v message 'Merging this PR will release `%s` with the following release notes:\n\n%s' "$version_number" "$release_notes"
+
+            if [[ -s release_notes/unreleased.md ]]; then
+              connector_changes=$(sed '/^\*\*Unreleased\*\*$/d' release_notes/unreleased.md)
+              printf -v message '%s\n\n### Connector release changes\n\n%s' "$message" "$connector_changes"
+            fi
           fi
 
           printf -v comment_body '%s\n%s\n\n%s' "$breadcrumb" "$message" "$attribution"
