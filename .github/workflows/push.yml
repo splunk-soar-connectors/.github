@@ -60,6 +60,30 @@ jobs:
           echo "App detection completed"
         shell: bash
 
+  pytest:
+    runs-on: ubuntu-latest
+    needs: detect-app-type
+    if: needs.detect-app-type.outputs.is_sdkfied == 'true'
+    permissions:
+      contents: read
+    env:
+      UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
+    steps:
+      - name: Check out app repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up SDKfied app environment
+        uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
+        with:
+          uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
+
+      - name: Run pytest
+        run: uv run --project "$UV_LOCK_DIRECTORY" pytest
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
