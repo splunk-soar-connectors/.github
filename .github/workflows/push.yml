@@ -98,23 +98,17 @@ jobs:
       - name: Install semantic-release dependencies
         run: npm install --global semantic-release @semantic-release/exec @semantic-release/git conventional-changelog-conventionalcommits
 
-      - name: Check out the target branch and merge onto it
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          BASE_REPOSITORY: ${{ github.repository }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Prepare release configuration
         run: |
-          git fetch "https://github.com/$BASE_REPOSITORY.git" "$BASE_REF:refs/heads/$BASE_REF"
-          git checkout "$BASE_REF"
-          git merge --ff-only "$PR_HEAD_SHA"
           cp dotgithub/.releaserc.json .releaserc.json
 
       - name: Run Semantic Release as a dry run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           unset GITHUB_ACTIONS GITHUB_REF GITHUB_EVENT_NAME
-          semantic-release --dry-run --no-ci --tag-format '${version}'
+          semantic-release --dry-run --no-ci --branches "$PR_HEAD_REF" --tag-format '${version}'
 
       - name: Comment release notes on the PR
         env:
