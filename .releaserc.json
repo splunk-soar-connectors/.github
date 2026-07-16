@@ -18,7 +18,9 @@
         [
             "@semantic-release/exec",
             {
-                "prepareCmd": "rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version}"
+                "prepareCmd": "rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version}",
+                "verifyReleaseCmd": "echo \"${nextRelease.version}\" > release_version.txt",
+                "generateNotesCmd": "cat >release_notes.txt <<'EOF${nextRelease.gitHead}EOF'\n${nextRelease.notes}\nEOF${nextRelease.gitHead}EOF"
             }
         ],
         [
