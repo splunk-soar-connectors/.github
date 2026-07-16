@@ -19,7 +19,7 @@ from requests.auth import HTTPBasicAuth
 
 sys.path.append(str(Path(__file__).parent.parent.resolve()))
 
-from api import ApiSession
+from utils.api import ApiSession
 from utils import find_app_json_name
 
 
