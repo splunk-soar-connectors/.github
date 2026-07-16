@@ -1,17 +1,21 @@
+import json
+import logging
 import os
-from pathlib import Path
+import random
 import re
 import socket
 import string
-import random
-import logging
 from contextlib import contextmanager
-from typing import Union
 from collections.abc import Iterator
+from pathlib import Path
+from typing import Union
 
 import backoff
 import paramiko
 from scp import SCPClient
+
+from utils import find_app_json_name
+from utils.version_compat import supports_minimum_version
 
 ANSI_ESCAPE = re.compile(r"(\x1b|\x1B)(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 OUTPUT = re.compile(r"Output\:([^\x1b]*?)Error output\:")
@@ -21,6 +25,39 @@ TEST_DIRECTORY = "/home/phantom/app_tests"
 RANDOM_STRING = "/{}/".format(
     "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase, k=7))
 )
+
+
+def get_min_phantom_version(local_app_path: Path) -> str:
+    local_app_path = Path(local_app_path)
+    json_filenames = [path.name for path in local_app_path.glob("*.json")]
+    app_json_name = (
+        "manifest.json" if "manifest.json" in json_filenames else find_app_json_name(json_filenames)
+    )
+
+    with (local_app_path / app_json_name).open() as app_json_file:
+        return json.load(app_json_file)["min_phantom_version"]
+
+
+def is_local_app_compatible(
+    local_app_path: Path,
+    phantom_ip: str,
+    phantom_username: str,
+    phantom_password: str,
+) -> bool:
+    try:
+        min_phantom_version = get_min_phantom_version(local_app_path)
+        return supports_minimum_version(
+            min_phantom_version,
+            phantom_ip,
+            phantom_username,
+            phantom_password,
+        )
+    except Exception as error:
+        logging.warning(
+            "Version compatibility check failed for traditional app, defaulting to compatible: %s",
+            error,
+        )
+        return True
 
 
 def compile_app(
@@ -109,6 +146,20 @@ def run_compile(
     }
 
     for version, host in hosts.items():
+        if not is_local_app_compatible(
+            local_app_path,
+            host,
+            phantom_username,
+            phantom_password,
+        ):
+            message = (
+                f"Skipping compile on {version}: app's min_phantom_version "
+                "is not supported by this instance"
+            )
+            logging.info(message)
+            results[version] = {"success": True, "message": [message]}
+            continue
+
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:

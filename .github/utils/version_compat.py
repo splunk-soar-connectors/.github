@@ -71,8 +71,7 @@ def get_instance_version(phantom_ip, phantom_username, phantom_password):
     return resp.json()["version"]
 
 
-def is_compatible(tarball_path, phantom_ip, phantom_username, phantom_password):
-    min_phantom_version = get_min_phantom_version(tarball_path)
+def supports_minimum_version(min_phantom_version, phantom_ip, phantom_username, phantom_password):
     instance_version = get_instance_version(phantom_ip, phantom_username, phantom_password)
 
     logging.info(
@@ -84,15 +83,23 @@ def is_compatible(tarball_path, phantom_ip, phantom_username, phantom_password):
     return parse_version(instance_version) >= parse_version(min_phantom_version)
 
 
+def is_compatible(tarball_path, phantom_ip, phantom_username, phantom_password):
+    min_phantom_version = get_min_phantom_version(tarball_path)
+    return supports_minimum_version(
+        min_phantom_version,
+        phantom_ip,
+        phantom_username,
+        phantom_password,
+    )
+
+
 def main(args):
     try:
         compatible = is_compatible(
             args.tarball_path, args.phantom_ip, args.phantom_username, args.phantom_password
         )
     except Exception as e:
-        logging.warning(
-            "Version compatibility check failed, defaulting to compatible: %s", e
-        )
+        logging.warning("Version compatibility check failed, defaulting to compatible: %s", e)
         logging.warning(
             "Diagnostics: tarball_path=%r, cwd=%s, cwd_contents=%s",
             args.tarball_path,
