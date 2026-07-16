@@ -112,12 +112,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: splunk-soar-connectors/.github
+          ref: main
           path: dotgithub
 
       - name: Set up NodeJS
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: "24"
 
       - name: Install semantic-release dependencies
         run: npm install --global semantic-release @semantic-release/exec @semantic-release/git conventional-changelog-conventionalcommits
