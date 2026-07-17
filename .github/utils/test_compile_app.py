@@ -53,10 +53,14 @@ class CompileAppVersionCompatibilityTest(unittest.TestCase):
             "next.example",
             "previous.example",
             "phantom",
+            "soar_local_admin",
             "password",
         )
 
         ssh_client.assert_not_called()
+        self.assertEqual(_is_compatible.call_count, 3)
+        for call in _is_compatible.call_args_list:
+            self.assertEqual(call.args[2:], ("soar_local_admin", "password"))
         self.assertEqual(
             set(results),
             {

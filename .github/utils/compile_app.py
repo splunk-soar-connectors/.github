@@ -135,7 +135,8 @@ def run_compile(
     current_phantom_ip: str,
     next_phantom_ip: str,
     previous_phantom_ip: str,
-    phantom_username: str,
+    ssh_username: str,
+    rest_username: str,
     phantom_password: str,
 ) -> dict[str, dict[str, Union[bool, str]]]:
     results = {}
@@ -149,7 +150,7 @@ def run_compile(
         if not is_local_app_compatible(
             local_app_path,
             host,
-            phantom_username,
+            rest_username,
             phantom_password,
         ):
             message = (
@@ -165,7 +166,7 @@ def run_compile(
         try:
             logging.info(f"Connecting to host {version}: {host}")
             client.connect(
-                hostname=host, username=phantom_username, password=phantom_password, port=22
+                hostname=host, username=ssh_username, password=phantom_password, port=22
             )
             with upload_app_files(version, client, local_app_path, app_name) as test_dir:
                 results[version] = compile_app(version, client, test_dir)
