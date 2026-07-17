@@ -38,7 +38,7 @@ runs:
         echo "Building SDKfied app using soarapps CLI"
         uv run soarapps package build .
         echo "SDKfied app build completed successfully"
-        
+
         TARBALL=$(find . -name "*.tgz" | head -1)
         TARBALL_NAME=$(basename "$TARBALL")
         TARBALL_ABS_PATH=$(readlink -f "$TARBALL")
@@ -76,6 +76,8 @@ runs:
 
     - name: Compile Traditional App
       if: inputs.is_sdkfied == 'false'
+      env:
+        PHANTOM_PASSWORD: ${{ inputs.phantom_password }}
       run: |
         set -e
         python ${{ github.action_path }}/compile_app_in_instance.py ${{ github.event.repository.name }} --app-repo-branch ${{ github.head_ref }} --current-phantom-ip ${{ inputs.current_phantom_ip }} --next-phantom-ip ${{ inputs.next_phantom_ip }} --previous-phantom-ip ${{ inputs.previous_phantom_ip }} --phantom-username ${{ inputs.phantom_username }}
