@@ -101,7 +101,7 @@ jobs:
           echo "Detecting app type..."
 
           # Find uv.lock file and get its parent directory
-          UV_LOCK_PATH=$(find . -name "uv.lock" -type f | head -1)
+          UV_LOCK_PATH=$(find . -path './.git' -prune -o -name "uv.lock" -type f -print -quit)
 
           if [ -n "$UV_LOCK_PATH" ]; then
             UV_LOCK_DIR=$(dirname "$UV_LOCK_PATH")
