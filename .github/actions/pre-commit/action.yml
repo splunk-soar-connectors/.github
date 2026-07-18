@@ -3,6 +3,8 @@ description: "Runs pre-commit on the pushed code"
 runs:
   using: "composite"
   steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
 
     - name: Install dependencies
       shell: bash
