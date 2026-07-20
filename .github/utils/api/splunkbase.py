@@ -24,6 +24,7 @@ SPLUNKBASE_SUCCESSFUL_UPLOAD_RESPONSES = [
 ]
 SPLUNKBASE_BASE_URL = f"https://splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
 SPLUNKBASE_EDITOR_URL = "https://splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
+SPLUNKBASE_LOGIN_URL = "https://api.splunk.com/2.0/rest/login/splunk"
 STATUS_CODES_TO_RETRY = [403, 502, 504]
 RESPONSE_MESSAGES_TO_RETRY = [
     "Network error communicating with endpoint",
@@ -34,13 +35,13 @@ MAX_MESSAGE_RETRY_TIME = 120
 
 
 def _post_request(
-    auth_tuple: tuple[str, str],
+    headers: dict[str, str],
     url: str,
     data: Union[str, bytes, bool, list, dict],
     check_response: bool = True,
 ) -> Union[list, dict, str, bool]:
     session = requests.Session()
-    session.auth = auth_tuple
+    session.headers.update(headers)
 
     response = session.post(url, data)
     if check_response and not response.ok:
@@ -49,9 +50,9 @@ def _post_request(
     return response.json()
 
 
-def _post_request_with_files(auth_tuple, url, data, files, check_response=True, retry_codes=None):
+def _post_request_with_files(headers, url, data, files, check_response=True, retry_codes=None):
     session = requests.Session()
-    session.auth = auth_tuple
+    session.headers.update(headers)
 
     if retry_codes:
         retry = Retry(
@@ -68,10 +69,10 @@ def _post_request_with_files(auth_tuple, url, data, files, check_response=True, 
     return response.json()
 
 
-def _get_request(url, return_json=True, params=None, auth_tuple=None):
+def _get_request(url, return_json=True, params=None, headers=None):
     session = requests.Session()
-    if auth_tuple:
-        session.auth = auth_tuple
+    if headers:
+        session.headers.update(headers)
     response = session.get(url, params=params)
     if return_json:
         return response.json()
@@ -85,14 +86,27 @@ class Splunkbase:
         self._splunkbase_editor_url = SPLUNKBASE_EDITOR_URL
         self.splunkbase_user = splunkbase_user
         self.splunkbase_password = splunkbase_password
-        self.auth = self._get_basic_auth()
+        self.auth = self._get_bearer_auth()
 
-    def _get_basic_auth(self) -> Optional[tuple[str, str]]:
+    def _get_bearer_auth(self) -> Optional[dict[str, str]]:
         user = self.splunkbase_user
         password = self.splunkbase_password
-        if not user and password:
+        if not user or not password:
             logging.info("Splunkbase username and password not provided")
-        return (user, password) if user and password else None
+            return None
+
+        response = requests.get(SPLUNKBASE_LOGIN_URL, auth=(user, password))
+        if not response.ok:
+            raise RuntimeError(
+                f"Unable to obtain Splunkbase bearer token. "
+                f"Bad response status: {response.status_code}. Details: {response.text}"
+            )
+
+        token = response.json().get("data", {}).get("token")
+        if not token:
+            raise RuntimeError("Unable to obtain Splunkbase bearer token: token missing in response")
+
+        return {"Authorization": f"Bearer {token}"}
 
     def _is_retryable_response(response):
         if isinstance(response, dict):
@@ -144,7 +158,7 @@ class Splunkbase:
     @backoff.on_predicate(backoff.expo, _is_retryable_response, max_time=MAX_MESSAGE_RETRY_TIME)
     def check_upload_status(self, package_id):
         url = f"{self.apps_base_url}/validation/{package_id}"
-        return _get_request(url, auth_tuple=self.auth)
+        return _get_request(url, headers=self.auth)
 
     @staticmethod
     def get_app_id(results_dict, app_guid):
@@ -176,7 +190,7 @@ class Splunkbase:
                 limit,
                 params["offset"],
             )
-            response = _get_request(url, return_json=True, params=params, auth_tuple=self.auth)
+            response = _get_request(url, return_json=True, params=params, headers=self.auth)
             all_response_data.extend(response["results"])
 
             if len(all_response_data) >= response["total"]:
@@ -193,7 +207,7 @@ class Splunkbase:
             "appid": app_id,
         }
         response = _get_request(
-            self.apps_base_url, return_json=True, params=params, auth_tuple=self.auth
+            self.apps_base_url, return_json=True, params=params, headers=self.auth
         )
         logging.info(response)
         apps_returned = response["results"]
