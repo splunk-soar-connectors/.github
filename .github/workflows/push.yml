@@ -82,7 +82,7 @@ jobs:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Run pytest
-        run: uv run --project "$UV_LOCK_DIRECTORY" pytest
+        run: uv run --project "$UV_LOCK_DIRECTORY" python -m pytest
 
   pre-commit:
     runs-on: ubuntu-latest

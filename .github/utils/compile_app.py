@@ -165,9 +165,7 @@ def run_compile(
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             logging.info(f"Connecting to host {version}: {host}")
-            client.connect(
-                hostname=host, username=ssh_username, password=phantom_password, port=22
-            )
+            client.connect(hostname=host, username=ssh_username, password=phantom_password, port=22)
             with upload_app_files(version, client, local_app_path, app_name) as test_dir:
                 results[version] = compile_app(version, client, test_dir)
         finally:
