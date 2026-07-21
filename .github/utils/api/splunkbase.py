@@ -15,6 +15,9 @@ APP_REPO_BASE_URL = "https://github.com/splunk-soar-connectors/"
 
 POST_WITH_FILES_NUM_RETRIES = 10
 REQUEST_TIMEOUT = (10, 60)
+USER_AGENT = (
+    "Splunk-SOAR-Connector-Publisher/1.0 (+https://github.com/splunk-soar-connectors/.github)"
+)
 SPLUNKBASE_API_VERSION = "v2"
 SPLUNKBASE_SOAR_PRODUCT = "soar"
 SPLUNKBASE_SOAR_APP_TYPE = "connector"
@@ -41,6 +44,7 @@ class SplunkbaseResponseError(RuntimeError):
 
 def _retrying_session(headers=None, auth=None, retry_codes=None):
     session = requests.Session()
+    session.headers.update({"User-Agent": USER_AGENT})
     if headers:
         session.headers.update(headers)
     if auth:
