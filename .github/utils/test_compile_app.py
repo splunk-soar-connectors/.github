@@ -72,5 +72,82 @@ class CompileAppVersionCompatibilityTest(unittest.TestCase):
         self.assertTrue(all(result["success"] for result in results.values()))
 
 
+class CompileAppStagingTest(unittest.TestCase):
+    def test_accepts_only_owned_staging_directories_for_cleanup(self):
+        owned_directory = compile_app.COMPILE_STAGING_DIRECTORY / "compile-ABC12345"
+
+        self.assertTrue(compile_app.is_owned_staging_directory(owned_directory))
+        self.assertFalse(compile_app.is_owned_staging_directory(Path("/tmp/compile-ABC12345")))
+        self.assertFalse(
+            compile_app.is_owned_staging_directory(
+                compile_app.COMPILE_STAGING_DIRECTORY / "not-a-compile-directory"
+            )
+        )
+
+    @mock.patch.object(compile_app, "run_remote_command")
+    def test_deletes_only_owned_staging_directory(self, run_remote_command):
+        owned_directory = compile_app.COMPILE_STAGING_DIRECTORY / "compile-ABC12345"
+
+        compile_app.delete_folder(mock.Mock(), owned_directory)
+        compile_app.delete_folder(mock.Mock(), Path("/tmp/compile-ABC12345"))
+
+        run_remote_command.assert_called_once()
+        command = run_remote_command.call_args.args[1]
+        self.assertEqual(command, f"rm -rf -- {owned_directory}")
+
+    @mock.patch.object(
+        compile_app,
+        "run_remote_command",
+        return_value="/home/phantom/.soar-compile/compile-ABC12345",
+    )
+    def test_creates_mktemp_staging_directory(self, run_remote_command):
+        staging_directory = compile_app.create_staging_directory("previous", mock.Mock())
+
+        self.assertEqual(
+            staging_directory, compile_app.COMPILE_STAGING_DIRECTORY / "compile-ABC12345"
+        )
+        command = run_remote_command.call_args.args[1]
+        self.assertIn("mktemp -d", command)
+        self.assertIn("/home/phantom/.soar-compile/compile-XXXXXXXX", command)
+
+    @mock.patch.object(compile_app, "delete_folder")
+    @mock.patch.object(compile_app, "run_remote_command")
+    @mock.patch.object(
+        compile_app,
+        "create_staging_directory",
+        return_value=Path("/home/phantom/.soar-compile/compile-ABC12345"),
+    )
+    @mock.patch.object(compile_app, "SCPClient")
+    def test_upload_promotes_and_verifies_before_compile(
+        self, scp_client, _create_staging_directory, run_remote_command, delete_folder
+    ):
+        with tempfile.TemporaryDirectory() as temp_directory:
+            app_path = Path(temp_directory) / "example"
+            app_path.mkdir()
+            (app_path / "example.json").write_text(json.dumps({"min_phantom_version": "8.6.0"}))
+            phantom_client = mock.Mock()
+
+            with compile_app.upload_app_files(
+                "previous", phantom_client, app_path, "example"
+            ) as test_dir:
+                self.assertEqual(test_dir, Path("/home/phantom/.soar-compile/compile-ABC12345/app"))
+
+        scp_client.return_value.__enter__.return_value.put.assert_called_once_with(
+            app_path,
+            recursive=True,
+            remote_path="/home/phantom/.soar-compile/compile-ABC12345/.incoming",
+        )
+        self.assertEqual(run_remote_command.call_count, 2)
+        promote_command = run_remote_command.call_args_list[1].args[1]
+        self.assertIn("mv", promote_command)
+        self.assertIn("test -d /home/phantom/.soar-compile/compile-ABC12345/app", promote_command)
+        self.assertIn(
+            "test -f /home/phantom/.soar-compile/compile-ABC12345/app/example.json", promote_command
+        )
+        delete_folder.assert_called_once_with(
+            phantom_client, Path("/home/phantom/.soar-compile/compile-ABC12345")
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

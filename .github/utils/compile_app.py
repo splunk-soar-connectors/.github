@@ -1,14 +1,12 @@
 import json
 import logging
-import os
-import random
 import re
 import socket
-import string
 from contextlib import contextmanager
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Union
+import shlex
 
 import backoff
 import paramiko
@@ -20,19 +18,21 @@ from utils.version_compat import supports_minimum_version
 ANSI_ESCAPE = re.compile(r"(\x1b|\x1B)(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 OUTPUT = re.compile(r"Output\:([^\x1b]*?)Error output\:")
 
-TEST_APP_DIRECTORY_TEMPLATE = "/home/phantom/app_tests/{app_name}"
-TEST_DIRECTORY = "/home/phantom/app_tests"
-RANDOM_STRING = "/{}/".format(
-    "".join(random.choices(string.ascii_uppercase + string.ascii_lowercase, k=7))
-)
+COMPILE_STAGING_DIRECTORY = Path("/home/phantom/.soar-compile")
+STAGING_DIRECTORY_PREFIX = "compile-"
+
+
+def get_app_json_name(local_app_path: Path) -> str:
+    local_app_path = Path(local_app_path)
+    json_filenames = [path.name for path in local_app_path.glob("*.json")]
+    return (
+        "manifest.json" if "manifest.json" in json_filenames else find_app_json_name(json_filenames)
+    )
 
 
 def get_min_phantom_version(local_app_path: Path) -> str:
     local_app_path = Path(local_app_path)
-    json_filenames = [path.name for path in local_app_path.glob("*.json")]
-    app_json_name = (
-        "manifest.json" if "manifest.json" in json_filenames else find_app_json_name(json_filenames)
-    )
+    app_json_name = get_app_json_name(local_app_path)
 
     with (local_app_path / app_json_name).open() as app_json_file:
         return json.load(app_json_file)["min_phantom_version"]
@@ -95,37 +95,89 @@ def compile_app(
     return response
 
 
-def make_folder(
-    phantom_version: str, phantom_client: paramiko.SSHClient, app_name: str, test_directory: Path
-) -> None:
-    commands = f"mkdir -p {test_directory}; cd {test_directory}"
-    logging.info(commands)
-    logging.info(f"Creating folder for {app_name} on phantom {phantom_version}")
-    phantom_client.exec_command(commands)
+def run_remote_command(phantom_client: paramiko.SSHClient, command: str, description: str) -> str:
+    """Run a remote command and fail closed when setup or verification fails."""
+    logging.info(command)
+    _, stdout, stderr = phantom_client.exec_command(command)
+    exit_code = int(stdout.channel.recv_exit_status())
+    output = "".join(stdout.readlines()).strip()
+    if exit_code != 0:
+        error = "".join(stderr.readlines()).strip()
+        raise RuntimeError(f"{description} failed with exit code {exit_code}: {error}")
+    return output
+
+
+def is_owned_staging_directory(test_directory: Path) -> bool:
+    """Return whether the requested cleanup path is one created by this helper."""
+    test_directory = Path(test_directory)
+    return test_directory.parent == COMPILE_STAGING_DIRECTORY and test_directory.name.startswith(
+        STAGING_DIRECTORY_PREFIX
+    )
+
+
+def create_staging_directory(phantom_version: str, phantom_client: paramiko.SSHClient) -> Path:
+    staging_template = COMPILE_STAGING_DIRECTORY / f"{STAGING_DIRECTORY_PREFIX}XXXXXXXX"
+    command = (
+        "set -e; umask 077; "
+        f"mkdir -p {shlex.quote(str(COMPILE_STAGING_DIRECTORY))}; "
+        f"mktemp -d {shlex.quote(str(staging_template))}"
+    )
+    logging.info("Creating isolated compile directory on phantom %s", phantom_version)
+    staging_directory = Path(
+        run_remote_command(phantom_client, command, "create compile staging directory")
+    )
+    if not is_owned_staging_directory(staging_directory):
+        raise RuntimeError(
+            f"Remote mktemp returned an unexpected compile directory: {staging_directory}"
+        )
+    return staging_directory
 
 
 def delete_folder(phantom_client: paramiko.SSHClient, test_directory: Path) -> None:
-    commands = f"rm -rf {test_directory}"
-    logging.info("Deleting folder %s", test_directory)
-    logging.info(commands)
-    if " " not in test_directory and TEST_DIRECTORY in TEST_APP_DIRECTORY_TEMPLATE:
-        phantom_client.exec_command(commands)
+    """Remove only an isolated staging directory that this helper owns."""
+    test_directory = Path(test_directory)
+    if not is_owned_staging_directory(test_directory):
+        logging.warning("Refusing to remove unowned compile directory: %s", test_directory)
+        return
+
+    command = f"rm -rf -- {shlex.quote(str(test_directory))}"
+    logging.info("Deleting isolated compile directory %s", test_directory)
+    run_remote_command(phantom_client, command, "remove compile staging directory")
 
 
 @contextmanager
 def upload_app_files(
-    phantom_version: str, phantom_client: paramiko.SSHClient, local_app_path: Path, app_name: str
+    phantom_version: str, phantom_client: paramiko.SSHClient, local_app_path: Path, _app_name: str
 ) -> Iterator[Path]:
-    remote_path = TEST_APP_DIRECTORY_TEMPLATE.format(app_name=app_name + RANDOM_STRING)
-    make_folder(phantom_version, phantom_client, app_name, remote_path)
+    staging_directory = create_staging_directory(phantom_version, phantom_client)
+    incoming_directory = staging_directory / ".incoming"
+    uploaded_app_directory = incoming_directory / local_app_path.name
+    test_directory = staging_directory / "app"
+    manifest_filename = get_app_json_name(local_app_path)
 
-    logging.info(f"Uploading files on {phantom_version}")
-    with SCPClient(phantom_client.get_transport()) as scp:
-        scp.put(local_app_path, recursive=True, remote_path=remote_path)
+    try:
+        run_remote_command(
+            phantom_client,
+            f"mkdir {shlex.quote(str(incoming_directory))}",
+            "create incoming compile directory",
+        )
+        logging.info("Uploading files on %s", phantom_version)
+        with SCPClient(phantom_client.get_transport()) as scp:
+            scp.put(local_app_path, recursive=True, remote_path=str(incoming_directory))
 
-    yield os.path.join(remote_path, os.path.basename(local_app_path))
-
-    delete_folder(phantom_client, remote_path)
+        promote_command = (
+            "set -e; "
+            f"test -d {shlex.quote(str(uploaded_app_directory))}; "
+            f"mv {shlex.quote(str(uploaded_app_directory))} {shlex.quote(str(test_directory))}; "
+            f"test -d {shlex.quote(str(test_directory))}; "
+            f"test -f {shlex.quote(str(test_directory / manifest_filename))}"
+        )
+        run_remote_command(
+            phantom_client, promote_command, "promote and verify uploaded compile directory"
+        )
+        yield test_directory
+    finally:
+        delete_folder(phantom_client, staging_directory)
 
 
 @backoff.on_exception(backoff.expo, socket.error, max_tries=3)
