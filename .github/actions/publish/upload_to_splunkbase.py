@@ -34,6 +34,11 @@ SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
 
 
+def is_successful_rerun_of_existing_version(candidate_version, latest_release, run_attempt=None):
+    attempt = int(run_attempt or os.getenv("GITHUB_RUN_ATTEMPT", "1"))
+    return candidate_version == latest_release and attempt > 1
+
+
 def parse_args() -> argparse.Namespace:
     help_str = " ".join(line.strip() for line in (__doc__ or "").splitlines())
     parser = argparse.ArgumentParser(description=help_str)
@@ -136,7 +141,38 @@ def main(args):
         latest_release = max(parse(r["release_name"]) for r in existing_releases)
         logging.info("Latest released version: %s", latest_release.public)
 
-        if parse(app_version) <= latest_release:
+        candidate_version = parse(app_version)
+        if is_successful_rerun_of_existing_version(candidate_version, latest_release):
+            logging.info(
+                "Version %s is already present on Splunkbase; treating this rerun as successful",
+                app_version,
+            )
+            apps = sb_client.get_apps({"appid": appid})
+            if not apps:
+                logging.error(
+                    "Could not find Splunkbase app metadata for existing version %s", app_version
+                )
+                return 1
+
+            release_notes = get_release_notes(
+                app_version,
+                Path(os.environ["GITHUB_WORKSPACE"]) if os.getenv("GITHUB_WORKSPACE") else None,
+            )
+            if not release_notes:
+                logging.error("Could not find release notes for existing version %s", app_version)
+                return 1
+
+            _write_github_outputs(
+                app_json,
+                app_repo_name,
+                release_notes,
+                new_app=False,
+                sb_appid=apps[0]["id"],
+                support_tag=apps[0]["support"],
+            )
+            return 0
+
+        if candidate_version <= latest_release:
             logging.error(
                 "Candidate version %s must be greater than the latest released version %s",
                 app_version,

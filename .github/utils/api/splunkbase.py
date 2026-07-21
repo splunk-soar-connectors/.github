@@ -14,6 +14,10 @@ SGT_LICENSE_URL = "https://www.splunk.com/en_us/legal/splunk-general-terms.html"
 APP_REPO_BASE_URL = "https://github.com/splunk-soar-connectors/"
 
 POST_WITH_FILES_NUM_RETRIES = 10
+REQUEST_TIMEOUT = (10, 60)
+USER_AGENT = (
+    "Splunk-SOAR-Connector-Publisher/1.0 (+https://github.com/splunk-soar-connectors/.github)"
+)
 SPLUNKBASE_API_VERSION = "v2"
 SPLUNKBASE_SOAR_PRODUCT = "soar"
 SPLUNKBASE_SOAR_APP_TYPE = "connector"
@@ -25,7 +29,7 @@ SPLUNKBASE_SUCCESSFUL_UPLOAD_RESPONSES = [
 SPLUNKBASE_BASE_URL = f"https://splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
 SPLUNKBASE_EDITOR_URL = "https://splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
 SPLUNKBASE_LOGIN_URL = "https://api.splunk.com/2.0/rest/login/splunk"
-STATUS_CODES_TO_RETRY = [403, 502, 504]
+STATUS_CODES_TO_RETRY = [403, 429, 500, 502, 503, 504]
 RESPONSE_MESSAGES_TO_RETRY = [
     "Network error communicating with endpoint",
     "Endpoint request timed out",
@@ -34,48 +38,79 @@ RESPONSE_MESSAGES_TO_RETRY = [
 MAX_MESSAGE_RETRY_TIME = 120
 
 
+class SplunkbaseResponseError(RuntimeError):
+    """Raised when Splunkbase returns a response that cannot be consumed safely."""
+
+
+def _retrying_session(headers=None, auth=None, retry_codes=None):
+    session = requests.Session()
+    session.headers.update({"User-Agent": USER_AGENT})
+    if headers:
+        session.headers.update(headers)
+    if auth:
+        session.auth = auth
+
+    retry = Retry(
+        total=POST_WITH_FILES_NUM_RETRIES,
+        connect=POST_WITH_FILES_NUM_RETRIES,
+        read=POST_WITH_FILES_NUM_RETRIES,
+        status=POST_WITH_FILES_NUM_RETRIES,
+        allowed_methods=frozenset(["GET", "POST"]),
+        status_forcelist=retry_codes or STATUS_CODES_TO_RETRY,
+        backoff_factor=1,
+        respect_retry_after_header=True,
+        raise_on_status=False,
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retry))
+    return session
+
+
+def _response_json(response, required_keys=None):
+    if not response.ok:
+        raise RuntimeError(f"Bad response status: {response.status_code}. Details: {response.text}")
+
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise SplunkbaseResponseError("Splunkbase returned a non-JSON response") from exc
+
+    missing_keys = set(required_keys or ()) - set(data if isinstance(data, dict) else ())
+    if missing_keys:
+        raise SplunkbaseResponseError(
+            f"Splunkbase response is missing required fields: {sorted(missing_keys)}"
+        )
+    return data
+
+
 def _post_request(
     headers: dict[str, str],
     url: str,
     data: Union[str, bytes, bool, list, dict],
     check_response: bool = True,
 ) -> Union[list, dict, str, bool]:
-    session = requests.Session()
-    session.headers.update(headers)
-
-    response = session.post(url, data)
-    if check_response and not response.ok:
-        raise RuntimeError(f"Bad response status: {response.status_code}. Details: {response.text}")
-
+    session = _retrying_session(headers=headers)
+    response = session.post(url, data, timeout=REQUEST_TIMEOUT)
+    if check_response:
+        return _response_json(response)
     return response.json()
 
 
 def _post_request_with_files(headers, url, data, files, check_response=True, retry_codes=None):
-    session = requests.Session()
-    session.headers.update(headers)
-
-    if retry_codes:
-        retry = Retry(
-            total=POST_WITH_FILES_NUM_RETRIES,
-            method_whitelist=frozenset(["POST"]),
-            status_forcelist=retry_codes,
-        )
-        session.mount("https://", HTTPAdapter(max_retries=retry))
-
-    response = session.post(url, data, files=files)
-    if check_response and not response.ok:
-        raise RuntimeError(f"Bad response status: {response.status_code}. Details: {response.text}")
-
+    session = _retrying_session(headers=headers, retry_codes=retry_codes)
+    response = session.post(url, data, files=files, timeout=REQUEST_TIMEOUT)
+    if check_response:
+        return _response_json(response)
     return response.json()
 
 
-def _get_request(url, return_json=True, params=None, headers=None):
-    session = requests.Session()
-    if headers:
-        session.headers.update(headers)
-    response = session.get(url, params=params)
+@backoff.on_exception(backoff.expo, SplunkbaseResponseError, max_time=MAX_MESSAGE_RETRY_TIME)
+def _get_request(url, return_json=True, params=None, headers=None, auth=None, required_keys=None):
+    session = _retrying_session(headers=headers, auth=auth)
+    response = session.get(url, params=params, timeout=REQUEST_TIMEOUT)
     if return_json:
-        return response.json()
+        return _response_json(response, required_keys=required_keys)
+    if not response.ok:
+        raise RuntimeError(f"Bad response status: {response.status_code}. Details: {response.text}")
     return response.text
 
 
@@ -95,16 +130,16 @@ class Splunkbase:
             logging.info("Splunkbase username and password not provided")
             return None
 
-        response = requests.get(SPLUNKBASE_LOGIN_URL, auth=(user, password))
-        if not response.ok:
-            raise RuntimeError(
-                f"Unable to obtain Splunkbase bearer token. "
-                f"Bad response status: {response.status_code}. Details: {response.text}"
-            )
-
-        token = response.json().get("data", {}).get("token")
+        response = _get_request(
+            SPLUNKBASE_LOGIN_URL,
+            auth=(user, password),
+            required_keys={"data"},
+        )
+        token = response.get("data", {}).get("token")
         if not token:
-            raise RuntimeError("Unable to obtain Splunkbase bearer token: token missing in response")
+            raise RuntimeError(
+                "Unable to obtain Splunkbase bearer token: token missing in response"
+            )
 
         return {"Authorization": f"Bearer {token}"}
 
@@ -190,7 +225,13 @@ class Splunkbase:
                 limit,
                 params["offset"],
             )
-            response = _get_request(url, return_json=True, params=params, headers=self.auth)
+            response = _get_request(
+                url,
+                return_json=True,
+                params=params,
+                headers=self.auth,
+                required_keys={"results", "total"},
+            )
             all_response_data.extend(response["results"])
 
             if len(all_response_data) >= response["total"]:
@@ -207,7 +248,11 @@ class Splunkbase:
             "appid": app_id,
         }
         response = _get_request(
-            self.apps_base_url, return_json=True, params=params, headers=self.auth
+            self.apps_base_url,
+            return_json=True,
+            params=params,
+            headers=self.auth,
+            required_keys={"results"},
         )
         logging.info(response)
         apps_returned = response["results"]
