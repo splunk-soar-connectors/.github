@@ -199,6 +199,8 @@ jobs:
           uv_lock_directory: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
 
   build:
+    # connector-template intentionally uses a sentinel app ID and is not a publishable app.
+    if: github.event.repository.name != 'connector-template'
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
