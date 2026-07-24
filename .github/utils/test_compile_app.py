@@ -128,7 +128,7 @@ class CompileAppStagingTest(unittest.TestCase):
             phantom_client = mock.Mock()
 
             with compile_app.upload_app_files(
-                "previous", phantom_client, app_path, "example"
+                "previous", phantom_client, str(app_path), "example"
             ) as test_dir:
                 self.assertEqual(test_dir, Path("/home/phantom/.soar-compile/compile-ABC12345/app"))
 
