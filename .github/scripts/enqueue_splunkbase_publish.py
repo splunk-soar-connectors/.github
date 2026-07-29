@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.13,<3.14"
+# dependencies = [
+#   "requests>=2.32.3,<3.0.0",
+# ]
+# ///
 """Create or update one durable Splunkbase queue item."""
 
 import json

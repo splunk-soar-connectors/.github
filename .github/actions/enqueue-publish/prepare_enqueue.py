@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.13,<3.14"
+# dependencies = []
+# ///
 """Prepare immutable Splunkbase queue metadata from a connector package."""
 
 import argparse
