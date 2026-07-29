@@ -70,6 +70,8 @@ def test_queue_workflows_execute_self_contained_uv_scripts():
     assert "uv run .github/scripts/drain_splunkbase_publish_queue.py download" in publish
     assert "uv run .github/scripts/drain_splunkbase_publish_queue.py publish" in publish
     assert "uv run .github/scripts/notify_splunkbase_publish_failure.py" in publish
+    assert "uses: actions/setup-python@v5" not in publish
+    assert 'python -m pip install "uv==0.12.0"' in publish
     assert "uses: astral-sh/setup-uv" not in enqueue_workflow
     assert "uses: actions/setup-python@v5" in enqueue_workflow
     assert 'python -m pip install "uv==0.12.0"' in enqueue_workflow
