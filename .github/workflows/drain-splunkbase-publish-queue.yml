@@ -23,6 +23,7 @@ jobs:
       repository: ${{ steps.select.outputs.repository }}
       commit_sha: ${{ steps.select.outputs.commit_sha }}
       asset_name: ${{ steps.select.outputs.asset_name }}
+      candidate_version: ${{ steps.select.outputs.candidate_version }}
     steps:
       - name: Check out queue implementation
         uses: actions/checkout@v4
@@ -113,3 +114,16 @@ jobs:
           slack_community_token: ${{ secrets.SLACK_COMMUNITY_TOKEN }}
           slack_internal_channel: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}
           slack_community_channel: ${{ vars.SLACK_COMMUNITY_CHANNEL_ID }}
+
+      - name: Notify internal Slack of blocked publication
+        if: always() && steps.publish.outputs.queue_status == 'blocked'
+        env:
+          SLACK_INTERNAL_TOKEN: ${{ secrets.SLACK_INTERNAL_TOKEN }}
+          SLACK_INTERNAL_CHANNEL: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}
+          QUEUE_ISSUE_URL: https://github.com/${{ github.repository }}/issues/${{ needs.select.outputs.issue_number }}
+          CONNECTOR_REPOSITORY: ${{ needs.select.outputs.repository }}
+          CONNECTOR_VERSION: ${{ needs.select.outputs.candidate_version }}
+          SPLUNKBASE_REQUEST_ID: ${{ steps.publish.outputs.request_id }}
+          SPLUNKBASE_PACKAGE_ID: ${{ steps.publish.outputs.package_id }}
+          FAILURE_REASON: ${{ steps.publish.outputs.failure_reason }}
+        run: python .github/scripts/notify_splunkbase_publish_failure.py

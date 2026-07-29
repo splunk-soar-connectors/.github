@@ -88,8 +88,10 @@ Microsoft OneDrive v2 as a canary.
 ## Recovery
 
 An active item carries a 15-minute lease. If a worker dies, the item becomes eligible
-again after the lease. The next worker checks whether the version exists before
-reserving another upload slot.
+again after the lease. If a counted attempt was started, the next worker treats the
+outcome as ambiguous and performs GET-only reconciliation; it does not reserve another
+slot or issue another POST. The app-existence snapshot is persisted before the publisher
+runs so a newly created app can still receive its editors during recovery.
 
 HTTP 429 requeues the item after `Retry-After` plus 30 seconds and makes no second POST.
 HTTP 401 or 403 and definitive validation failures leave the issue open with
@@ -104,8 +106,11 @@ and fails the worker job.
 
 To retry a corrected blocked item, preserve its JSON body, replace
 `splunkbase-blocked` with `splunkbase-queued`, and set `not_before` to the current UTC
-time. Do not rerun a POST manually under the same user while the queue is enabled,
-because manual attempts are invisible to the persisted budget.
+time. To explicitly retry an interrupted attempt whose result never became durable,
+replace `splunkbase-verifying` with `splunkbase-queued`, clear `verification`, and change
+its latest attempt `outcome` from `started` to `retry_authorized`. Do not rerun a POST
+manually under the same user while the queue is enabled, because manual attempts are
+invisible to the persisted budget.
 
 To disable the queue, set `SPLUNKBASE_PUBLISH_QUEUE_ENABLED` to `false`. Wait for any
 active worker to finish before using direct publication. Do not operate both paths

@@ -203,6 +203,30 @@ def defer_verification(queue, item, result, now, reason) -> int:
     return 0
 
 
+def block_publication(queue, item, result, reason, return_code=1) -> int:
+    """Persist a terminal failure and expose sanitized notification fields."""
+
+    queue.block(item, result)
+    write_output("publish_return_code", return_code)
+    write_output("request_id", result.get("request_id", ""))
+    write_output("package_id", result.get("package_id", ""))
+    write_output("failure_reason", reason)
+    write_output("queue_status", "blocked")
+    print(reason)
+    return 1
+
+
+def interrupted_attempt(item) -> dict | None:
+    """Return a counted attempt whose POST outcome was never durably recorded."""
+
+    attempts = getattr(item, "attempts", [])
+    if not attempts or attempts[-1].get("outcome") != "started":
+        return None
+    result = dict(attempts[-1])
+    result["status"] = "verifying"
+    return result
+
+
 def reconcile_verification(queue, client, item, args, now) -> int:
     """Reconcile an accepted package using GETs only."""
 
@@ -266,11 +290,13 @@ def reconcile_verification(queue, client, item, args, now) -> int:
         )
 
     result["status"] = "validation_failed"
-    queue.block(item, result)
-    write_output("publish_return_code", 13)
-    write_output("queue_status", "blocked")
-    print(f"Splunkbase definitively rejected accepted package {package_id}.")
-    return 1
+    return block_publication(
+        queue,
+        item,
+        result,
+        f"Splunkbase definitively rejected accepted package {package_id}.",
+        return_code=13,
+    )
 
 
 def publish_item(args) -> int:
@@ -291,6 +317,22 @@ def publish_item(args) -> int:
     if item.verification:
         return reconcile_verification(queue, splunkbase, item, args, now)
 
+    interrupted = interrupted_attempt(item)
+    if interrupted:
+        try:
+            if version_exists(splunkbase, item.appid, item.candidate_version):
+                return finalize_publication(queue, splunkbase, item, args, interrupted, now)
+        except Exception:
+            pass
+        return defer_verification(
+            queue,
+            item,
+            interrupted,
+            now,
+            "A counted upload attempt ended without a durable result; "
+            "GET-only reconciliation will continue until a human authorizes another POST.",
+        )
+
     if version_exists(splunkbase, item.appid, item.candidate_version):
         return finalize_publication(
             queue,
@@ -302,6 +344,16 @@ def publish_item(args) -> int:
                 "app_existed_before_upload": True,
             },
             now,
+        )
+
+    try:
+        app_existed_before_upload = bool(splunkbase.get_apps({"appid": item.appid}))
+    except Exception:
+        return block_publication(
+            queue,
+            item,
+            {"status": "pre_upload_failed"},
+            "Splunkbase app metadata could not be read before upload; no POST was attempted.",
         )
 
     retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
@@ -318,9 +370,14 @@ def publish_item(args) -> int:
     queue.activate(item, now + timedelta(minutes=15))
     queue.record_attempt(
         item,
-        PublishAttempt(started_at=format_datetime(now), outcome="started"),
+        PublishAttempt(
+            started_at=format_datetime(now),
+            outcome="started",
+            app_existed_before_upload=app_existed_before_upload,
+        ),
     )
     return_code, result = run_publisher(args, item)
+    result["app_existed_before_upload"] = app_existed_before_upload
     status = result.get("status", "failed")
     write_output("publish_return_code", return_code)
     write_output("request_id", result.get("request_id", ""))
@@ -338,6 +395,7 @@ def publish_item(args) -> int:
         )
 
     if status == "rate_limited":
+        item.attempts[-1]["outcome"] = "rate_limited"
         not_before = max(
             now + MIN_ATTEMPT_INTERVAL,
             retry_after_datetime(result.get("retry_after"), now) + timedelta(seconds=30),
@@ -363,9 +421,13 @@ def publish_item(args) -> int:
             "The upload result is ambiguous; GET-only reconciliation will retry.",
         )
 
-    queue.block(item, result)
-    write_output("queue_status", "blocked")
-    return 1
+    return block_publication(
+        queue,
+        item,
+        result,
+        f"Publisher stopped with terminal status {status}.",
+        return_code=return_code,
+    )
 
 
 def simulate(args) -> int:

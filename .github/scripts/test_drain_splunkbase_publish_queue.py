@@ -76,6 +76,19 @@ def verifying_item():
     )()
 
 
+def interrupted_item():
+    item = verifying_item()
+    item.verification = None
+    item.attempts = [
+        {
+            "started_at": "2026-07-29T12:00:00Z",
+            "outcome": "started",
+            "app_existed_before_upload": False,
+        }
+    ]
+    return item
+
+
 @pytest.mark.parametrize(
     "validation_error",
     [
@@ -179,7 +192,10 @@ def test_ambiguous_upload_is_finalized_when_version_appears_without_second_post(
         [],
         [{"release_name": "1.2.3"}],
     ]
-    client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
+    client.get_apps.side_effect = [
+        [],
+        [{"id": "app-123", "support": "splunk"}],
+    ]
     run_publisher = Mock(
         return_value=(
             12,
@@ -216,6 +232,109 @@ def test_ambiguous_upload_is_finalized_when_version_appears_without_second_post(
     queue.delete_asset.assert_called_once_with(item)
 
 
+def test_hard_exit_after_counted_attempt_recovers_new_app_without_second_post(
+    monkeypatch,
+):
+    queue = Mock()
+    item = interrupted_item()
+    queue.get_item.return_value = item
+    client = Mock()
+    client.get_existing_releases.side_effect = [
+        [],
+        [{"release_name": "1.2.3"}],
+    ]
+    client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
+    run_publisher = Mock()
+    outputs = {}
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
+    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
+    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+
+    assert MODULE.publish_item(finalization_args()) == 0
+    item.verification = queue.verify.call_args.args[1]
+    assert item.verification["app_existed_before_upload"] is False
+
+    assert MODULE.publish_item(finalization_args()) == 0
+
+    queue.reserve_attempt.assert_not_called()
+    run_publisher.assert_not_called()
+    client.ensure_app_editors.assert_called_once_with("app-123")
+    assert outputs["new_app"] is True
+    queue.complete.assert_called_once()
+
+
+def test_app_existence_snapshot_is_persisted_before_publisher_runs(monkeypatch):
+    queue = Mock()
+    item = interrupted_item()
+    item.attempts = []
+    queue.get_item.return_value = item
+    queue.reserve_attempt.return_value = None
+    client = Mock()
+    client.get_existing_releases.return_value = []
+    client.get_apps.return_value = []
+    events = []
+
+    def record_attempt(recorded_item, attempt):
+        events.append("recorded")
+        recorded_item.attempts.append(
+            {
+                "started_at": attempt.started_at,
+                "outcome": attempt.outcome,
+                "app_existed_before_upload": attempt.app_existed_before_upload,
+            }
+        )
+
+    def run_publisher(args, published_item):
+        events.append("publisher")
+        return 14, {"status": "verifying"}
+
+    outputs = {}
+    queue.record_attempt.side_effect = record_attempt
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
+    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+
+    assert MODULE.publish_item(finalization_args()) == 0
+
+    assert events == ["recorded", "publisher"]
+    assert item.attempts[-1]["app_existed_before_upload"] is False
+    queue.verify.assert_called_once()
+    assert outputs["queue_status"] == "verifying"
+
+
+def test_pre_upload_metadata_failure_blocks_without_reserving_or_posting(monkeypatch):
+    queue = Mock()
+    item = interrupted_item()
+    item.attempts = []
+    queue.get_item.return_value = item
+    client = Mock()
+    client.get_existing_releases.return_value = []
+    client.get_apps.side_effect = RuntimeError("metadata unavailable")
+    run_publisher = Mock()
+    outputs = {}
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
+    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+
+    assert MODULE.publish_item(finalization_args()) == 1
+
+    queue.block.assert_called_once()
+    queue.reserve_attempt.assert_not_called()
+    run_publisher.assert_not_called()
+    assert outputs["queue_status"] == "blocked"
+    assert outputs["failure_reason"].startswith("Splunkbase app metadata")
+
+
 def test_continued_pending_validation_does_not_post_or_reserve(monkeypatch):
     queue = Mock()
     client = Mock()
@@ -246,7 +365,9 @@ def test_definitive_rejection_blocks_without_post_or_reserve(monkeypatch):
     client.check_upload_status.return_value = {"message": "Package failed validation."}
     client._is_retryable_response.return_value = False
     run_publisher = Mock()
+    outputs = {}
     monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
 
     result = MODULE.reconcile_verification(
         queue,
@@ -260,6 +381,9 @@ def test_definitive_rejection_blocks_without_post_or_reserve(monkeypatch):
     queue.block.assert_called_once()
     queue.reserve_attempt.assert_not_called()
     run_publisher.assert_not_called()
+    assert outputs["queue_status"] == "blocked"
+    assert outputs["package_id"] == "package-123"
+    assert outputs["failure_reason"].startswith("Splunkbase definitively rejected")
 
 
 @pytest.mark.parametrize("response", [{}, {"message": "unknown"}, ["malformed"]])

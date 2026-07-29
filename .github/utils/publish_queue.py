@@ -99,6 +99,7 @@ class PublishQueueItem:
 class PublishAttempt:
     started_at: str
     outcome: str
+    app_existed_before_upload: bool
     status_code: int | None = None
     request_id: str | None = None
     retry_after: str | None = None
