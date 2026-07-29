@@ -25,6 +25,10 @@ inputs:
   splunk_base_url:
     description: "URL to the app on Splunkbase"
     required: true
+  workspace_path:
+    description: "Connector checkout containing the app logo."
+    required: false
+    default: "."
   slack_internal_token:
     description: "Slack bot token for the internal channel"
     required: true
@@ -58,6 +62,7 @@ runs:
         NEW_APP: ${{ inputs.new_app }}
         SUPPORT_TAG: ${{ inputs.support_tag }}
         SPLUNK_BASE_URL: ${{ inputs.splunk_base_url }}
+        GITHUB_WORKSPACE: ${{ inputs.workspace_path }}
         SLACK_INTERNAL_TOKEN: ${{ inputs.slack_internal_token }}
         SLACK_COMMUNITY_TOKEN: ${{ inputs.slack_community_token }}
         SLACK_INTERNAL_CHANNEL: ${{ inputs.slack_internal_channel }}

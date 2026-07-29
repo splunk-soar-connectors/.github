@@ -1,0 +1,115 @@
+name: Drain Splunkbase publish queue
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: splunkbase-publisher-soar-connectors-default
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  select:
+    if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      has_item: ${{ steps.select.outputs.has_item }}
+      issue_number: ${{ steps.select.outputs.issue_number }}
+      repository: ${{ steps.select.outputs.repository }}
+      commit_sha: ${{ steps.select.outputs.commit_sha }}
+      asset_name: ${{ steps.select.outputs.asset_name }}
+    steps:
+      - name: Check out queue implementation
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install queue requirements
+        run: pip install "requests>=2.32.3,<3.0.0" "packaging>=24.2,<26.0"
+
+      - name: Select oldest eligible publication
+        id: select
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          QUEUE_REPOSITORY: ${{ github.repository }}
+        run: python .github/scripts/drain_splunkbase_publish_queue.py select
+
+  publish-one:
+    needs: select
+    if: needs.select.outputs.has_item == 'true'
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    steps:
+      - name: Check out queue implementation
+        uses: actions/checkout@v4
+
+      - name: Install publisher requirements
+        run: pip install -r .github/actions/publish/requirements.txt
+
+      - name: Download immutable connector artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          QUEUE_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/splunkbase-artifact"
+          python .github/scripts/drain_splunkbase_publish_queue.py download \
+            --issue-number "${{ needs.select.outputs.issue_number }}" \
+            --output "$RUNNER_TEMP/splunkbase-artifact/${{ needs.select.outputs.asset_name }}"
+
+      - name: Check out connector release
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.select.outputs.repository }}
+          ref: ${{ needs.select.outputs.commit_sha }}
+          fetch-depth: 2
+          path: connector
+          persist-credentials: false
+
+      - name: Publish one queued connector
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          QUEUE_REPOSITORY: ${{ github.repository }}
+          SPLUNKBASE_USER: ${{ secrets.SPLUNKBASE_USER }}
+          SPLUNKBASE_PASSWORD: ${{ secrets.SPLUNKBASE_PASSWORD }}
+        run: |
+          python .github/scripts/drain_splunkbase_publish_queue.py publish \
+            --issue-number "${{ needs.select.outputs.issue_number }}" \
+            --artifact "$RUNNER_TEMP/splunkbase-artifact/${{ needs.select.outputs.asset_name }}" \
+            --connector-workspace "${{ github.workspace }}/connector" \
+            --result-path "$RUNNER_TEMP/splunkbase-publish-result.json" \
+            --publisher-output "$RUNNER_TEMP/splunkbase-publisher-output"
+
+      - name: Send release metrics
+        if: steps.publish.outputs.queue_status == 'published'
+        uses: ./.github/actions/metrics
+        with:
+          publish_return_code: ${{ steps.publish.outputs.publish_return_code }}
+          repo_path: ${{ github.workspace }}/connector
+
+      - name: Notify Slack
+        if: steps.publish.outputs.queue_status == 'published' && vars.SEND_RELEASE_MESSAGE == 'true'
+        uses: ./.github/actions/notify-slack
+        with:
+          app_name: ${{ steps.publish.outputs.app_name }}
+          app_logo: ${{ steps.publish.outputs.app_logo }}
+          repo_name: ${{ steps.publish.outputs.repo_name }}
+          release_version: ${{ steps.publish.outputs.release_version }}
+          release_notes: ${{ steps.publish.outputs.release_notes }}
+          new_app: ${{ steps.publish.outputs.new_app }}
+          support_tag: ${{ steps.publish.outputs.support_tag }}
+          splunk_base_url: ${{ steps.publish.outputs.splunk_base_url }}
+          workspace_path: ${{ github.workspace }}/connector
+          slack_internal_token: ${{ secrets.SLACK_INTERNAL_TOKEN }}
+          slack_community_token: ${{ secrets.SLACK_COMMUNITY_TOKEN }}
+          slack_internal_channel: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}
+          slack_community_channel: ${{ vars.SLACK_COMMUNITY_CHANNEL_ID }}
