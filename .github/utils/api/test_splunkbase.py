@@ -5,6 +5,7 @@ import requests
 
 from .splunkbase import (
     READ_REQUEST_NUM_RETRIES,
+    Splunkbase,
     SplunkbaseAmbiguousUpload,
     SplunkbasePermissionDenied,
     SplunkbaseRateLimited,
@@ -94,6 +95,32 @@ def test_rate_limit_preserves_retry_after_and_request_id():
     assert error.value.request_id == "request-123"
 
 
+def test_successful_upload_response_preserves_request_id():
+    session = Mock()
+    session.post.return_value = _response(
+        201,
+        data={
+            "message": "Release was successfully uploaded and is being validated.",
+            "package_id": "package-123",
+        },
+        headers={"X-Request-ID": "request-123"},
+    )
+
+    with patch(
+        "utils.api.splunkbase._single_attempt_session",
+        return_value=session,
+    ):
+        result = _post_request_with_files(
+            {},
+            "https://example.test/upload",
+            {},
+            {"package": Mock()},
+        )
+
+    assert result["package_id"] == "package-123"
+    assert result["_request_id"] == "request-123"
+
+
 @pytest.mark.parametrize("transport_error", [requests.ConnectionError(), requests.Timeout()])
 def test_transport_failure_makes_exactly_one_post(transport_error):
     session = Mock()
@@ -122,6 +149,12 @@ def test_user_agent_adds_only_non_secret_correlation():
     assert "version/1.2.3" in user_agent
     assert "run/123" in user_agent
     assert "attempt/2" in user_agent
+
+
+def test_retryable_response_helper_can_be_called_on_an_instance():
+    client = object.__new__(Splunkbase)
+
+    assert client._is_retryable_response({"message": "Package validation still in progress."})
 
 
 def test_response_json_rejects_missing_collection_fields():

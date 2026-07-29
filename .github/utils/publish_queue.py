@@ -14,6 +14,7 @@ QUEUE_MARKER = "splunkbase-publish"
 QUEUE_STATES = {
     "queued": "splunkbase-queued",
     "active": "splunkbase-active",
+    "verifying": "splunkbase-verifying",
     "rate_limited": "splunkbase-rate-limited",
     "blocked": "splunkbase-blocked",
     "published": "splunkbase-published",
@@ -28,6 +29,10 @@ LABELS = {
     QUEUE_MARKER: ("5319e7", "Managed by Codex-authored Splunkbase queue automation."),
     QUEUE_STATES["queued"]: ("fbca04", "Waiting for the shared Splunkbase publishing user."),
     QUEUE_STATES["active"]: ("1d76db", "A Codex-authored worker is processing this publication."),
+    QUEUE_STATES["verifying"]: (
+        "bfd4f2",
+        "Splunkbase accepted the upload; only GET reconciliation is permitted.",
+    ),
     QUEUE_STATES["rate_limited"]: ("d93f0b", "Splunkbase asked the shared user to wait."),
     QUEUE_STATES["blocked"]: ("b60205", "Publication needs human intervention."),
     QUEUE_STATES["published"]: ("0e8a16", "The connector version is present on Splunkbase."),
@@ -74,6 +79,7 @@ class PublishQueueItem:
     schema_version: int = 1
     issue_number: int | None = None
     attempts: list[dict[str, Any]] = field(default_factory=list)
+    verification: dict[str, Any] | None = None
 
     @property
     def dedupe_key(self) -> str:
@@ -255,7 +261,11 @@ class GitHubIssuePublishQueue:
             labels = self._label_names(issue)
             if QUEUE_STATES["published"] in labels:
                 return existing_item
-            if QUEUE_STATES["blocked"] in labels or QUEUE_STATES["active"] in labels:
+            if (
+                QUEUE_STATES["blocked"] in labels
+                or QUEUE_STATES["active"] in labels
+                or QUEUE_STATES["verifying"] in labels
+            ):
                 return existing_item
 
             item.issue_number = issue["number"]
@@ -295,7 +305,11 @@ class GitHubIssuePublishQueue:
         candidates = []
         for issue in self._issues(state="open", labels=QUEUE_MARKER):
             labels = self._label_names(issue)
-            if not (QUEUE_STATES["queued"] in labels or QUEUE_STATES["active"] in labels):
+            if not (
+                QUEUE_STATES["queued"] in labels
+                or QUEUE_STATES["active"] in labels
+                or QUEUE_STATES["verifying"] in labels
+            ):
                 continue
             try:
                 item = _decode_body(issue.get("body") or "")
@@ -370,6 +384,22 @@ class GitHubIssuePublishQueue:
             note=reason,
             extra_labels=extra_labels,
         )
+
+    def verify(
+        self,
+        item: PublishQueueItem,
+        result: dict[str, Any],
+        not_before: datetime,
+        reason: str,
+    ) -> None:
+        public_result = _public_result(result)
+        item.verification = public_result
+        item.not_before = format_datetime(not_before)
+        if item.attempts:
+            item.attempts[-1].update(public_result)
+        else:
+            item.attempts.append(public_result)
+        self._update(item, state="verifying", note=reason)
 
     def complete(self, item: PublishQueueItem, result: dict[str, Any]) -> None:
         public_result = _public_result(result)

@@ -76,6 +76,12 @@ class SplunkbaseValidationFailed(SplunkbaseUploadError):
     """Raised when Splunkbase definitively rejects the submitted package."""
 
 
+def _is_retryable_status_response(response):
+    if isinstance(response, dict):
+        response = response.get("message")
+    return response in RESPONSE_MESSAGES_TO_RETRY
+
+
 def build_user_agent(repo=None, version=None, run_id=None, run_attempt=None):
     """Return a stable, non-secret User-Agent with release correlation fields."""
 
@@ -236,13 +242,16 @@ def _post_request_with_files(
         )
 
     try:
-        return _response_json(response) if check_response else response.json()
+        data = _response_json(response) if check_response else response.json()
     except SplunkbaseResponseError as exc:
         raise SplunkbaseAmbiguousUpload(
             "Splunkbase returned an unreadable response after one counted attempt",
             status_code=response.status_code,
             request_id=request_id,
         ) from exc
+    if isinstance(data, dict) and request_id:
+        data["_request_id"] = request_id
+    return data
 
 
 @backoff.on_exception(backoff.expo, SplunkbaseResponseError, max_time=MAX_MESSAGE_RETRY_TIME)
@@ -286,10 +295,26 @@ class Splunkbase:
 
         return {"Authorization": f"Bearer {token}"}
 
+    @staticmethod
     def _is_retryable_response(response):
-        if isinstance(response, dict):
-            response = response.get("message")
-        return response in RESPONSE_MESSAGES_TO_RETRY
+        return _is_retryable_status_response(response)
+
+    @staticmethod
+    def is_definitive_validation_failure(response):
+        if not isinstance(response, dict):
+            return False
+        if any(response.get(key) for key in ("error", "errors", "validation_errors")):
+            return True
+        status_text = " ".join(str(response.get(key, "")) for key in ("status", "message")).lower()
+        return any(
+            marker in status_text
+            for marker in (
+                "failed validation",
+                "validation failed",
+                "rejected",
+                "invalid package",
+            )
+        )
 
     def _upload(self, app_repo_name, package_file, url, release_notes, license_string, license_url):
         if not self.auth:
@@ -316,6 +341,7 @@ class Splunkbase:
                 user_agent=self.user_agent,
             )
             if response.get("message", "") in SPLUNKBASE_SUCCESSFUL_UPLOAD_RESPONSES:
+                self.last_upload_request_id = response.get("_request_id")
                 return response.get("package_id")
             if self._is_retryable_response(response):
                 raise SplunkbaseAmbiguousUpload(
@@ -343,7 +369,11 @@ class Splunkbase:
             app_repo_name, package_file, url, release_notes, license_string, license_url
         )
 
-    @backoff.on_predicate(backoff.expo, _is_retryable_response, max_time=MAX_MESSAGE_RETRY_TIME)
+    @backoff.on_predicate(
+        backoff.expo,
+        _is_retryable_status_response,
+        max_time=MAX_MESSAGE_RETRY_TIME,
+    )
     def check_upload_status(self, package_id):
         url = f"{self.apps_base_url}/validation/{package_id}"
         return _get_request(url, headers=self.auth)

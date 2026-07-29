@@ -168,6 +168,88 @@ def complete_existing(queue, client, item, args) -> int:
     return 0
 
 
+def defer_verification(queue, item, result, now, reason) -> int:
+    queue.verify(
+        item,
+        result,
+        now + MIN_ATTEMPT_INTERVAL,
+        reason,
+    )
+    write_output("queue_status", "verifying")
+    print(reason)
+    return 0
+
+
+def reconcile_verification(queue, client, item, args, now) -> int:
+    """Reconcile an accepted package using GETs only."""
+
+    result = dict(item.verification or {})
+    package_id = result.get("package_id")
+
+    try:
+        if version_exists(client, item.appid, item.candidate_version):
+            return complete_existing(queue, client, item, args)
+    except Exception:
+        print("The release listing could not be read; checking the accepted package directly.")
+
+    if not package_id:
+        return defer_verification(
+            queue,
+            item,
+            result,
+            now,
+            "An accepted upload has no package ID; waiting for version-only reconciliation.",
+        )
+
+    try:
+        response = client.check_upload_status(package_id)
+    except Exception:
+        return defer_verification(
+            queue,
+            item,
+            result,
+            now,
+            "The accepted package could not be read; GET-only verification will retry.",
+        )
+
+    if not isinstance(response, dict):
+        return defer_verification(
+            queue,
+            item,
+            result,
+            now,
+            "Splunkbase returned a malformed package status; GET-only verification will retry.",
+        )
+
+    splunkbase_app_id = response.get("details", {}).get("id")
+    if splunkbase_app_id:
+        result.update(
+            {
+                "status": "reconciled_published",
+                "splunkbase_app_id": splunkbase_app_id,
+            }
+        )
+        return complete_existing(queue, client, item, args)
+
+    if client._is_retryable_response(response) or not Splunkbase.is_definitive_validation_failure(
+        response
+    ):
+        return defer_verification(
+            queue,
+            item,
+            result,
+            now,
+            "Splunkbase validation is still pending; GET-only verification will retry.",
+        )
+
+    result["status"] = "validation_failed"
+    queue.block(item, result)
+    write_output("publish_return_code", 13)
+    write_output("queue_status", "blocked")
+    print(f"Splunkbase definitively rejected accepted package {package_id}.")
+    return 1
+
+
 def publish_item(args) -> int:
     queue = queue_from_environment()
     item = queue.get_item(args.issue_number)
@@ -182,6 +264,9 @@ def publish_item(args) -> int:
             "run_attempt": item.run_attempt,
         },
     )
+
+    if item.verification:
+        return reconcile_verification(queue, splunkbase, item, args, now)
 
     if version_exists(splunkbase, item.appid, item.candidate_version):
         return complete_existing(queue, splunkbase, item, args)
@@ -212,6 +297,15 @@ def publish_item(args) -> int:
         queue.delete_asset(item)
         write_output("queue_status", "published")
         return 0
+
+    if status == "verifying":
+        return defer_verification(
+            queue,
+            item,
+            result,
+            now,
+            "Splunkbase accepted the upload; GET-only verification will retry.",
+        )
 
     if status == "rate_limited":
         not_before = max(

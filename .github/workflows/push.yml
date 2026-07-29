@@ -9,7 +9,7 @@ on:
 jobs:
   pr-labeling:
     runs-on: ubuntu-latest
-    if: github.event.action == 'opened'
+    if: github.repository != 'splunk-soar-connectors/.github' && github.event.action == 'opened'
     permissions:
       issues: write
       pull-requests: write
@@ -26,6 +26,7 @@ jobs:
 
   detect-app-type:
     runs-on: ubuntu-latest
+    if: github.repository != 'splunk-soar-connectors/.github'
     outputs:
       is_sdkfied: ${{ steps.detect.outputs.is_sdkfied }}
       uv_lock_directory: ${{ steps.detect.outputs.uv_lock_directory }}
@@ -86,6 +87,7 @@ jobs:
 
   pre-commit:
     runs-on: ubuntu-latest
+    if: github.repository != 'splunk-soar-connectors/.github'
     steps:
       - name: Setup Environment
         uses: splunk-soar-connectors/.github/.github/actions/env-setup@main
@@ -95,6 +97,7 @@ jobs:
 
   semantic-release-preview:
     runs-on: ubuntu-latest
+    if: github.repository != 'splunk-soar-connectors/.github'
     permissions:
       contents: write
       issues: write

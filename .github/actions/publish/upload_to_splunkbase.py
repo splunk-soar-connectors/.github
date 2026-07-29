@@ -48,6 +48,7 @@ RESULT_CODES = {
     "permission_denied": 11,
     "ambiguous": 12,
     "validation_failed": 13,
+    "verifying": 14,
 }
 
 
@@ -178,6 +179,44 @@ def _write_publish_result(status: str, **details: Any) -> None:
     Path(PUBLISH_RESULT_PATH).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
+def _existing_publish_result() -> dict[str, Any]:
+    if not PUBLISH_RESULT_PATH:
+        return {}
+    try:
+        return json.loads(Path(PUBLISH_RESULT_PATH).read_text())
+    except (FileNotFoundError, json.JSONDecodeError, TypeError):
+        return {}
+
+
+def _check_post_upload_validation(sb_client: Splunkbase, package_id: str) -> tuple[str, dict]:
+    """Classify one GET-only validation check without risking another upload."""
+
+    try:
+        response = sb_client.check_upload_status(package_id)
+    except Exception:
+        logging.exception(
+            "Could not confirm package %s after Splunkbase accepted the upload; "
+            "leaving it in verification",
+            package_id,
+        )
+        return "verifying", {}
+
+    if not isinstance(response, dict):
+        logging.error("Package %s returned a malformed validation response", package_id)
+        return "verifying", {}
+    if response.get("details", {}).get("id"):
+        return "published", response
+    if sb_client._is_retryable_response(response):
+        logging.info("Package %s is still being validated: %s", package_id, response)
+        return "verifying", response
+    if Splunkbase.is_definitive_validation_failure(response):
+        return "validation_failed", response
+    logging.error(
+        "Package %s returned an inconclusive validation response: %s", package_id, response
+    )
+    return "verifying", response
+
+
 def main(args):
     app_repo_name = args.app_repo_name
 
@@ -281,13 +320,28 @@ def main(args):
         )
 
     logging.info("Package ID: %s", package_id)
-    response = sb_client.check_upload_status(package_id)
+    request_id = getattr(sb_client, "last_upload_request_id", None)
+    publish_details = {
+        "appid": appid,
+        "app_name": app_json["name"],
+        "package_id": package_id,
+        "release_version": app_version,
+        "request_id": request_id,
+    }
+    _write_publish_result("verifying", **publish_details)
+    if PUBLISH_RESULT_PATH:
+        return RESULT_CODES["verifying"]
+
+    validation_status, response = _check_post_upload_validation(sb_client, package_id)
+    if validation_status == "verifying":
+        return RESULT_CODES["verifying"]
+    if validation_status == "validation_failed":
+        logging.error("Splunkbase definitively rejected package %s: %s", package_id, response)
+        _write_publish_result("validation_failed", **publish_details)
+        return RESULT_CODES["validation_failed"]
+
     sb_appid = response.get("details", {}).get("id")
-    if sb_appid:
-        logging.info("Upload validated successfully: \n%s", json.dumps(response, indent=2))
-    else:
-        logging.info("Failed to validate upload: \n%s", json.dumps(response, indent=2))
-        return 1
+    logging.info("Upload validated successfully: \n%s", json.dumps(response, indent=2))
 
     if not apps:
         support_tag = "splunk" if app_json.get("publisher") == "Splunk" else "developer"
@@ -301,10 +355,7 @@ def main(args):
         )
         _write_publish_result(
             "new_app",
-            appid=appid,
-            app_name=app_json["name"],
-            package_id=package_id,
-            release_version=app_version,
+            **publish_details,
             splunkbase_app_id=sb_appid,
         )
         sb_client.add_app_editor(sb_appid)
@@ -321,10 +372,7 @@ def main(args):
     )
     _write_publish_result(
         "published",
-        appid=appid,
-        app_name=app_json["name"],
-        package_id=package_id,
-        release_version=app_version,
+        **publish_details,
         splunkbase_app_id=sb_appid,
     )
     return 0
@@ -355,6 +403,9 @@ def cli() -> int:
         return _record_upload_error("validation_failed", exc)
     except Exception:
         logging.exception("Unexpected Splunkbase publisher failure")
+        if _existing_publish_result().get("status") == "verifying":
+            logging.error("The upload was already accepted; preserving GET-only verification state")
+            return RESULT_CODES["verifying"]
         _write_publish_result("failed")
         return RESULT_CODES["failed"]
 

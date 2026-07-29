@@ -93,8 +93,14 @@ reserving another upload slot.
 
 HTTP 429 requeues the item after `Retry-After` plus 30 seconds and makes no second POST.
 HTTP 401 or 403 and definitive validation failures leave the issue open with
-`splunkbase-blocked`. An ambiguous timeout, reset, or server error triggers GET-only
-reconciliation; it is requeued only when the candidate version is still absent.
+`splunkbase-blocked`. Once Splunkbase accepts a POST, the worker immediately persists
+the package and request IDs and moves any inconclusive status check to
+`splunkbase-verifying`. Verification workers use only release-list and package-status
+GETs; they neither reserve another upload slot nor send another multipart POST.
+Continued validation, timeouts, exhausted server-error retries, and unreadable
+responses remain in verification. The issue closes when the version appears or the
+package validates, while a definitive rejection transitions to `splunkbase-blocked`
+and fails the worker job.
 
 To retry a corrected blocked item, preserve its JSON body, replace
 `splunkbase-blocked` with `splunkbase-queued`, and set `not_before` to the current UTC

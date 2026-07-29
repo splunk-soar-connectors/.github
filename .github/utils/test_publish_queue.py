@@ -148,6 +148,36 @@ def test_active_item_is_recovered_only_after_its_lease_expires():
     )
 
 
+def test_verifying_item_is_selected_without_becoming_queued():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    item = queue.enqueue(make_item())
+    queue.verify(
+        item,
+        {
+            "status": "verifying",
+            "package_id": "package-123",
+            "request_id": "request-123",
+        },
+        now,
+        "Waiting for package validation.",
+    )
+
+    selected = queue.oldest_eligible(item.publisher_alias, now)
+
+    assert selected.issue_number == item.issue_number
+    assert selected.verification == {
+        "status": "verifying",
+        "package_id": "package-123",
+        "request_id": "request-123",
+    }
+    assert client.issues[0]["labels"] == [
+        {"name": "splunkbase-publish"},
+        {"name": "splunkbase-verifying"},
+    ]
+
+
 def test_rate_ledger_never_reserves_more_than_twelve_in_a_rolling_hour():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
