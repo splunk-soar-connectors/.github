@@ -115,14 +115,14 @@ def _build_message(
 
 def _convert_svg_logo_to_png(repo_name, repo_svg_logo_path):
     """
-    Reads the SVG logo from the local checkout (GITHUB_WORKSPACE) and returns PNG bytes.
+    Reads the SVG logo from the connector checkout and returns PNG bytes.
     If the SVG embeds a raster image (data:image/png;base64,...), extract it directly
     rather than using cairosvg, which doesn't handle embedded bitmaps.
     """
     import base64
     import re as _re
 
-    workspace = os.getenv("GITHUB_WORKSPACE", ".")
+    workspace = os.getenv("CONNECTOR_WORKSPACE", os.getenv("GITHUB_WORKSPACE", "."))
     svg_path = Path(workspace) / repo_svg_logo_path
     logging.info("Reading SVG logo from %s (repo: %s)", svg_path, repo_name)
     svg_bytes = svg_path.read_bytes()

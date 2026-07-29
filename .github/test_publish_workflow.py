@@ -5,6 +5,8 @@ WORKFLOW = Path(__file__).parent / "workflows" / "publish.yml"
 DRAIN_WORKFLOW = Path(__file__).parent / "workflows" / "drain-splunkbase-publish-queue.yml"
 ENQUEUE_WORKFLOW = Path(__file__).parent / "workflows" / "enqueue-splunkbase-publish.yml"
 ENQUEUE_ACTION = Path(__file__).parent / "actions" / "enqueue-publish" / "action.yml"
+NOTIFY_ACTION = Path(__file__).parent / "actions" / "notify-slack" / "action.yml"
+NOTIFY_SCRIPT = Path(__file__).parent / "actions" / "notify-slack" / "notify_slack.py"
 
 
 def test_enqueue_uses_the_commit_that_created_the_artifact():
@@ -42,6 +44,16 @@ def test_skipped_direct_publish_cannot_trigger_release_slack():
 
     assert "needs.publish.result != 'skipped'" in notify
     assert "needs.publish.outputs.return_code != ''" in notify
+
+
+def test_notify_action_uses_the_explicit_connector_workspace():
+    action = NOTIFY_ACTION.read_text()
+    script = NOTIFY_SCRIPT.read_text()
+
+    assert "CONNECTOR_WORKSPACE: ${{ inputs.workspace_path }}" in action
+    assert "GITHUB_WORKSPACE: ${{ inputs.workspace_path }}" not in action
+    assert 'os.getenv("CONNECTOR_WORKSPACE"' in script
+    assert 'os.getenv("GITHUB_WORKSPACE"' in script
 
 
 def test_queue_workflows_execute_self_contained_uv_scripts():
