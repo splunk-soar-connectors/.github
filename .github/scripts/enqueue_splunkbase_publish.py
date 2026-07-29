@@ -12,10 +12,19 @@ sys.path.insert(0, str(REPO_ROOT))
 from utils.publish_queue import GitHubClient, GitHubIssuePublishQueue, PublishQueueItem
 
 
+def unwrap_queue_item(payload: dict) -> dict:
+    """Accept the bounded nested payload and legacy flat payloads."""
+
+    queue_item = payload.get("queue_item", payload)
+    if not isinstance(queue_item, dict):
+        raise ValueError("Repository dispatch queue_item must be an object")
+    return queue_item
+
+
 def main() -> int:
     token = os.environ["GITHUB_TOKEN"]
     repository = os.environ["QUEUE_REPOSITORY"]
-    payload = json.loads(os.environ["QUEUE_ITEM_JSON"])
+    payload = unwrap_queue_item(json.loads(os.environ["QUEUE_ITEM_JSON"]))
     queue = GitHubIssuePublishQueue(GitHubClient(token), repository)
     item = queue.enqueue(PublishQueueItem.from_dict(payload))
     print(f"Queued {item.repository} v{item.candidate_version} as issue #{item.issue_number}")

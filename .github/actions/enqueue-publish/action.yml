@@ -54,12 +54,28 @@ runs:
         RELEASE_TAG: ${{ inputs.release_tag }}
       run: |
         if ! gh release view "$RELEASE_TAG" --repo "$QUEUE_REPOSITORY" >/dev/null 2>&1; then
+          create_log="${RUNNER_TEMP}/splunkbase-release-create.log"
           if ! gh release create "$RELEASE_TAG" \
               --repo "$QUEUE_REPOSITORY" \
+              --target main \
               --prerelease \
               --title "Splunkbase publish queue" \
-              --notes "Operational artifact storage managed by Codex-authored automation."; then
-            gh release view "$RELEASE_TAG" --repo "$QUEUE_REPOSITORY" >/dev/null
+              --notes "Operational artifact storage managed by Codex-authored automation." \
+              2>"$create_log"; then
+            release_visible=false
+            for delay in 1 2 3 4 5; do
+              if gh release view "$RELEASE_TAG" \
+                  --repo "$QUEUE_REPOSITORY" >/dev/null 2>&1; then
+                release_visible=true
+                break
+              fi
+              sleep "$delay"
+            done
+            if [ "$release_visible" != "true" ]; then
+              cat "$create_log" >&2
+              exit 1
+            fi
+            echo "Another publisher created the queue release."
           fi
         fi
         gh release view "$RELEASE_TAG" --repo "$QUEUE_REPOSITORY" >/dev/null

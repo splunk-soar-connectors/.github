@@ -29,3 +29,17 @@ def test_app_metadata_and_asset_name_are_stable(tmp_path):
     assert (
         MODULE.safe_asset_part("splunk-soar-connectors/example") == "splunk-soar-connectors-example"
     )
+
+
+def test_dispatch_payload_nests_queue_metadata_under_one_property():
+    queue_item = {
+        "repository": "splunk-soar-connectors/example",
+        "candidate_version": "2.3.4",
+        "appid": "example-guid",
+    }
+
+    payload = MODULE.build_dispatch_payload(queue_item)
+
+    assert payload["event_type"] == "splunkbase-publish-enqueue"
+    assert payload["client_payload"] == {"queue_item": queue_item}
+    assert len(payload["client_payload"]) == 1

@@ -37,6 +37,15 @@ def write_output(name: str, value: str) -> None:
             output.write(f"{name}={value}\n")
 
 
+def build_dispatch_payload(queue_item: dict) -> dict:
+    """Nest queue metadata under one repository-dispatch payload property."""
+
+    return {
+        "event_type": "splunkbase-publish-enqueue",
+        "client_payload": {"queue_item": queue_item},
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact", type=Path, required=True)
@@ -58,25 +67,23 @@ def main() -> int:
         f"{safe_asset_part(args.commit_sha[:12])}.tgz"
     )
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    payload = {
-        "event_type": "splunkbase-publish-enqueue",
-        "client_payload": {
-            "schema_version": 1,
-            "publisher_alias": args.publisher_alias,
-            "repository": args.repository,
-            "run_id": args.run_id,
-            "run_attempt": args.run_attempt,
-            "commit_sha": args.commit_sha,
-            "artifact_name": "app-tar",
-            "asset_name": asset_name,
-            "release_tag": args.release_tag,
-            "candidate_version": version,
-            "appid": str(app_json["appid"]),
-            "app_name": str(app_json["name"]),
-            "enqueued_at": now,
-            "not_before": now,
-        },
+    queue_item = {
+        "schema_version": 1,
+        "publisher_alias": args.publisher_alias,
+        "repository": args.repository,
+        "run_id": args.run_id,
+        "run_attempt": args.run_attempt,
+        "commit_sha": args.commit_sha,
+        "artifact_name": "app-tar",
+        "asset_name": asset_name,
+        "release_tag": args.release_tag,
+        "candidate_version": version,
+        "appid": str(app_json["appid"]),
+        "app_name": str(app_json["name"]),
+        "enqueued_at": now,
+        "not_before": now,
     }
+    payload = build_dispatch_payload(queue_item)
     args.payload_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
     write_output("asset_name", asset_name)
