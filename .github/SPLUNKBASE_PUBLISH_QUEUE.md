@@ -20,19 +20,28 @@ key is publishing-user alias, repository, and connector version.
 
 ## Configuration
 
-Before enabling the queue, configure these Actions secrets on
-`splunk-soar-connectors/.github`:
+After this change merges, open
+`splunk-soar-connectors/.github` → **Settings** → **Secrets and variables** →
+**Actions**.
 
-- `SPLUNKBASE_USER`
-- `SPLUNKBASE_PASSWORD`
+Under **Secrets**, add these repository secrets, or grant this repository access to the
+existing organization secrets with the same names:
+
+- `SPLUNKBASE_USER`: the shared connector publishing username
+- `SPLUNKBASE_PASSWORD`: the shared connector publishing password
+
+Slack configuration is optional. If release notifications must remain enabled, also
+make these secrets available to this repository:
+
 - `SLACK_INTERNAL_TOKEN`
 - `SLACK_COMMUNITY_TOKEN`
 
-Confirm the existing channel variables are available:
+Under **Variables**, make the existing channel configuration available when Slack
+notifications are enabled:
 
 - `SLACK_INTERNAL_CHANNEL_ID`
 - `SLACK_COMMUNITY_CHANNEL_ID`
-- `SEND_RELEASE_MESSAGE`
+- `SEND_RELEASE_MESSAGE=true`
 
 The enqueue job reuses the GitHub App `splunk-soar-semantic-release` (App ID `1190653`).
 Connector workflows supply its ID through the existing `SEMANTIC_RELEASE_APP_ID`
@@ -44,11 +53,23 @@ permissions. No GitHub App permission change is required for this queue. The cen
 workflow uses its repository-scoped `GITHUB_TOKEN`, with `issues:write` declared in the
 workflow, to create and update queue issues.
 
-Keep `SPLUNKBASE_PUBLISH_QUEUE_ENABLED` unset or `false` while configuring and testing.
-The reusable workflow continues to publish directly in that state, with one upload POST
-per job. Set this variable to `true` for only the five approved canary repositories
-first. After the canary passes, expose the same variable to all connector repositories
-and this central repository.
+Keep `SPLUNKBASE_PUBLISH_QUEUE_ENABLED` unset or `false` while configuring. The reusable
+workflow continues to publish directly in that state, with one upload POST per job.
+
+For the canary:
+
+1. In each of the five approved connector repositories, open **Settings** →
+   **Secrets and variables** → **Actions** → **Variables** and add
+   `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=true`.
+2. In `splunk-soar-connectors/.github`, add the same repository variable with value
+   `true`. This enables the scheduled central worker.
+3. After the canary passes, make `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=true` available to
+   all connector repositories, preferably as one organization variable, while keeping
+   it available to this central repository.
+
+No other repository setting needs to change. Issues and Actions are already enabled,
+the required actions are already allowlisted, and the repository's `GITHUB_TOKEN`
+already has read/write workflow permissions.
 
 ## Canary
 
