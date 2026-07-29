@@ -63,16 +63,25 @@ def test_queue_workflows_execute_self_contained_uv_scripts():
         Path(__file__).parent / "scripts" / "notify_splunkbase_publish_failure.py"
     ).read_text()
 
-    assert "uses: astral-sh/setup-uv@v9" in select
+    assert "uses: astral-sh/setup-uv" not in workflow
+    assert "uses: actions/setup-python@v5" in select
+    assert 'python -m pip install "uv==0.12.0"' in select
     assert "uv run .github/scripts/drain_splunkbase_publish_queue.py select" in select
     assert "uv run .github/scripts/drain_splunkbase_publish_queue.py download" in publish
     assert "uv run .github/scripts/drain_splunkbase_publish_queue.py publish" in publish
     assert "uv run .github/scripts/notify_splunkbase_publish_failure.py" in publish
-    assert "uses: astral-sh/setup-uv@v9" in enqueue_workflow
+    assert "uses: astral-sh/setup-uv" not in enqueue_workflow
+    assert "uses: actions/setup-python@v5" in enqueue_workflow
+    assert 'python -m pip install "uv==0.12.0"' in enqueue_workflow
     assert "uv run .github/scripts/enqueue_splunkbase_publish.py" in enqueue_workflow
-    assert "uses: astral-sh/setup-uv@v9" in enqueue_action
+    assert "uses: astral-sh/setup-uv" not in enqueue_action
+    assert "uses: actions/setup-python@v5" in enqueue_action
+    assert 'python -m pip install "uv==0.12.0"' in enqueue_action
     assert 'uv run "${{ github.action_path }}/prepare_enqueue.py"' in enqueue_action
-    assert "pip install" not in select
+    assert "pip install -r" not in select
+    assert "backoff" not in select
+    assert "packaging" not in select
+    assert "requests" not in select
     assert '"backoff>=2.2.1,<3.0.0"' in drain_script
     assert '"requests>=2.32.3,<3.0.0"' in drain_script
     assert '"packaging>=24.2,<26.0"' in drain_script
