@@ -452,14 +452,47 @@ class Splunkbase:
 
         return apps_returned[-1]["releases"]
 
-    def add_app_editor(self, sb_appid):
+    def get_app_editors(self, sb_appid):
+        editor_url = self._splunkbase_editor_url.replace("{sb_appid}", str(sb_appid))
+        response = _get_request(editor_url, headers=self.auth)
+        if isinstance(response, dict):
+            editors = next(
+                (
+                    response[key]
+                    for key in ("results", "editors", "data")
+                    if isinstance(response.get(key), list)
+                ),
+                [],
+            )
+        elif isinstance(response, list):
+            editors = response
+        else:
+            raise SplunkbaseResponseError("Splunkbase returned malformed editor metadata")
+
+        normalized = set()
+        for editor in editors:
+            if isinstance(editor, str):
+                normalized.add(editor)
+            elif isinstance(editor, dict):
+                username = editor.get("username") or editor.get("name") or editor.get("user")
+                if username:
+                    normalized.add(str(username))
+        return normalized
+
+    def ensure_app_editors(self, sb_appid):
         if not self.auth:
             raise ValueError("Authentication must be configured for POST requests")
 
-        for user in SPLUNKBASE_SOAR_APP_EDITORS:
+        existing_editors = self.get_app_editors(sb_appid)
+        for user in set(SPLUNKBASE_SOAR_APP_EDITORS) - existing_editors:
             data = {"username": user}
             editor_url = self._splunkbase_editor_url.replace("{sb_appid}", str(sb_appid))
             logging.info(editor_url)
             logging.info(f"Adding editor {user} to splunkbase appid {sb_appid}")
             response = _post_request(self.auth, editor_url, data=data)
             logging.info(response)
+
+    def add_app_editor(self, sb_appid):
+        """Backward-compatible wrapper for idempotent editor reconciliation."""
+
+        self.ensure_app_editors(sb_appid)

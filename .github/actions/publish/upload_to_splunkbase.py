@@ -233,6 +233,8 @@ def main(args):
         request_context={
             "repo": app_repo_name,
             "version": app_version,
+            "run_id": os.getenv("SOURCE_GITHUB_RUN_ID"),
+            "run_attempt": os.getenv("SOURCE_GITHUB_RUN_ATTEMPT"),
         },
     )
 
@@ -307,6 +309,13 @@ def main(args):
     logging.info("Using license info: %s: %s", license_string, license_url)
 
     apps = sb_client.get_apps({"appid": appid})
+    publish_details = {
+        "appid": appid,
+        "app_existed_before_upload": bool(apps),
+        "app_name": app_json["name"],
+        "release_version": app_version,
+    }
+    _write_publish_result("uploading", **publish_details)
     if apps:
         sb_appid = apps[0]["id"]
         logging.info("Found existing app with appid: %s: %s", appid, sb_appid)
@@ -321,13 +330,7 @@ def main(args):
 
     logging.info("Package ID: %s", package_id)
     request_id = getattr(sb_client, "last_upload_request_id", None)
-    publish_details = {
-        "appid": appid,
-        "app_name": app_json["name"],
-        "package_id": package_id,
-        "release_version": app_version,
-        "request_id": request_id,
-    }
+    publish_details.update({"package_id": package_id, "request_id": request_id})
     _write_publish_result("verifying", **publish_details)
     if PUBLISH_RESULT_PATH:
         return RESULT_CODES["verifying"]
@@ -358,7 +361,7 @@ def main(args):
             **publish_details,
             splunkbase_app_id=sb_appid,
         )
-        sb_client.add_app_editor(sb_appid)
+        sb_client.ensure_app_editors(sb_appid)
         logging.warning(NEW_APP_WARNING_MESSAGE)
         return 2
 
@@ -380,8 +383,14 @@ def main(args):
 
 def _record_upload_error(status: str, exc: SplunkbaseUploadError) -> int:
     logging.error("%s: %s", status, exc)
+    context = {
+        key: value
+        for key, value in _existing_publish_result().items()
+        if key not in {"status", "message", "request_id", "retry_after", "status_code"}
+    }
     _write_publish_result(
         status,
+        **context,
         message=str(exc),
         request_id=exc.request_id,
         retry_after=exc.retry_after,

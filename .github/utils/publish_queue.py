@@ -39,6 +39,7 @@ LABELS = {
     STATE_LABEL: ("c5def5", "Rate ledger for the Codex-authored Splunkbase queue."),
 }
 PUBLIC_RESULT_FIELDS = {
+    "app_existed_before_upload",
     "status",
     "status_code",
     "request_id",
@@ -121,6 +122,14 @@ class PublishQueue(Protocol):
         reason: str,
         *,
         rate_limited: bool = False,
+    ) -> None: ...
+
+    def verify(
+        self,
+        item: PublishQueueItem,
+        result: dict[str, Any],
+        not_before: datetime,
+        reason: str,
     ) -> None: ...
 
     def complete(self, item: PublishQueueItem, result: dict[str, Any]) -> None: ...

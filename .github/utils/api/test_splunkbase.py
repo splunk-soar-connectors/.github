@@ -157,6 +157,27 @@ def test_retryable_response_helper_can_be_called_on_an_instance():
     assert client._is_retryable_response({"message": "Package validation still in progress."})
 
 
+def test_editor_reconciliation_adds_only_missing_editors():
+    client = object.__new__(Splunkbase)
+    client.auth = {"Authorization": "Bearer token"}
+    client._splunkbase_editor_url = "https://example.test/app/{sb_appid}/editors/"
+
+    with (
+        patch(
+            "utils.api.splunkbase._get_request",
+            return_value={"editors": [{"username": "nastor_splunk"}]},
+        ),
+        patch("utils.api.splunkbase._post_request", return_value={"ok": True}) as post,
+    ):
+        client.ensure_app_editors("app-123")
+
+    post.assert_called_once_with(
+        client.auth,
+        "https://example.test/app/app-123/editors/",
+        data={"username": "coh_splunk"},
+    )
+
+
 def test_response_json_rejects_missing_collection_fields():
     response = Mock(ok=True)
     response.json.return_value = {"detail": "temporarily unavailable"}

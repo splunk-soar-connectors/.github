@@ -118,6 +118,8 @@ def run_publisher(args, item) -> tuple[int, dict]:
             "PUBLISH_RESULT_PATH": str(result_path.resolve()),
             "GITHUB_OUTPUT": str(publisher_output.resolve()),
             "GITHUB_WORKSPACE": str(Path(args.connector_workspace).resolve()),
+            "SOURCE_GITHUB_RUN_ID": str(item.run_id),
+            "SOURCE_GITHUB_RUN_ATTEMPT": str(item.run_attempt),
         }
     )
     completed = subprocess.run(
@@ -135,36 +137,57 @@ def run_publisher(args, item) -> tuple[int, dict]:
     return completed.returncode, result
 
 
-def complete_existing(queue, client, item, args) -> int:
+def finalize_publication(queue, client, item, args, result, now) -> int:
+    """Reconstruct release outputs and side effects before closing a queue item."""
+
     publisher = load_publisher_module()
-    app_json = publisher.get_app_json(args.artifact)
-    release_notes = publisher.get_release_notes(
-        item.candidate_version,
-        Path(args.connector_workspace),
-    ) or publisher.get_release_notes_from_tarball(args.artifact, item.candidate_version)
-    apps = client.get_apps({"appid": item.appid})
-    result = {
-        "status": "already_published",
-        "release_version": item.candidate_version,
-    }
-    if apps:
-        result["splunkbase_app_id"] = apps[0]["id"]
-        write_output("splunk_base_url", f"https://splunkbase.splunk.com/app/{apps[0]['id']}")
-        write_output("support_tag", apps[0]["support"])
-    write_output("app_name", item.app_name)
-    write_output("app_logo", app_json["logo"])
-    write_output("repo_name", item.repository.split("/")[-1])
-    write_output("release_version", item.candidate_version)
-    write_output("release_notes", json.dumps((release_notes or "").split("\n")))
-    write_output("new_app", False)
-    write_output("publish_return_code", 0)
-    write_output("queue_status", "published")
+    try:
+        app_json = publisher.get_app_json(args.artifact)
+        release_notes = publisher.get_release_notes(
+            item.candidate_version,
+            Path(args.connector_workspace),
+        ) or publisher.get_release_notes_from_tarball(args.artifact, item.candidate_version)
+        if not release_notes:
+            raise RuntimeError("Release notes could not be reconstructed")
+
+        apps = client.get_apps({"appid": item.appid})
+        if len(apps) != 1:
+            raise RuntimeError(f"Expected one Splunkbase app for {item.appid}, found {len(apps)}")
+        app = apps[0]
+        new_app = not result.get("app_existed_before_upload", True)
+        if new_app:
+            client.ensure_app_editors(app["id"])
+
+        result.update(
+            {
+                "status": "reconciled_published",
+                "release_version": item.candidate_version,
+                "splunkbase_app_id": app["id"],
+            }
+        )
+        write_output("splunk_base_url", f"https://splunkbase.splunk.com/app/{app['id']}")
+        write_output("support_tag", app["support"])
+        write_output("app_name", item.app_name)
+        write_output("app_logo", app_json["logo"])
+        write_output("repo_name", item.repository.split("/")[-1])
+        write_output("release_version", item.candidate_version)
+        write_output("release_notes", json.dumps(release_notes.split("\n")))
+        write_output("new_app", new_app)
+        write_output("publish_return_code", 2 if new_app else 0)
+    except Exception as exc:
+        return defer_verification(
+            queue,
+            item,
+            result,
+            now,
+            f"Publication is visible but finalization failed ({type(exc).__name__}); "
+            "GET-only recovery will retry.",
+        )
+
     queue.complete(item, result)
     queue.delete_asset(item)
-    print(
-        f"{item.repository} v{item.candidate_version} already exists; "
-        "no upload attempt was consumed."
-    )
+    write_output("queue_status", "published")
+    print(f"Finalized {item.repository} v{item.candidate_version} without another upload.")
     return 0
 
 
@@ -188,7 +211,7 @@ def reconcile_verification(queue, client, item, args, now) -> int:
 
     try:
         if version_exists(client, item.appid, item.candidate_version):
-            return complete_existing(queue, client, item, args)
+            return finalize_publication(queue, client, item, args, result, now)
     except Exception:
         print("The release listing could not be read; checking the accepted package directly.")
 
@@ -229,7 +252,7 @@ def reconcile_verification(queue, client, item, args, now) -> int:
                 "splunkbase_app_id": splunkbase_app_id,
             }
         )
-        return complete_existing(queue, client, item, args)
+        return finalize_publication(queue, client, item, args, result, now)
 
     if client._is_retryable_response(response) or not Splunkbase.is_definitive_validation_failure(
         response
@@ -269,7 +292,17 @@ def publish_item(args) -> int:
         return reconcile_verification(queue, splunkbase, item, args, now)
 
     if version_exists(splunkbase, item.appid, item.candidate_version):
-        return complete_existing(queue, splunkbase, item, args)
+        return finalize_publication(
+            queue,
+            splunkbase,
+            item,
+            args,
+            {
+                "status": "already_published",
+                "app_existed_before_upload": True,
+            },
+            now,
+        )
 
     retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
     if retry_at:
@@ -293,10 +326,7 @@ def publish_item(args) -> int:
     write_output("request_id", result.get("request_id", ""))
 
     if status in {"published", "new_app", "already_published"}:
-        queue.complete(item, result)
-        queue.delete_asset(item)
-        write_output("queue_status", "published")
-        return 0
+        return finalize_publication(queue, splunkbase, item, args, result, now)
 
     if status == "verifying":
         return defer_verification(
@@ -324,17 +354,14 @@ def publish_item(args) -> int:
     if status == "ambiguous":
         if version_exists(splunkbase, item.appid, item.candidate_version):
             result["status"] = "reconciled_published"
-            queue.complete(item, result)
-            queue.delete_asset(item)
-            write_output("queue_status", "published")
-            return 0
-        queue.requeue(
+            return finalize_publication(queue, splunkbase, item, args, result, now)
+        return defer_verification(
+            queue,
             item,
-            now + MIN_ATTEMPT_INTERVAL,
-            "Ambiguous transport result did not reconcile; retry deferred to a future slot.",
+            result,
+            now,
+            "The upload result is ambiguous; GET-only reconciliation will retry.",
         )
-        write_output("queue_status", "ambiguous")
-        return 0
 
     queue.block(item, result)
     write_output("queue_status", "blocked")

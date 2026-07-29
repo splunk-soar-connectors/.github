@@ -124,6 +124,8 @@ jobs:
     if: github.event.repository.name != 'connector-template'
     runs-on: ubuntu-latest
     needs: [semantic-version, detect-app-type]
+    outputs:
+      commit_sha: ${{ steps.source.outputs.commit_sha }}
     env:
       IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
       UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
@@ -133,6 +135,10 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+
+      - name: Record immutable build source
+        id: source
+        run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -237,17 +243,6 @@ jobs:
           repositories: |
             .github
 
-      - name: Check out connector release
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: main
-          persist-credentials: false
-
-      - name: Record immutable release commit
-        id: release
-        run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
       - name: Download app tar file for queue storage
         uses: actions/download-artifact@v4
         with:
@@ -258,7 +253,7 @@ jobs:
         uses: splunk-soar-connectors/.github/.github/actions/enqueue-publish@main
         with:
           artifact_path: ${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz
-          commit_sha: ${{ steps.release.outputs.commit_sha }}
+          commit_sha: ${{ needs.build.outputs.commit_sha }}
           github_token: ${{ steps.queue-token.outputs.token }}
 
   metrics:

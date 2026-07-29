@@ -14,6 +14,8 @@ SPEC = importlib.util.spec_from_file_location("upload_to_splunkbase", MODULE_PAT
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+from utils.api.splunkbase import build_user_agent
+
 
 def test_existing_version_is_only_successful_on_rerun():
     version = parse("2.3.4")
@@ -162,9 +164,10 @@ def test_accepted_upload_persists_package_metadata_before_failed_status_get(
     class Client:
         last_upload_request_id = "request-123"
         status_checks = 0
+        request_context = None
 
-        def __init__(self, *args, **kwargs):
-            pass
+        def __init__(self, *args, request_context=None, **kwargs):
+            type(self).request_context = request_context
 
         def get_existing_releases(self, appid):
             return []
@@ -181,6 +184,10 @@ def test_accepted_upload_persists_package_metadata_before_failed_status_get(
 
     monkeypatch.setattr(MODULE, "PUBLISH_RESULT_PATH", str(result_path))
     monkeypatch.setenv("UPLOAD_PATH", str(tmp_path / "connector.tgz"))
+    monkeypatch.setenv("GITHUB_RUN_ID", "worker-run")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "9")
+    monkeypatch.setenv("SOURCE_GITHUB_RUN_ID", "source-run")
+    monkeypatch.setenv("SOURCE_GITHUB_RUN_ATTEMPT", "2")
     monkeypatch.setattr(
         MODULE,
         "get_app_json",
@@ -199,8 +206,19 @@ def test_accepted_upload_persists_package_metadata_before_failed_status_get(
 
     assert code == MODULE.RESULT_CODES["verifying"]
     assert Client.status_checks == 0
+    assert Client.request_context == {
+        "repo": "example",
+        "version": "1.2.3",
+        "run_id": "source-run",
+        "run_attempt": "2",
+    }
+    user_agent = build_user_agent(**Client.request_context)
+    assert "run/source-run" in user_agent
+    assert "attempt/2" in user_agent
+    assert "worker-run" not in user_agent
     assert json.loads(result_path.read_text()) == {
         "appid": "example-guid",
+        "app_existed_before_upload": False,
         "app_name": "Example",
         "package_id": "package-123",
         "release_version": "1.2.3",
