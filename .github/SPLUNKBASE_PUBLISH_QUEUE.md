@@ -40,7 +40,9 @@ organization variable and pass its private key through `SEMANTIC_RELEASE_PK`. Th
 has `contents:write`, `metadata:read`, and `pull_requests:write` across the connector
 organization. The queue uses only `contents:write` on
 `splunk-soar-connectors/.github`; it does not need issue, Actions, check, or status
-permissions.
+permissions. No GitHub App permission change is required for this queue. The central
+workflow uses its repository-scoped `GITHUB_TOKEN`, with `issues:write` declared in the
+workflow, to create and update queue issues.
 
 Keep `SPLUNKBASE_PUBLISH_QUEUE_ENABLED` unset or `false` while configuring and testing.
 The reusable workflow continues to publish directly in that state, with one upload POST
