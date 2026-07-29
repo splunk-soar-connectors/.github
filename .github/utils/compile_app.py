@@ -147,8 +147,12 @@ def delete_folder(phantom_client: paramiko.SSHClient, test_directory: Path) -> N
 
 @contextmanager
 def upload_app_files(
-    phantom_version: str, phantom_client: paramiko.SSHClient, local_app_path: Path, _app_name: str
+    phantom_version: str,
+    phantom_client: paramiko.SSHClient,
+    local_app_path: Union[Path, str],
+    _app_name: str,
 ) -> Iterator[Path]:
+    local_app_path = Path(local_app_path)
     staging_directory = create_staging_directory(phantom_version, phantom_client)
     incoming_directory = staging_directory / ".incoming"
     uploaded_app_directory = incoming_directory / local_app_path.name
