@@ -34,10 +34,13 @@ Confirm the existing channel variables are available:
 - `SLACK_COMMUNITY_CHANNEL_ID`
 - `SEND_RELEASE_MESSAGE`
 
-The enqueue job uses the existing `SEMANTIC_RELEASE_APP_ID` organization variable and
-the `SEMANTIC_RELEASE_PK` secret already passed by connector caller workflows. The App
-needs `contents:write` on `splunk-soar-connectors/.github`; it does not need issue,
-Actions, check, or status permissions.
+The enqueue job reuses the GitHub App `splunk-soar-semantic-release` (App ID `1190653`).
+Connector workflows supply its ID through the existing `SEMANTIC_RELEASE_APP_ID`
+organization variable and pass its private key through `SEMANTIC_RELEASE_PK`. This App
+has `contents:write`, `metadata:read`, and `pull_requests:write` across the connector
+organization. The queue uses only `contents:write` on
+`splunk-soar-connectors/.github`; it does not need issue, Actions, check, or status
+permissions.
 
 Keep `SPLUNKBASE_PUBLISH_QUEUE_ENABLED` unset or `false` while configuring and testing.
 The reusable workflow continues to publish directly in that state, with one upload POST
