@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.13,<3.14"
+# dependencies = [
+#   "backoff>=2.2.1,<3.0.0",
+#   "packaging>=24.2,<26.0",
+#   "requests>=2.32.3,<3.0.0",
+# ]
+# ///
 """Select and publish one item from the shared-user Splunkbase queue."""
 
 from __future__ import annotations

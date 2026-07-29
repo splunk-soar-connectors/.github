@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.13,<3.14"
+# dependencies = [
+#   "requests>=2.32.3,<3.0.0",
+# ]
+# ///
 """Notify the internal connector channel about a terminal queue failure."""
 
 from __future__ import annotations
