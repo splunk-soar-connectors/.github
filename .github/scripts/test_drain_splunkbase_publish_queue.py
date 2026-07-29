@@ -165,6 +165,57 @@ def test_recovery_paths_share_finalization_without_post_or_reserve(
     run_publisher.assert_not_called()
 
 
+def test_ambiguous_upload_is_finalized_when_version_appears_without_second_post(
+    monkeypatch,
+):
+    queue = Mock()
+    item = verifying_item()
+    item.verification = None
+    queue.get_item.return_value = item
+    queue.reserve_attempt.return_value = None
+    client = Mock()
+    client.get_existing_releases.side_effect = [
+        [],
+        [],
+        [{"release_name": "1.2.3"}],
+    ]
+    client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
+    run_publisher = Mock(
+        return_value=(
+            12,
+            {
+                "status": "ambiguous",
+                "app_existed_before_upload": False,
+                "request_id": "request-123",
+            },
+        )
+    )
+    outputs = {}
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
+    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
+    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+
+    assert MODULE.publish_item(finalization_args()) == 0
+    verification_result = queue.verify.call_args.args[1]
+    item.verification = verification_result
+
+    assert MODULE.publish_item(finalization_args()) == 0
+
+    assert run_publisher.call_count == 1
+    assert queue.reserve_attempt.call_count == 1
+    assert outputs["new_app"] is True
+    assert outputs["publish_return_code"] == 2
+    assert outputs["support_tag"] == "splunk"
+    assert outputs["splunk_base_url"] == "https://splunkbase.splunk.com/app/app-123"
+    client.ensure_app_editors.assert_called_once_with("app-123")
+    queue.complete.assert_called_once()
+    queue.delete_asset.assert_called_once_with(item)
+
+
 def test_continued_pending_validation_does_not_post_or_reserve(monkeypatch):
     queue = Mock()
     client = Mock()
