@@ -22,6 +22,11 @@ from utils.api.splunkbase import (
     SGT_LICENSE_STRING,
     SGT_LICENSE_URL,
     Splunkbase,
+    SplunkbaseAmbiguousUpload,
+    SplunkbasePermissionDenied,
+    SplunkbaseRateLimited,
+    SplunkbaseUploadError,
+    SplunkbaseValidationFailed,
 )
 
 NEW_APP_WARNING_MESSAGE = (
@@ -32,6 +37,18 @@ NEW_APP_WARNING_MESSAGE = (
 
 SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
+PUBLISH_RESULT_PATH = os.getenv("PUBLISH_RESULT_PATH")
+
+RESULT_CODES = {
+    "published": 0,
+    "already_published": 0,
+    "failed": 1,
+    "new_app": 2,
+    "rate_limited": 10,
+    "permission_denied": 11,
+    "ambiguous": 12,
+    "validation_failed": 13,
+}
 
 
 def is_successful_rerun_of_existing_version(candidate_version, latest_release, run_attempt=None):
@@ -61,6 +78,9 @@ def get_release_notes(version: str, workspace_path: Optional[Path] = None) -> Op
     release_notes_file = search_root / "release_notes" / f"{version}.md"
     logging.info(f"Looking for release notes at: {release_notes_file}")
 
+    if not release_notes_file.exists():
+        return None
+
     with open(release_notes_file) as f:
         full_release_notes = f.read()
         release_notes = []
@@ -68,6 +88,29 @@ def get_release_notes(version: str, workspace_path: Optional[Path] = None) -> Op
             if not ("unreleased" in line.lower() and "**" in line):
                 release_notes.append(line)
         return "\n".join(release_notes)
+
+
+def get_release_notes_from_tarball(tarball: Union[str, Path], version: str) -> Optional[str]:
+    with tarfile.open(tarball, "r") as tar:
+        expected_suffix = f"/release_notes/{version}.md"
+        matches = [
+            name
+            for name in tar.getnames()
+            if name == f"release_notes/{version}.md" or name.endswith(expected_suffix)
+        ]
+        if len(matches) != 1:
+            logging.error("Expected one release note file in tarball, found: %s", matches)
+            return None
+
+        release_file = tar.extractfile(matches[0])
+        if release_file is None:
+            return None
+        full_release_notes = release_file.read().decode()
+        return "\n".join(
+            line
+            for line in full_release_notes.splitlines()
+            if not ("unreleased" in line.lower() and "**" in line)
+        )
 
 
 def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
@@ -124,6 +167,17 @@ def _write_github_outputs(
     logging.info("Wrote GitHub outputs for %s v%s", app_json["name"], app_json["app_version"])
 
 
+def _write_publish_result(status: str, **details: Any) -> None:
+    if not PUBLISH_RESULT_PATH:
+        return
+
+    result = {
+        "status": status,
+        **{key: value for key, value in details.items() if value is not None},
+    }
+    Path(PUBLISH_RESULT_PATH).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+
+
 def main(args):
     app_repo_name = args.app_repo_name
 
@@ -134,7 +188,14 @@ def main(args):
     appid = app_json["appid"]
 
     logging.info("Candidate version for release: %s", app_version)
-    sb_client = Splunkbase(SPLUNKBASE_USER, SPLUNKBASE_PASSWORD)
+    sb_client = Splunkbase(
+        SPLUNKBASE_USER,
+        SPLUNKBASE_PASSWORD,
+        request_context={
+            "repo": app_repo_name,
+            "version": app_version,
+        },
+    )
 
     existing_releases = sb_client.get_existing_releases(appid)
     if existing_releases:
@@ -170,6 +231,13 @@ def main(args):
                 sb_appid=apps[0]["id"],
                 support_tag=apps[0]["support"],
             )
+            _write_publish_result(
+                "already_published",
+                appid=appid,
+                app_name=app_json["name"],
+                release_version=app_version,
+                splunkbase_app_id=apps[0]["id"],
+            )
             return 0
 
         if candidate_version <= latest_release:
@@ -188,6 +256,8 @@ def main(args):
     logging.info(f"GITHUB_WORKSPACE from environment: {workspace}")
 
     release_notes = get_release_notes(app_version, workspace_path)
+    if not release_notes:
+        release_notes = get_release_notes_from_tarball(tarball, app_version)
     if not release_notes:
         logging.error("Could not find release notes in tarball for version %s!", app_version)
         return 1
@@ -229,6 +299,14 @@ def main(args):
             sb_appid=sb_appid,
             support_tag=support_tag,
         )
+        _write_publish_result(
+            "new_app",
+            appid=appid,
+            app_name=app_json["name"],
+            package_id=package_id,
+            release_version=app_version,
+            splunkbase_app_id=sb_appid,
+        )
         sb_client.add_app_editor(sb_appid)
         logging.warning(NEW_APP_WARNING_MESSAGE)
         return 2
@@ -241,9 +319,46 @@ def main(args):
         sb_appid=sb_appid,
         support_tag=apps[0]["support"],
     )
+    _write_publish_result(
+        "published",
+        appid=appid,
+        app_name=app_json["name"],
+        package_id=package_id,
+        release_version=app_version,
+        splunkbase_app_id=sb_appid,
+    )
     return 0
+
+
+def _record_upload_error(status: str, exc: SplunkbaseUploadError) -> int:
+    logging.error("%s: %s", status, exc)
+    _write_publish_result(
+        status,
+        message=str(exc),
+        request_id=exc.request_id,
+        retry_after=exc.retry_after,
+        status_code=exc.status_code,
+    )
+    return RESULT_CODES[status]
+
+
+def cli() -> int:
+    try:
+        return main(parse_args())
+    except SplunkbaseRateLimited as exc:
+        return _record_upload_error("rate_limited", exc)
+    except SplunkbasePermissionDenied as exc:
+        return _record_upload_error("permission_denied", exc)
+    except SplunkbaseAmbiguousUpload as exc:
+        return _record_upload_error("ambiguous", exc)
+    except SplunkbaseValidationFailed as exc:
+        return _record_upload_error("validation_failed", exc)
+    except Exception:
+        logging.exception("Unexpected Splunkbase publisher failure")
+        _write_publish_result("failed")
+        return RESULT_CODES["failed"]
 
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
-    sys.exit(main(parse_args()))
+    sys.exit(cli())

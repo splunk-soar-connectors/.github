@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Optional, Union
 import backoff
 import requests
@@ -13,7 +14,7 @@ SGT_LICENSE_STRING = "Splunk General Terms"
 SGT_LICENSE_URL = "https://www.splunk.com/en_us/legal/splunk-general-terms.html"
 APP_REPO_BASE_URL = "https://github.com/splunk-soar-connectors/"
 
-POST_WITH_FILES_NUM_RETRIES = 10
+READ_REQUEST_NUM_RETRIES = 10
 REQUEST_TIMEOUT = (10, 60)
 USER_AGENT = (
     "Splunk-SOAR-Connector-Publisher/1.0 (+https://github.com/splunk-soar-connectors/.github)"
@@ -29,7 +30,7 @@ SPLUNKBASE_SUCCESSFUL_UPLOAD_RESPONSES = [
 SPLUNKBASE_BASE_URL = f"https://splunkbase.splunk.com/api/{SPLUNKBASE_API_VERSION}/apps"
 SPLUNKBASE_EDITOR_URL = "https://splunkbase.splunk.com/api/v0.1/app/{sb_appid}/editors/"
 SPLUNKBASE_LOGIN_URL = "https://api.splunk.com/2.0/rest/login/splunk"
-STATUS_CODES_TO_RETRY = [403, 429, 500, 502, 503, 504]
+READ_STATUS_CODES_TO_RETRY = [429, 500, 502, 503, 504]
 RESPONSE_MESSAGES_TO_RETRY = [
     "Network error communicating with endpoint",
     "Endpoint request timed out",
@@ -42,7 +43,89 @@ class SplunkbaseResponseError(RuntimeError):
     """Raised when Splunkbase returns a response that cannot be consumed safely."""
 
 
-def _retrying_session(headers=None, auth=None, retry_codes=None):
+class SplunkbaseUploadError(RuntimeError):
+    """Base class for a single failed Splunkbase upload attempt."""
+
+    def __init__(
+        self,
+        message,
+        *,
+        status_code=None,
+        retry_after=None,
+        request_id=None,
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.retry_after = retry_after
+        self.request_id = request_id
+
+
+class SplunkbaseRateLimited(SplunkbaseUploadError):
+    """Raised when Splunkbase rejects the counted attempt with HTTP 429."""
+
+
+class SplunkbasePermissionDenied(SplunkbaseUploadError):
+    """Raised when the publishing identity cannot upload the connector."""
+
+
+class SplunkbaseAmbiguousUpload(SplunkbaseUploadError):
+    """Raised when a counted attempt may have reached Splunkbase."""
+
+
+class SplunkbaseValidationFailed(SplunkbaseUploadError):
+    """Raised when Splunkbase definitively rejects the submitted package."""
+
+
+def build_user_agent(repo=None, version=None, run_id=None, run_attempt=None):
+    """Return a stable, non-secret User-Agent with release correlation fields."""
+
+    fields = {
+        "repo": repo or os.getenv("GITHUB_REPOSITORY", "").split("/")[-1],
+        "version": version,
+        "run": run_id or os.getenv("GITHUB_RUN_ID"),
+        "attempt": run_attempt or os.getenv("GITHUB_RUN_ATTEMPT"),
+    }
+    suffix = " ".join(
+        f"{key}/{str(value).replace(' ', '_')}"
+        for key, value in fields.items()
+        if value not in (None, "")
+    )
+    return f"{USER_AGENT} {suffix}".rstrip()
+
+
+def _request_id(response):
+    normalized_headers = {key.lower(): value for key, value in response.headers.items()}
+    for header in (
+        "x-request-id",
+        "x-correlation-id",
+        "splunk-request-id",
+        "request-id",
+    ):
+        value = normalized_headers.get(header)
+        if value:
+            return value
+    return None
+
+
+def _log_response_metadata(response):
+    metadata = {
+        header: response.headers.get(header)
+        for header in (
+            "Retry-After",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+            "X-Request-ID",
+            "X-Correlation-ID",
+            "Splunk-Request-ID",
+        )
+        if response.headers.get(header)
+    }
+    if metadata:
+        logging.info("Splunkbase response metadata: %s", metadata)
+
+
+def _retrying_session(headers=None, auth=None):
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
     if headers:
@@ -51,16 +134,29 @@ def _retrying_session(headers=None, auth=None, retry_codes=None):
         session.auth = auth
 
     retry = Retry(
-        total=POST_WITH_FILES_NUM_RETRIES,
-        connect=POST_WITH_FILES_NUM_RETRIES,
-        read=POST_WITH_FILES_NUM_RETRIES,
-        status=POST_WITH_FILES_NUM_RETRIES,
-        allowed_methods=frozenset(["GET", "POST"]),
-        status_forcelist=retry_codes or STATUS_CODES_TO_RETRY,
+        total=READ_REQUEST_NUM_RETRIES,
+        connect=READ_REQUEST_NUM_RETRIES,
+        read=READ_REQUEST_NUM_RETRIES,
+        status=READ_REQUEST_NUM_RETRIES,
+        allowed_methods=frozenset(["GET"]),
+        status_forcelist=READ_STATUS_CODES_TO_RETRY,
         backoff_factor=1,
         respect_retry_after_header=True,
         raise_on_status=False,
     )
+    session.mount("https://", HTTPAdapter(max_retries=retry))
+    return session
+
+
+def _single_attempt_session(headers=None, auth=None, user_agent=None):
+    session = requests.Session()
+    session.headers.update({"User-Agent": user_agent or USER_AGENT})
+    if headers:
+        session.headers.update(headers)
+    if auth:
+        session.auth = auth
+
+    retry = Retry(total=0, connect=0, read=0, status=0, redirect=0)
     session.mount("https://", HTTPAdapter(max_retries=retry))
     return session
 
@@ -88,19 +184,65 @@ def _post_request(
     data: Union[str, bytes, bool, list, dict],
     check_response: bool = True,
 ) -> Union[list, dict, str, bool]:
-    session = _retrying_session(headers=headers)
+    session = _single_attempt_session(headers=headers)
     response = session.post(url, data, timeout=REQUEST_TIMEOUT)
     if check_response:
         return _response_json(response)
     return response.json()
 
 
-def _post_request_with_files(headers, url, data, files, check_response=True, retry_codes=None):
-    session = _retrying_session(headers=headers, retry_codes=retry_codes)
-    response = session.post(url, data, files=files, timeout=REQUEST_TIMEOUT)
-    if check_response:
-        return _response_json(response)
-    return response.json()
+def _post_request_with_files(
+    headers,
+    url,
+    data,
+    files,
+    check_response=True,
+    user_agent=None,
+):
+    session = _single_attempt_session(headers=headers, user_agent=user_agent)
+    try:
+        response = session.post(url, data, files=files, timeout=REQUEST_TIMEOUT)
+    except requests.RequestException as exc:
+        raise SplunkbaseAmbiguousUpload(
+            f"Splunkbase upload transport failed after one counted attempt: {exc}"
+        ) from exc
+
+    _log_response_metadata(response)
+    request_id = _request_id(response)
+    if response.status_code == 429:
+        raise SplunkbaseRateLimited(
+            "Splunkbase upload rate limit reached after one counted attempt",
+            status_code=response.status_code,
+            retry_after=response.headers.get("Retry-After"),
+            request_id=request_id,
+        )
+    if response.status_code in (401, 403):
+        raise SplunkbasePermissionDenied(
+            "Splunkbase publishing identity is not permitted to upload this connector",
+            status_code=response.status_code,
+            request_id=request_id,
+        )
+    if response.status_code >= 500:
+        raise SplunkbaseAmbiguousUpload(
+            "Splunkbase returned a server error after one counted attempt",
+            status_code=response.status_code,
+            request_id=request_id,
+        )
+    if not response.ok:
+        raise SplunkbaseValidationFailed(
+            f"Splunkbase rejected the upload: HTTP {response.status_code}: {response.text}",
+            status_code=response.status_code,
+            request_id=request_id,
+        )
+
+    try:
+        return _response_json(response) if check_response else response.json()
+    except SplunkbaseResponseError as exc:
+        raise SplunkbaseAmbiguousUpload(
+            "Splunkbase returned an unreadable response after one counted attempt",
+            status_code=response.status_code,
+            request_id=request_id,
+        ) from exc
 
 
 @backoff.on_exception(backoff.expo, SplunkbaseResponseError, max_time=MAX_MESSAGE_RETRY_TIME)
@@ -115,12 +257,13 @@ def _get_request(url, return_json=True, params=None, headers=None, auth=None, re
 
 
 class Splunkbase:
-    def __init__(self, splunkbase_user, splunkbase_password):
+    def __init__(self, splunkbase_user, splunkbase_password, request_context=None):
         self.env = "PROD"
         self._apps_base_url = SPLUNKBASE_BASE_URL
         self._splunkbase_editor_url = SPLUNKBASE_EDITOR_URL
         self.splunkbase_user = splunkbase_user
         self.splunkbase_password = splunkbase_password
+        self.user_agent = build_user_agent(**(request_context or {}))
         self.auth = self._get_bearer_auth()
 
     def _get_bearer_auth(self) -> Optional[dict[str, str]]:
@@ -148,7 +291,6 @@ class Splunkbase:
             response = response.get("message")
         return response in RESPONSE_MESSAGES_TO_RETRY
 
-    @backoff.on_predicate(backoff.expo, _is_retryable_response, max_time=MAX_MESSAGE_RETRY_TIME)
     def _upload(self, app_repo_name, package_file, url, release_notes, license_string, license_url):
         if not self.auth:
             raise ValueError("Authentication must be configured for POST requests")
@@ -166,11 +308,22 @@ class Splunkbase:
         with open(package_file, "rb") as file:
             logging.info("About to post request with url: %s", url)
             response = _post_request_with_files(
-                self.auth, url, data, {"package_file": file}, True, STATUS_CODES_TO_RETRY
+                self.auth,
+                url,
+                data,
+                {"package_file": file},
+                True,
+                user_agent=self.user_agent,
             )
             if response.get("message", "") in SPLUNKBASE_SUCCESSFUL_UPLOAD_RESPONSES:
                 return response.get("package_id")
-            return response
+            if self._is_retryable_response(response):
+                raise SplunkbaseAmbiguousUpload(
+                    "Splunkbase reported an ambiguous upload result after one counted attempt"
+                )
+            raise SplunkbaseValidationFailed(
+                f"Splunkbase rejected the upload: {response.get('message', response)}"
+            )
 
     @property
     def apps_base_url(self):
