@@ -1,0 +1,14 @@
+[
+  {
+    "repository": "splunk-soar-connectors/example-a",
+    "candidate_version": "1.0.1"
+  },
+  {
+    "repository": "splunk-soar-connectors/example-b",
+    "candidate_version": "2.0.0"
+  },
+  {
+    "repository": "splunk-soar-connectors/example-c",
+    "candidate_version": "3.4.5"
+  }
+]
