@@ -108,6 +108,27 @@ def test_duplicate_enqueue_reuses_one_issue():
     assert queue.get_item(first.issue_number).run_id == 456
 
 
+def test_label_creation_tolerates_another_enqueue_winning_the_race():
+    class RacingLabelClient(FakeGitHubClient):
+        def __init__(self):
+            super().__init__()
+            self.labels.clear()
+
+        def request(self, method, path, **kwargs):
+            if path.endswith("/labels") and method == "POST":
+                self.labels.add(kwargs["json"]["name"])
+                raise RuntimeError("GitHub API returned 422 already_exists")
+            if "/labels/" in path and method == "GET":
+                return {"name": path.rsplit("/", 1)[-1]}
+            return super().request(method, path, **kwargs)
+
+    client = RacingLabelClient()
+
+    GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github").ensure_labels()
+
+    assert client.labels == set(LABELS)
+
+
 def test_oldest_eligible_skips_future_item():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")

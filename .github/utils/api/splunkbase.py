@@ -369,14 +369,17 @@ class Splunkbase:
             app_repo_name, package_file, url, release_notes, license_string, license_url
         )
 
+    def get_upload_status(self, package_id):
+        url = f"{self.apps_base_url}/validation/{package_id}"
+        return _get_request(url, headers=self.auth)
+
     @backoff.on_predicate(
         backoff.expo,
         _is_retryable_status_response,
         max_time=MAX_MESSAGE_RETRY_TIME,
     )
     def check_upload_status(self, package_id):
-        url = f"{self.apps_base_url}/validation/{package_id}"
-        return _get_request(url, headers=self.auth)
+        return self.get_upload_status(package_id)
 
     @staticmethod
     def get_app_id(results_dict, app_guid):

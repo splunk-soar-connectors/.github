@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 from packaging.version import parse
 
@@ -37,6 +38,9 @@ from utils.publish_queue import (
     parse_datetime,
     utc_now,
 )
+
+VERIFICATION_POLL_INTERVAL_SECONDS = 10
+VERIFICATION_POLL_TIMEOUT_SECONDS = 5 * 60
 
 
 def write_output(name: str, value: str | int | bool) -> None:
@@ -203,7 +207,7 @@ def defer_verification(queue, item, result, now, reason) -> int:
     queue.verify(
         item,
         result,
-        now + MIN_ATTEMPT_INTERVAL,
+        now + timedelta(seconds=VERIFICATION_POLL_INTERVAL_SECONDS),
         reason,
     )
     write_output("queue_status", "verifying")
@@ -235,10 +239,9 @@ def interrupted_attempt(item) -> dict | None:
     return result
 
 
-def reconcile_verification(queue, client, item, args, now) -> int:
-    """Reconcile an accepted package using GETs only."""
+def check_verification(queue, client, item, args, result, now) -> int | None:
+    """Perform one GET-only publication check."""
 
-    result = dict(item.verification or {})
     package_id = result.get("package_id")
 
     try:
@@ -248,33 +251,15 @@ def reconcile_verification(queue, client, item, args, now) -> int:
         print("The release listing could not be read; checking the accepted package directly.")
 
     if not package_id:
-        return defer_verification(
-            queue,
-            item,
-            result,
-            now,
-            "An accepted upload has no package ID; waiting for version-only reconciliation.",
-        )
+        return None
 
     try:
-        response = client.check_upload_status(package_id)
+        response = client.get_upload_status(package_id)
     except Exception:
-        return defer_verification(
-            queue,
-            item,
-            result,
-            now,
-            "The accepted package could not be read; GET-only verification will retry.",
-        )
+        return None
 
     if not isinstance(response, dict):
-        return defer_verification(
-            queue,
-            item,
-            result,
-            now,
-            "Splunkbase returned a malformed package status; GET-only verification will retry.",
-        )
+        return None
 
     splunkbase_app_id = response.get("details", {}).get("id")
     if splunkbase_app_id:
@@ -289,13 +274,7 @@ def reconcile_verification(queue, client, item, args, now) -> int:
     if client._is_retryable_response(response) or not Splunkbase.is_definitive_validation_failure(
         response
     ):
-        return defer_verification(
-            queue,
-            item,
-            result,
-            now,
-            "Splunkbase validation is still pending; GET-only verification will retry.",
-        )
+        return None
 
     result["status"] = "validation_failed"
     return block_publication(
@@ -305,6 +284,30 @@ def reconcile_verification(queue, client, item, args, now) -> int:
         f"Splunkbase definitively rejected accepted package {package_id}.",
         return_code=13,
     )
+
+
+def reconcile_verification(queue, client, item, args, _now) -> int:
+    """Poll an accepted package every ten seconds using GETs only."""
+
+    result = dict(item.verification or {})
+    deadline = time.monotonic() + VERIFICATION_POLL_TIMEOUT_SECONDS
+
+    while True:
+        outcome = check_verification(queue, client, item, args, result, utc_now())
+        if outcome is not None:
+            return outcome
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return defer_verification(
+                queue,
+                item,
+                result,
+                utc_now(),
+                "Splunkbase publication was not confirmed within five minutes; "
+                "GET-only verification will retry.",
+            )
+        time.sleep(min(VERIFICATION_POLL_INTERVAL_SECONDS, remaining))
 
 
 def publish_item(args) -> int:
@@ -327,19 +330,15 @@ def publish_item(args) -> int:
 
     interrupted = interrupted_attempt(item)
     if interrupted:
-        try:
-            if version_exists(splunkbase, item.appid, item.candidate_version):
-                return finalize_publication(queue, splunkbase, item, args, interrupted, now)
-        except Exception:
-            pass
-        return defer_verification(
-            queue,
+        item.verification = interrupted
+        queue.verify(
             item,
             interrupted,
             now,
             "A counted upload attempt ended without a durable result; "
-            "GET-only reconciliation will continue until a human authorizes another POST.",
+            "immediate GET-only reconciliation started.",
         )
+        return reconcile_verification(queue, splunkbase, item, args, now)
 
     if version_exists(splunkbase, item.appid, item.candidate_version):
         return finalize_publication(
@@ -394,13 +393,14 @@ def publish_item(args) -> int:
         return finalize_publication(queue, splunkbase, item, args, result, now)
 
     if status == "verifying":
-        return defer_verification(
-            queue,
+        item.verification = result
+        queue.verify(
             item,
             result,
             now,
-            "Splunkbase accepted the upload; GET-only verification will retry.",
+            "Splunkbase accepted the upload; immediate GET-only verification started.",
         )
+        return reconcile_verification(queue, splunkbase, item, args, now)
 
     if status == "rate_limited":
         item.attempts[-1]["outcome"] = "rate_limited"
@@ -421,13 +421,14 @@ def publish_item(args) -> int:
         if version_exists(splunkbase, item.appid, item.candidate_version):
             result["status"] = "reconciled_published"
             return finalize_publication(queue, splunkbase, item, args, result, now)
-        return defer_verification(
-            queue,
+        item.verification = result
+        queue.verify(
             item,
             result,
             now,
-            "The upload result is ambiguous; GET-only reconciliation will retry.",
+            "The upload result is ambiguous; immediate GET-only reconciliation started.",
         )
+        return reconcile_verification(queue, splunkbase, item, args, now)
 
     return block_publication(
         queue,

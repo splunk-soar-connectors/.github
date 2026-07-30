@@ -5,6 +5,8 @@ WORKFLOW = Path(__file__).parent / "workflows" / "publish.yml"
 DRAIN_WORKFLOW = Path(__file__).parent / "workflows" / "drain-splunkbase-publish-queue.yml"
 ENQUEUE_WORKFLOW = Path(__file__).parent / "workflows" / "enqueue-splunkbase-publish.yml"
 ENQUEUE_ACTION = Path(__file__).parent / "actions" / "enqueue-publish" / "action.yml"
+NOTIFY_ACTION = Path(__file__).parent / "actions" / "notify-slack" / "action.yml"
+NOTIFY_SCRIPT = Path(__file__).parent / "actions" / "notify-slack" / "notify_slack.py"
 
 
 def test_enqueue_uses_the_commit_that_created_the_artifact():
@@ -44,6 +46,16 @@ def test_skipped_direct_publish_cannot_trigger_release_slack():
     assert "needs.publish.outputs.return_code != ''" in notify
 
 
+def test_notify_action_uses_the_explicit_connector_workspace():
+    action = NOTIFY_ACTION.read_text()
+    script = NOTIFY_SCRIPT.read_text()
+
+    assert "CONNECTOR_WORKSPACE: ${{ inputs.workspace_path }}" in action
+    assert "GITHUB_WORKSPACE: ${{ inputs.workspace_path }}" not in action
+    assert 'os.getenv("CONNECTOR_WORKSPACE"' in script
+    assert 'os.getenv("GITHUB_WORKSPACE"' in script
+
+
 def test_queue_workflows_execute_self_contained_uv_scripts():
     workflow = DRAIN_WORKFLOW.read_text()
     enqueue_workflow = ENQUEUE_WORKFLOW.read_text()
@@ -70,6 +82,8 @@ def test_queue_workflows_execute_self_contained_uv_scripts():
     assert "uv run .github/scripts/drain_splunkbase_publish_queue.py download" in publish
     assert "uv run .github/scripts/drain_splunkbase_publish_queue.py publish" in publish
     assert "uv run .github/scripts/notify_splunkbase_publish_failure.py" in publish
+    assert "uses: actions/setup-python@v5" not in publish
+    assert 'python -m pip install "uv==0.12.0"' in publish
     assert "uses: astral-sh/setup-uv" not in enqueue_workflow
     assert "uses: actions/setup-python@v5" in enqueue_workflow
     assert 'python -m pip install "uv==0.12.0"' in enqueue_workflow

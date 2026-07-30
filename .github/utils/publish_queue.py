@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
 from typing import Any, Protocol
+from urllib.parse import quote
 
 import requests
 
@@ -223,11 +224,20 @@ class GitHubIssuePublishQueue:
         }
         for name, (color, description) in LABELS.items():
             if name not in existing:
-                self.client.request(
-                    "POST",
-                    f"{self.repo_path}/labels",
-                    json={"name": name, "color": color, "description": description},
-                )
+                try:
+                    self.client.request(
+                        "POST",
+                        f"{self.repo_path}/labels",
+                        json={"name": name, "color": color, "description": description},
+                    )
+                except RuntimeError as create_error:
+                    try:
+                        self.client.request(
+                            "GET",
+                            f"{self.repo_path}/labels/{quote(name, safe='')}",
+                        )
+                    except RuntimeError:
+                        raise create_error
 
     def _issues(self, *, state: str = "open", labels: str = QUEUE_MARKER):
         page = 1
