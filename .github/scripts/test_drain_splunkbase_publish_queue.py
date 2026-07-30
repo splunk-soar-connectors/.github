@@ -12,6 +12,11 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+@pytest.fixture(autouse=True)
+def disable_verification_wait(monkeypatch):
+    monkeypatch.setattr(MODULE, "VERIFICATION_POLL_TIMEOUT_SECONDS", 0)
+
+
 def test_retry_after_supports_seconds_and_http_dates():
     now = MODULE.parse_datetime("2026-07-29T12:00:00Z")
 
@@ -102,7 +107,7 @@ def test_verification_get_failures_do_not_post_or_reserve(monkeypatch, validatio
     queue = Mock()
     client = Mock()
     client.get_existing_releases.return_value = []
-    client.check_upload_status.side_effect = validation_error
+    client.get_upload_status.side_effect = validation_error
     run_publisher = Mock()
     monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
 
@@ -118,6 +123,44 @@ def test_verification_get_failures_do_not_post_or_reserve(monkeypatch, validatio
     queue.verify.assert_called_once()
     queue.reserve_attempt.assert_not_called()
     run_publisher.assert_not_called()
+
+
+def test_verification_polls_every_ten_seconds_until_release_appears(monkeypatch):
+    queue = Mock()
+    client = Mock()
+    client.get_existing_releases.side_effect = [
+        [],
+        [],
+        [{"release_name": "1.2.3"}],
+    ]
+    client.get_upload_status.return_value = {"message": "Package validation still in progress."}
+    client._is_retryable_response.return_value = True
+    client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
+    clock = [0]
+
+    def advance_clock(seconds):
+        assert seconds == 10
+        clock[0] += seconds
+
+    monkeypatch.setattr(MODULE, "VERIFICATION_POLL_TIMEOUT_SECONDS", 300)
+    monkeypatch.setattr(MODULE.time, "monotonic", lambda: clock[0])
+    sleep = Mock(side_effect=advance_clock)
+    monkeypatch.setattr(MODULE.time, "sleep", sleep)
+    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
+
+    result = MODULE.reconcile_verification(
+        queue,
+        client,
+        verifying_item(),
+        finalization_args(),
+        MODULE.parse_datetime("2026-07-29T12:00:00Z"),
+    )
+
+    assert result == 0
+    assert sleep.call_args_list == [((10,),), ((10,),)]
+    assert client.get_upload_status.call_count == 2
+    queue.complete.assert_called_once()
+    queue.reserve_attempt.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -164,7 +207,7 @@ def test_recovery_paths_share_finalization_without_post_or_reserve(
         result = MODULE.publish_item(finalization_args())
 
     assert result == 0
-    client.check_upload_status.assert_not_called()
+    client.get_upload_status.assert_not_called()
     if expected_new_app:
         client.ensure_app_editors.assert_called_once_with("app-123")
     else:
@@ -214,10 +257,6 @@ def test_ambiguous_upload_is_finalized_when_version_appears_without_second_post(
     monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
     monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
     monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-
-    assert MODULE.publish_item(finalization_args()) == 0
-    verification_result = queue.verify.call_args.args[1]
-    item.verification = verification_result
 
     assert MODULE.publish_item(finalization_args()) == 0
 
@@ -305,7 +344,7 @@ def test_app_existence_snapshot_is_persisted_before_publisher_runs(monkeypatch):
 
     assert events == ["recorded", "publisher"]
     assert item.attempts[-1]["app_existed_before_upload"] is False
-    queue.verify.assert_called_once()
+    assert queue.verify.call_count == 2
     assert outputs["queue_status"] == "verifying"
 
 
@@ -339,7 +378,7 @@ def test_continued_pending_validation_does_not_post_or_reserve(monkeypatch):
     queue = Mock()
     client = Mock()
     client.get_existing_releases.return_value = []
-    client.check_upload_status.return_value = {"message": "Package validation still in progress."}
+    client.get_upload_status.return_value = {"message": "Package validation still in progress."}
     client._is_retryable_response.return_value = True
     run_publisher = Mock()
     monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
@@ -362,7 +401,7 @@ def test_definitive_rejection_blocks_without_post_or_reserve(monkeypatch):
     queue = Mock()
     client = Mock()
     client.get_existing_releases.return_value = []
-    client.check_upload_status.return_value = {"message": "Package failed validation."}
+    client.get_upload_status.return_value = {"message": "Package failed validation."}
     client._is_retryable_response.return_value = False
     run_publisher = Mock()
     outputs = {}
@@ -391,7 +430,7 @@ def test_inconclusive_status_does_not_post_or_reserve(monkeypatch, response):
     queue = Mock()
     client = Mock()
     client.get_existing_releases.return_value = []
-    client.check_upload_status.return_value = response
+    client.get_upload_status.return_value = response
     client._is_retryable_response.return_value = False
     run_publisher = Mock()
     monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
