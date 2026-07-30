@@ -45,6 +45,12 @@ def test_drain_is_bounded_to_one_hour_and_twenty_upload_attempts():
     assert "attempts_started < MAX_UPLOAD_ATTEMPTS" in worker
 
 
+def test_drain_runs_once_per_hour():
+    workflow = DRAIN_WORKFLOW.read_text()
+
+    assert 'cron: "0 * * * *"' in workflow
+
+
 def test_skipped_direct_publish_cannot_trigger_release_slack():
     workflow = WORKFLOW.read_text()
     notify = workflow.split("\n  notify-slack:\n", 1)[1]
