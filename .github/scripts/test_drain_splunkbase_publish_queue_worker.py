@@ -31,6 +31,21 @@ def queue_with_items(count):
     return queue
 
 
+def test_worker_logging_uses_only_time_level_and_message(monkeypatch):
+    basic_config = Mock()
+    monkeypatch.setattr(MODULE.logging, "basicConfig", basic_config)
+
+    MODULE.configure_logging()
+
+    basic_config.assert_called_once_with(
+        level=MODULE.logging.INFO,
+        format="{asctime} - {levelname} - {message}",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        style="{",
+        force=True,
+    )
+
+
 def test_connector_checkout_suppresses_routine_git_output(tmp_path, monkeypatch):
     run_checked = Mock()
     destination = tmp_path / "connector"

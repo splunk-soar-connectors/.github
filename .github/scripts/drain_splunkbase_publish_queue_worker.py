@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 import importlib.util
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -30,6 +31,8 @@ REPO_ROOT = SCRIPT_DIR.parent.resolve()
 MAX_RUN_SECONDS = 60 * 60
 MAX_UPLOAD_ATTEMPTS = 20
 LOG_SEPARATOR = "=" * 80
+LOG_FORMAT = "{asctime} - {levelname} - {message}"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def load_module(name: str, path: Path):
@@ -43,6 +46,16 @@ DRAIN = load_module(
     "drain_splunkbase_publish_queue",
     SCRIPT_DIR / "drain_splunkbase_publish_queue.py",
 )
+
+
+def configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        style="{",
+        force=True,
+    )
 
 
 @dataclass
@@ -280,6 +293,7 @@ def drain_queue(_args) -> int:
 
 
 def main() -> int:
+    configure_logging()
     return drain_queue(SimpleNamespace())
 
 

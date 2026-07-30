@@ -7,6 +7,7 @@ import tarfile
 from packaging.version import parse
 import pytest
 import requests
+from unittest.mock import Mock
 
 
 MODULE_PATH = Path(__file__).with_name("upload_to_splunkbase.py")
@@ -15,6 +16,21 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 from utils.api.splunkbase import build_user_agent
+
+
+def test_logging_uses_only_time_level_and_message(monkeypatch):
+    basic_config = Mock()
+    monkeypatch.setattr(MODULE.logging, "basicConfig", basic_config)
+
+    MODULE.configure_logging()
+
+    basic_config.assert_called_once_with(
+        level=MODULE.logging.INFO,
+        format="{asctime} - {levelname} - {message}",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        style="{",
+        force=True,
+    )
 
 
 def test_existing_version_is_only_successful_on_rerun():

@@ -34,6 +34,8 @@ NEW_APP_WARNING_MESSAGE = (
     "Please notify the Splunkbase team. "
     "See: http://go/new-soar-app-in-splunkbase for more."
 )
+LOG_FORMAT = "{asctime} - {levelname} - {message}"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
@@ -50,6 +52,16 @@ RESULT_CODES = {
     "validation_failed": 13,
     "verifying": 14,
 }
+
+
+def configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        style="{",
+        force=True,
+    )
 
 
 def is_successful_rerun_of_existing_version(candidate_version, latest_release, run_attempt=None):
@@ -449,5 +461,5 @@ def cli() -> int:
 
 
 if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
+    configure_logging()
     sys.exit(cli())
