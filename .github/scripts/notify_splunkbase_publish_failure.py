@@ -24,12 +24,7 @@ def build_message(environment: dict[str, str]) -> str:
         lines.append(f"Splunkbase request ID: {request_id}")
     if package_id := environment.get("SPLUNKBASE_PACKAGE_ID"):
         lines.append(f"Splunkbase package ID: {package_id}")
-    lines.extend(
-        [
-            f"Reason: {environment['FAILURE_REASON']}",
-            "Automated by the Codex-authored Splunkbase publish queue.",
-        ]
-    )
+    lines.append(f"Reason: {environment['FAILURE_REASON']}")
     return "\n".join(lines)
 
 

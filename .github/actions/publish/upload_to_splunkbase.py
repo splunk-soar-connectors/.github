@@ -34,6 +34,8 @@ NEW_APP_WARNING_MESSAGE = (
     "Please notify the Splunkbase team. "
     "See: http://go/new-soar-app-in-splunkbase for more."
 )
+LOG_FORMAT = "{asctime} - {levelname} - {message}"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
@@ -50,6 +52,16 @@ RESULT_CODES = {
     "validation_failed": 13,
     "verifying": 14,
 }
+
+
+def configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        style="{",
+        force=True,
+    )
 
 
 def is_successful_rerun_of_existing_version(candidate_version, latest_release, run_attempt=None):
@@ -191,6 +203,14 @@ def _write_publish_result(status: str, **details: Any) -> None:
     Path(PUBLISH_RESULT_PATH).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
+def _fail(reason: str) -> int:
+    """Persist a controlled, public-safe diagnostic for a terminal failure."""
+
+    logging.error(reason)
+    _write_publish_result("failed", failure_reason=reason)
+    return RESULT_CODES["failed"]
+
+
 def _existing_publish_result() -> dict[str, Any]:
     if not PUBLISH_RESULT_PATH:
         return {}
@@ -264,18 +284,16 @@ def main(args):
             )
             apps = sb_client.get_apps({"appid": appid})
             if not apps:
-                logging.error(
-                    "Could not find Splunkbase app metadata for existing version %s", app_version
+                return _fail(
+                    f"Splunkbase app metadata was not found for existing version {app_version}."
                 )
-                return 1
 
             release_notes = get_release_notes(
                 app_version,
                 Path(os.environ["GITHUB_WORKSPACE"]) if os.getenv("GITHUB_WORKSPACE") else None,
             )
             if not release_notes:
-                logging.error("Could not find release notes for existing version %s", app_version)
-                return 1
+                return _fail(f"Release notes were not found for existing version {app_version}.")
 
             _write_github_outputs(
                 app_json,
@@ -296,12 +314,10 @@ def main(args):
             return 0
 
         if candidate_version <= latest_release:
-            logging.error(
-                "Candidate version %s must be greater than the latest released version %s",
-                app_version,
-                latest_release.public,
+            return _fail(
+                f"Candidate version {app_version} must be greater than the latest "
+                f"released version {latest_release.public}."
             )
-            return 1
     else:
         logging.info("Version %s will be the first release", app_version)
 
@@ -314,8 +330,9 @@ def main(args):
     if not release_notes:
         release_notes = get_release_notes_from_tarball(tarball, app_version)
     if not release_notes:
-        logging.error("Could not find release notes in tarball for version %s!", app_version)
-        return 1
+        return _fail(
+            f"Release notes for version {app_version} were not found in the workspace or package."
+        )
 
     logging.info("Found release notes for version %s: %s", app_version, release_notes)
 
@@ -408,6 +425,10 @@ def _record_upload_error(status: str, exc: SplunkbaseUploadError) -> int:
     _write_publish_result(
         status,
         **context,
+        failure_reason={
+            "permission_denied": "Splunkbase denied the upload request.",
+            "validation_failed": "Splunkbase rejected the upload request.",
+        }.get(status),
         message=str(exc),
         request_id=exc.request_id,
         retry_after=exc.retry_after,
@@ -432,10 +453,13 @@ def cli() -> int:
         if _existing_publish_result().get("status") == "verifying":
             logging.error("The upload was already accepted; preserving GET-only verification state")
             return RESULT_CODES["verifying"]
-        _write_publish_result("failed")
+        _write_publish_result(
+            "failed",
+            failure_reason="The publisher raised an unexpected error before completing.",
+        )
         return RESULT_CODES["failed"]
 
 
 if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
+    configure_logging()
     sys.exit(cli())

@@ -428,6 +428,35 @@ def test_pre_upload_metadata_failure_blocks_without_reserving_or_posting(monkeyp
     assert outputs["failure_reason"].startswith("Splunkbase app metadata")
 
 
+def test_terminal_publisher_diagnostic_is_preserved_in_issue_and_output(monkeypatch):
+    queue = Mock()
+    item = interrupted_item()
+    item.attempts = []
+    queue.get_item.return_value = item
+    queue.reserve_attempt.return_value = None
+    client = Mock()
+    client.get_existing_releases.return_value = []
+    client.get_apps.return_value = []
+    reason = "Candidate version 1.0.0 must be greater than the latest released version 1.0.0."
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setattr(
+        MODULE,
+        "run_publisher",
+        lambda args, item: (1, {"status": "failed", "failure_reason": reason}),
+    )
+    outputs = {}
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
+    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+
+    assert MODULE.publish_item(finalization_args()) == 1
+
+    blocked_result = queue.block.call_args.args[1]
+    assert blocked_result["failure_reason"] == reason
+    assert outputs["failure_reason"] == reason
+
+
 def test_continued_pending_validation_does_not_post_or_reserve(monkeypatch):
     queue = Mock()
     client = Mock()

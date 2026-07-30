@@ -25,7 +25,7 @@ def environment(**overrides):
     return values
 
 
-def test_message_contains_tracking_fields_and_codex_attribution():
+def test_message_contains_tracking_fields_and_failure_reason():
     message = MODULE.build_message(environment())
 
     assert "splunk-soar-connectors/example v1.2.3" in message
@@ -37,7 +37,8 @@ def test_message_contains_tracking_fields_and_codex_attribution():
         "<https://github.com/splunk-soar-connectors/.github/actions/runs/12345"
         "|open failed worker run>"
     ) in message
-    assert "Codex-authored" in message
+    assert "Reason: Splunkbase definitively rejected the package." in message
+    assert "Codex" not in message
 
 
 def test_message_omits_splunkbase_ids_before_an_upload():

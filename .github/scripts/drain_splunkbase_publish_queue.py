@@ -246,6 +246,7 @@ def block_publication(queue, item, result, reason, return_code=1) -> int:
     """Persist a terminal failure and expose sanitized notification fields."""
 
     result["worker_run_url"] = worker_run_url()
+    result["failure_reason"] = reason
     queue.block(item, result)
     write_output("publish_return_code", return_code)
     write_output("request_id", result.get("request_id", ""))
@@ -468,7 +469,7 @@ def publish_item(args) -> int:
         queue,
         item,
         result,
-        f"Publisher stopped with terminal status {status}.",
+        result.get("failure_reason") or f"Publisher stopped with terminal status {status}.",
         return_code=return_code,
     )
 

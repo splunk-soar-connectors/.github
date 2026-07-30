@@ -93,7 +93,7 @@ def test_queue_body_round_trip_preserves_dedupe_fields():
 
     assert decoded.dedupe_key == item.dedupe_key
     assert decoded.asset_name == item.asset_name
-    assert "Codex-authored" in _encode_body(item)
+    assert "Created and managed by Splunkbase queue automation." in _encode_body(item)
 
 
 def test_duplicate_enqueue_reuses_one_issue():
@@ -257,6 +257,9 @@ def test_blocked_issue_does_not_publish_raw_response_text():
             "worker_run_url": (
                 "https://github.com/splunk-soar-connectors/.github/actions/runs/12345"
             ),
+            "failure_reason": (
+                "Candidate version 1.0.0 must be greater than the latest released version 1.0.0."
+            ),
             "message": "internal Splunkbase response details",
         },
     )
@@ -264,7 +267,8 @@ def test_blocked_issue_does_not_publish_raw_response_text():
     body = client.issues[0]["body"]
     assert "validation_failed" in body
     assert "request-123" in body
+    assert "Candidate version 1.0.0 must be greater than the latest released version 1.0.0." in body
     assert (
-        "[failed worker run](https://github.com/splunk-soar-connectors/.github/actions/runs/12345)"
+        "[worker run](https://github.com/splunk-soar-connectors/.github/actions/runs/12345)"
     ) in body
     assert "internal Splunkbase response details" not in body
