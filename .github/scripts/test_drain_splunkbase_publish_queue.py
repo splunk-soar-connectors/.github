@@ -29,6 +29,16 @@ def test_retry_after_supports_seconds_and_http_dates():
     )
 
 
+def test_worker_run_url_uses_current_actions_run(monkeypatch):
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.example.com/")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "splunk-soar-connectors/.github")
+    monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+
+    assert MODULE.worker_run_url() == (
+        "https://github.example.com/splunk-soar-connectors/.github/actions/runs/12345"
+    )
+
+
 def test_simulation_deduplicates_and_respects_hourly_budget(tmp_path, capsys):
     queue = [
         {

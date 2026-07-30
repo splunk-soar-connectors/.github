@@ -48,6 +48,7 @@ PUBLIC_RESULT_FIELDS = {
     "release_version",
     "package_id",
     "splunkbase_app_id",
+    "worker_run_url",
 }
 
 
@@ -440,10 +441,17 @@ class GitHubIssuePublishQueue:
             item.attempts[-1].update(public_result)
         else:
             item.attempts.append(public_result)
+        worker_run_url = public_result.get("worker_run_url")
+        note = "Publication stopped without an automatic retry; inspect the worker log."
+        if worker_run_url:
+            note = (
+                "Publication stopped without an automatic retry; inspect the "
+                f"[failed worker run]({worker_run_url})."
+            )
         self._update(
             item,
             state="blocked",
-            note="Publication stopped without an automatic retry; inspect the worker log.",
+            note=note,
         )
 
     def _state_issue(self, publisher_alias: str):

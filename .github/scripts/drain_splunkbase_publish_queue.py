@@ -222,9 +222,19 @@ def defer_verification(queue, item, result, now, reason) -> int:
     return 0
 
 
+def worker_run_url() -> str | None:
+    server_url = os.getenv("GITHUB_SERVER_URL")
+    repository = os.getenv("GITHUB_REPOSITORY")
+    run_id = os.getenv("GITHUB_RUN_ID")
+    if not all((server_url, repository, run_id)):
+        return None
+    return f"{server_url.rstrip('/')}/{repository}/actions/runs/{run_id}"
+
+
 def block_publication(queue, item, result, reason, return_code=1) -> int:
     """Persist a terminal failure and expose sanitized notification fields."""
 
+    result["worker_run_url"] = worker_run_url()
     queue.block(item, result)
     write_output("publish_return_code", return_code)
     write_output("request_id", result.get("request_id", ""))

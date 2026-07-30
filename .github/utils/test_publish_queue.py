@@ -254,6 +254,9 @@ def test_blocked_issue_does_not_publish_raw_response_text():
             "status": "validation_failed",
             "status_code": 422,
             "request_id": "request-123",
+            "worker_run_url": (
+                "https://github.com/splunk-soar-connectors/.github/actions/runs/12345"
+            ),
             "message": "internal Splunkbase response details",
         },
     )
@@ -261,4 +264,7 @@ def test_blocked_issue_does_not_publish_raw_response_text():
     body = client.issues[0]["body"]
     assert "validation_failed" in body
     assert "request-123" in body
+    assert (
+        "[failed worker run](https://github.com/splunk-soar-connectors/.github/actions/runs/12345)"
+    ) in body
     assert "internal Splunkbase response details" not in body
