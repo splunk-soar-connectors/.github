@@ -6,6 +6,63 @@ Splunkbase permits 20 upload attempts per hour for each publishing user, and eve
 multipart upload attempt counts. Connector builds remain parallel, but this queue
 serializes the upload POSTs made by the shared SOAR connector user.
 
+## Publishing flow
+
+The connector-side enqueue action stores the immutable release artifact and sends a
+`repository_dispatch` event to the central `.github` repository. The
+`enqueue-splunkbase-publish.yml` workflow handles that event by creating or updating
+the GitHub issue that represents the queue item. Creating the issue does not start the
+publisher.
+
+The separate `drain-splunkbase-publish-queue.yml` workflow is the central worker. It
+runs on a five-minute schedule and can also be started manually with
+`workflow_dispatch`. Its concurrency group prevents overlapping workers. When a
+publication is definitively blocked, the worker sends an internal Slack warning with
+the connector, version, queue issue, request and package IDs, and failure reason. This
+warning is not gated by `SEND_RELEASE_MESSAGE`.
+
+```mermaid
+flowchart TB
+    A["Connector PR merges"] --> B["Semantic Release builds the new version<br/>and connector artifact"]
+    B --> C{"Publish queue enabled<br/>for this repository?"}
+
+    C -- "No" --> Z["Legacy direct publishing path<br/>(never operate alongside the queue)"]
+    C -- "Yes" --> D["Connector enqueue action stores<br/>the immutable artifact"]
+    D --> E["Connector sends repository_dispatch<br/>to splunk-soar-connectors/.github"]
+    E --> F["Enqueue workflow creates or updates<br/>the GitHub queue issue"]
+
+    F --> G["Central drain workflow<br/>• Scheduled every 5 minutes<br/>• Can be dispatched manually<br/>• Concurrency prevents overlapping workers"]
+    G --> H["Select the oldest eligible queue issue"]
+
+    P["Persistent per-user budget<br/>≤ 1 POST start every 5 minutes<br/>≤ 12 POSTs per rolling hour<br/>Splunkbase limit: 20/hour"] -.-> I
+    H --> I{"Upload slot available?"}
+    I -- "No" --> J["Leave the issue queued"] --> G
+    I -- "Yes" --> K["Persist the attempt and reserve<br/>the upload slot before the POST"]
+    K --> L["Send one multipart upload POST<br/>with User-Agent and trace metadata"]
+
+    L --> M{"Splunkbase response"}
+
+    M -- "Accepted" --> N["Persist package ID and request ID"]
+    M -- "Ambiguous timeout / 5xx" --> O["Enter GET-only reconciliation<br/>No duplicate POST"]
+    M -- "429" --> Q["Requeue after Retry-After + 30 seconds"] --> G
+    M -- "401 / 403 / definitive rejection" --> R["Mark queue issue blocked"]
+
+    R --> S["Send warning to internal Slack<br/>with issue, IDs, and failure reason"]
+    S --> T["Human review"]
+
+    N --> U["Check for the release immediately"]
+    O --> U
+    U --> V{"Release confirmed?"}
+
+    V -- "Yes" --> W["Close queue issue as published"]
+    W --> X["Send release metrics"]
+    X --> Y["Send release announcement to Slack"]
+
+    V -- "No, under 5 minutes" --> AA["Wait 10 seconds"] --> U
+    V -- "No, 5 minutes elapsed" --> AB["Keep issue in verification"]
+    AB --> AC["Next scheduled drain performs<br/>GET-only reconciliation"] --> U
+```
+
 ## Safety properties
 
 The worker starts at most one upload every five minutes and no more than 12 uploads
