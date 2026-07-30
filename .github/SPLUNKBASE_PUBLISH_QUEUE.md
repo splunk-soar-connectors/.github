@@ -1,37 +1,32 @@
-# Splunkbase publish queue
+# Splunkbase connector publishing
 
-This runbook and the queue implementation were written by Codex.
-
-Splunkbase permits 20 upload attempts per hour for each publishing user, and every
-multipart upload attempt counts. Connector builds remain parallel, but this queue
-serializes the upload POSTs made by the shared SOAR connector user.
+Splunk SOAR connector releases use a centralized queue in
+`splunk-soar-connectors/.github` to publish to Splunkbase. The queue provides durable
+publication state, enforces the upload limit for the shared publishing identity, and
+prevents an uncertain upload result from causing a duplicate submission.
 
 ## Publishing flow
 
-The connector-side enqueue action stores the immutable release artifact and sends a
-`repository_dispatch` event to the central `.github` repository. The
-`enqueue-splunkbase-publish.yml` workflow handles that event by creating or updating
-the GitHub issue that represents the queue item. Creating the issue does not start the
-publisher.
+When the queue is enabled for a connector repository, its release workflow stores the
+immutable connector artifact and sends a `repository_dispatch` event to the central
+repository. The `enqueue-splunkbase-publish.yml` workflow handles the event and creates
+or updates the GitHub issue that represents the publication.
 
-The separate `drain-splunkbase-publish-queue.yml` workflow is the central worker. It
-runs on a five-minute schedule and can also be started manually with
-`workflow_dispatch`. Its concurrency group prevents overlapping workers. When a
-publication is definitively blocked, the worker sends an internal Slack warning with
-the connector, version, queue issue, request and package IDs, and failure reason. This
-warning is not gated by `SEND_RELEASE_MESSAGE`.
+The `drain-splunkbase-publish-queue.yml` workflow is the central worker. It runs every
+five minutes and can also be started manually with `workflow_dispatch`. A concurrency
+group allows only one worker to drain the queue at a time.
 
 ```mermaid
 flowchart TB
     A["Connector PR merges"] --> B["Semantic Release builds the new version<br/>and connector artifact"]
     B --> C{"Publish queue enabled<br/>for this repository?"}
 
-    C -- "No" --> Z["Legacy direct publishing path<br/>(never operate alongside the queue)"]
-    C -- "Yes" --> D["Connector enqueue action stores<br/>the immutable artifact"]
-    D --> E["Connector sends repository_dispatch<br/>to splunk-soar-connectors/.github"]
+    C -- "No" --> Z["Publish directly to Splunkbase"]
+    C -- "Yes" --> D["Store the immutable artifact"]
+    D --> E["Send repository_dispatch<br/>to splunk-soar-connectors/.github"]
     E --> F["Enqueue workflow creates or updates<br/>the GitHub queue issue"]
 
-    F --> G["Central drain workflow<br/>• Scheduled every 5 minutes<br/>• Can be dispatched manually<br/>• Concurrency prevents overlapping workers"]
+    F --> G["Central drain workflow<br/>• Runs every 5 minutes<br/>• Supports manual dispatch<br/>• Allows one active worker"]
     G --> H["Select the oldest eligible queue issue"]
 
     P["Persistent per-user budget<br/>≤ 1 POST start every 5 minutes<br/>≤ 12 POSTs per rolling hour<br/>Splunkbase limit: 20/hour"] -.-> I
@@ -63,112 +58,103 @@ flowchart TB
     AB --> AC["Next scheduled drain performs<br/>GET-only reconciliation"] --> U
 ```
 
-## Safety properties
+## Queue model
 
-The worker starts at most one upload every five minutes and no more than 12 uploads
-during the preceding hour. It records a slot before making the POST. A worker restart
-therefore cannot reset the budget. Read-only Splunkbase requests retain bounded retries,
-but multipart upload POSTs have no automatic retries.
+Each publication is represented by:
 
-Queue items are GitHub issues in this repository. Artifacts are uniquely named assets on
-the `splunkbase-publish-queue` prerelease. Both contain only public connector and
-operational metadata; credentials remain in GitHub Actions secrets. The deduplication
-key is publishing-user alias, repository, and connector version.
+- A GitHub issue containing the connector, version, source run, current state, and
+  non-secret Splunkbase identifiers.
+- An immutable connector artifact stored on the `splunkbase-publish-queue` prerelease.
+- A deduplication key composed of the publishing-user alias, repository, and connector
+  version.
+
+The queue processes the oldest eligible issue. Publication credentials remain in
+GitHub Actions secrets and are not stored in issues or release assets.
+
+## Upload budget
+
+Splunkbase permits 20 upload attempts per hour for each publishing user, and every
+multipart upload attempt counts. The queue starts at most one upload every five minutes
+and no more than 12 during the preceding hour.
+
+The worker records an upload slot before making the POST, so a restart cannot reset the
+budget. A single worker run does not retry a multipart upload POST. HTTP 429 responses
+schedule another queue attempt after `Retry-After` plus 30 seconds. Ambiguous transport
+results enter GET-only reconciliation and do not authorize another POST.
+
+Manual uploads must not use the same publishing identity while the queue is enabled
+because they are not represented in the persisted budget.
+
+## Publication verification
+
+After Splunkbase accepts an upload, the queue persists the package and request IDs and
+checks for the release immediately. It checks every 10 seconds for up to five minutes.
+If publication is still not confirmed, the issue remains in verification and a later
+worker continues with GET requests only.
+
+Release metrics and the standard Slack release announcement are sent only after the
+connector version is confirmed on Splunkbase.
+
+## Failure handling
+
+| Condition | Queue behavior | Notification |
+| --- | --- | --- |
+| HTTP 429 | Requeue after `Retry-After` plus 30 seconds | None |
+| Ambiguous timeout or server response | Continue GET-only reconciliation | None |
+| Validation still pending or response unreadable | Keep the issue in verification | None |
+| HTTP 401 or 403 | Block the issue for human review | Internal Slack warning |
+| Definitive validation rejection | Block the issue for human review | Internal Slack warning |
+
+An active publication has a 15-minute lease. If the worker stops after recording an
+attempt, the next eligible worker treats its result as ambiguous and performs GET-only
+reconciliation.
+
+The internal blocked-publication warning includes the connector, version, queue issue,
+request ID, package ID, and failure reason. It is independent of
+`SEND_RELEASE_MESSAGE`, which controls standard release announcements.
+
+Blocked issues remain open until an operator resolves the cause and explicitly
+authorizes another queue attempt. An operator must not retry the multipart POST
+directly.
 
 ## Configuration
 
-After this change merges, open
-`splunk-soar-connectors/.github` → **Settings** → **Secrets and variables** →
-**Actions**.
+The queue path is selected when `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=true` is available to
+both the connector repository and `splunk-soar-connectors/.github`. If the variable is
+unset or `false`, the connector uses direct publication. Direct publication and queued
+publication must not run simultaneously under the same Splunkbase identity.
 
-Under **Secrets**, add these repository secrets, or grant this repository access to the
-existing organization secrets with the same names:
+The central repository uses the following Actions secrets:
 
-- `SPLUNKBASE_USER`: the shared connector publishing username
-- `SPLUNKBASE_PASSWORD`: the shared connector publishing password
-
-Slack configuration is optional. If release notifications must remain enabled, also
-make these secrets available to this repository:
-
+- `SPLUNKBASE_USER`
+- `SPLUNKBASE_PASSWORD`
 - `SLACK_INTERNAL_TOKEN`
 - `SLACK_COMMUNITY_TOKEN`
 
-Under **Variables**, make the existing channel configuration available when Slack
-notifications are enabled:
+Slack behavior uses the following Actions variables:
 
 - `SLACK_INTERNAL_CHANNEL_ID`
 - `SLACK_COMMUNITY_CHANNEL_ID`
-- `SEND_RELEASE_MESSAGE=true`
+- `SEND_RELEASE_MESSAGE`
 
-The enqueue job reuses the GitHub App `splunk-soar-semantic-release` (App ID `1190653`).
-Connector workflows supply its ID through the existing `SEMANTIC_RELEASE_APP_ID`
-organization variable and pass its private key through `SEMANTIC_RELEASE_PK`. This App
-has `contents:write`, `metadata:read`, and `pull_requests:write` across the connector
-organization. The queue uses only `contents:write` on
-`splunk-soar-connectors/.github`; it does not need issue, Actions, check, or status
-permissions. No GitHub App permission change is required for this queue. The central
-workflow uses its repository-scoped `GITHUB_TOKEN`, with `issues:write` declared in the
-workflow, to create and update queue issues.
+The connector release workflow uses `SEMANTIC_RELEASE_APP_ID` and
+`SEMANTIC_RELEASE_PK` to obtain a token for storing the queue artifact and sending the
+enqueue event. The GitHub App requires `contents:write` on
+`splunk-soar-connectors/.github`. The central workflows use their repository-scoped
+`GITHUB_TOKEN` with `issues:write` to manage queue issues.
 
-Keep `SPLUNKBASE_PUBLISH_QUEUE_ENABLED` unset or `false` while configuring. The reusable
-workflow continues to publish directly in that state, with one upload POST per job.
+CrowdSec remains excluded until its Splunkbase publishing-user invitation is accepted.
+Microsoft OneDrive v2 remains excluded from queued publication.
 
-For the canary:
+## Tracing
 
-1. In each of the five approved connector repositories, open **Settings** →
-   **Secrets and variables** → **Actions** → **Variables** and add
-   `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=true`.
-2. In `splunk-soar-connectors/.github`, add the same repository variable with value
-   `true`. This enables the scheduled central worker.
-3. After the canary passes, make `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=true` available to
-   all connector repositories, preferably as one organization variable, while keeping
-   it available to this central repository.
+Splunkbase uploads use the `Splunk-SOAR-Connector-Publisher/1.0` User-Agent and include
+the connector repository, version, source workflow run, and source attempt. The queue
+issue records package and request IDs when Splunkbase provides them.
 
-No other repository setting needs to change. Issues and Actions are already enabled,
-the required actions are already allowlisted, and the repository's `GITHUB_TOKEN`
-already has read/write workflow permissions.
+## Disabling the queue
 
-## Canary
+Set `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=false` and wait for any active worker to finish
+before resuming direct publication with the same Splunkbase identity.
 
-Enqueue five approved connector versions together. Verify:
-
-1. Five open issues appear with `splunkbase-publish` and `splunkbase-queued`.
-2. The state issue records no starts less than five minutes apart.
-3. Each successful issue closes with `splunkbase-published`.
-4. Metrics and Slack notifications run only after the worker confirms publication.
-5. Splunkbase logs show the stable `Splunk-SOAR-Connector-Publisher/1.0` User-Agent plus
-   repository, version, source run, and source attempt fields.
-
-Do not canary CrowdSec until its publishing-user invitation is accepted. Do not use
-Microsoft OneDrive v2 as a canary.
-
-## Recovery
-
-An active item carries a 15-minute lease. If a worker dies, the item becomes eligible
-again after the lease. If a counted attempt was started, the next worker treats the
-outcome as ambiguous and performs GET-only reconciliation; it does not reserve another
-slot or issue another POST. The app-existence snapshot is persisted before the publisher
-runs so a newly created app can still receive its editors during recovery.
-
-HTTP 429 requeues the item after `Retry-After` plus 30 seconds and makes no second POST.
-HTTP 401 or 403 and definitive validation failures leave the issue open with
-`splunkbase-blocked`. Once Splunkbase accepts a POST, the worker immediately persists
-the package and request IDs and moves any inconclusive status check to
-`splunkbase-verifying`. Verification workers use only release-list and package-status
-GETs; they neither reserve another upload slot nor send another multipart POST.
-Continued validation, timeouts, exhausted server-error retries, and unreadable
-responses remain in verification. The issue closes when the version appears or the
-package validates, while a definitive rejection transitions to `splunkbase-blocked`
-and fails the worker job.
-
-To retry a corrected blocked item, preserve its JSON body, replace
-`splunkbase-blocked` with `splunkbase-queued`, and set `not_before` to the current UTC
-time. To explicitly retry an interrupted attempt whose result never became durable,
-replace `splunkbase-verifying` with `splunkbase-queued`, clear `verification`, and change
-its latest attempt `outcome` from `started` to `retry_authorized`. Do not rerun a POST
-manually under the same user while the queue is enabled, because manual attempts are
-invisible to the persisted budget.
-
-To disable the queue, set `SPLUNKBASE_PUBLISH_QUEUE_ENABLED` to `false`. Wait for any
-active worker to finish before using direct publication. Do not operate both paths
-simultaneously under the same Splunkbase user.
+_This documentation was written by Codex._
