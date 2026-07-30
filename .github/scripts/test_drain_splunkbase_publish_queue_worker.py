@@ -31,6 +31,55 @@ def queue_with_items(count):
     return queue
 
 
+def test_connector_checkout_suppresses_routine_git_output(tmp_path, monkeypatch):
+    run_checked = Mock()
+    destination = tmp_path / "connector"
+    monkeypatch.setattr(MODULE, "run_checked", run_checked)
+
+    MODULE.checkout_connector(
+        "splunk-soar-connectors/example",
+        "abc123",
+        destination,
+    )
+
+    commands = [call.args[0] for call in run_checked.call_args_list]
+    assert commands[0] == [
+        "git",
+        "init",
+        "--quiet",
+        "--initial-branch=main",
+        str(destination),
+    ]
+    assert "--quiet" in commands[2]
+    assert "--quiet" in commands[3]
+
+
+def test_worker_log_separates_repository_results(monkeypatch, capsys):
+    queue = queue_with_items(1)
+    process_item = Mock(
+        return_value=MODULE.ItemOutcome(
+            queue_status="blocked",
+            attempts_started=0,
+            failed=True,
+        )
+    )
+    monkeypatch.setattr(MODULE.DRAIN, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "process_item", process_item)
+    monkeypatch.setattr(MODULE.time, "monotonic", lambda: 0)
+
+    assert MODULE.drain_queue(SimpleNamespace()) == 1
+
+    output = capsys.readouterr().out
+    assert (
+        f"{MODULE.LOG_SEPARATOR}\n"
+        "Queue issue #1 | splunk-soar-connectors/example-1 v1.0.0\n"
+        f"{MODULE.LOG_SEPARATOR}"
+    ) in output
+    assert (
+        f"{MODULE.LOG_SEPARATOR}\nFinished splunk-soar-connectors/example-1 v1.0.0: blocked"
+    ) in output
+
+
 def test_drain_stops_after_twenty_started_upload_attempts(monkeypatch):
     queue = queue_with_items(MODULE.MAX_UPLOAD_ATTEMPTS + 1)
     process_item = Mock(

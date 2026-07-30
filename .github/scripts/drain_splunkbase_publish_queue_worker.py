@@ -29,6 +29,7 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = SCRIPT_DIR.parent.resolve()
 MAX_RUN_SECONDS = 60 * 60
 MAX_UPLOAD_ATTEMPTS = 20
+LOG_SEPARATOR = "=" * 80
 
 
 def load_module(name: str, path: Path):
@@ -67,7 +68,7 @@ def run_checked(command: list[str], *, cwd: Path | None = None, env=None) -> Non
 
 
 def checkout_connector(repository: str, commit_sha: str, destination: Path) -> None:
-    run_checked(["git", "init", str(destination)])
+    run_checked(["git", "init", "--quiet", "--initial-branch=main", str(destination)])
     run_checked(
         [
             "git",
@@ -85,12 +86,13 @@ def checkout_connector(repository: str, commit_sha: str, destination: Path) -> N
             "-C",
             str(destination),
             "fetch",
+            "--quiet",
             "--depth=2",
             "origin",
             commit_sha,
         ]
     )
-    run_checked(["git", "-C", str(destination), "checkout", "--detach", "FETCH_HEAD"])
+    run_checked(["git", "-C", str(destination), "checkout", "--quiet", "--detach", "FETCH_HEAD"])
 
 
 def send_release_metrics(outputs: dict[str, str], connector: Path, temporary: Path) -> None:
@@ -249,10 +251,19 @@ def drain_queue(_args) -> int:
             break
 
         print(
-            f"Processing queue issue #{item.issue_number}: "
-            f"{item.repository} v{item.candidate_version}"
+            f"\n{LOG_SEPARATOR}\n"
+            f"Queue issue #{item.issue_number} | "
+            f"{item.repository} v{item.candidate_version}\n"
+            f"{LOG_SEPARATOR}",
+            flush=True,
         )
         outcome = process_item(queue, item, wait_until)
+        print(
+            f"{LOG_SEPARATOR}\n"
+            f"Finished {item.repository} v{item.candidate_version}: "
+            f"{outcome.queue_status}\n",
+            flush=True,
+        )
         attempts_started += outcome.attempts_started
         items_processed += 1
         had_failures = had_failures or outcome.failed
