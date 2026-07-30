@@ -14,6 +14,7 @@ def environment(**overrides):
         "SLACK_INTERNAL_TOKEN": "token",
         "SLACK_INTERNAL_CHANNEL": "C123",
         "QUEUE_ISSUE_URL": "https://github.com/splunk-soar-connectors/.github/issues/10",
+        "WORKER_RUN_URL": ("https://github.com/splunk-soar-connectors/.github/actions/runs/12345"),
         "CONNECTOR_REPOSITORY": "splunk-soar-connectors/example",
         "CONNECTOR_VERSION": "1.2.3",
         "SPLUNKBASE_REQUEST_ID": "request-123",
@@ -31,7 +32,20 @@ def test_message_contains_tracking_fields_and_codex_attribution():
     assert "request-123" in message
     assert "package-123" in message
     assert "/issues/10" in message
+    assert (
+        "Failed workflow: "
+        "<https://github.com/splunk-soar-connectors/.github/actions/runs/12345"
+        "|open failed worker run>"
+    ) in message
     assert "Codex-authored" in message
+
+
+def test_message_omits_splunkbase_ids_before_an_upload():
+    message = MODULE.build_message(environment(SPLUNKBASE_REQUEST_ID="", SPLUNKBASE_PACKAGE_ID=""))
+
+    assert "request ID" not in message
+    assert "package ID" not in message
+    assert "unavailable" not in message
 
 
 def test_main_posts_one_internal_notification(monkeypatch):

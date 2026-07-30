@@ -122,6 +122,7 @@ jobs:
           SLACK_INTERNAL_TOKEN: ${{ secrets.SLACK_INTERNAL_TOKEN }}
           SLACK_INTERNAL_CHANNEL: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}
           QUEUE_ISSUE_URL: https://github.com/${{ github.repository }}/issues/${{ needs.select.outputs.issue_number }}
+          WORKER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           CONNECTOR_REPOSITORY: ${{ needs.select.outputs.repository }}
           CONNECTOR_VERSION: ${{ needs.select.outputs.candidate_version }}
           SPLUNKBASE_REQUEST_ID: ${{ steps.publish.outputs.request_id }}
