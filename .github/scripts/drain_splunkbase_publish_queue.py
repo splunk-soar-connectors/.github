@@ -98,6 +98,17 @@ def retry_after_datetime(value: str | None, now: datetime) -> datetime:
             return now + MIN_ATTEMPT_INTERVAL
 
 
+def wait_for_upload_budget(queue, item, now, wait_until=None):
+    retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
+    while retry_at and wait_until and retry_at < wait_until:
+        wait_seconds = max((retry_at - now).total_seconds(), 0)
+        print(f"Upload budget unavailable until {format_datetime(retry_at)}; waiting.")
+        time.sleep(wait_seconds)
+        now = utc_now()
+        retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
+    return now, retry_at
+
+
 def version_exists(client: Splunkbase, appid: str, version: str) -> bool:
     return any(
         parse(str(release["release_name"])) == parse(version)
@@ -167,6 +178,12 @@ def finalize_publication(queue, client, item, args, result, now) -> int:
             raise RuntimeError(f"Expected one Splunkbase app for {item.appid}, found {len(apps)}")
         app = apps[0]
         new_app = not result.get("app_existed_before_upload", True)
+        previous_release_version = result.get("previous_release_version")
+        if not new_app and not previous_release_version:
+            previous_release_version = publisher.get_previous_release_version(
+                client.get_existing_releases(item.appid),
+                item.candidate_version,
+            )
         if new_app:
             client.ensure_app_editors(app["id"])
 
@@ -183,6 +200,7 @@ def finalize_publication(queue, client, item, args, result, now) -> int:
         write_output("app_logo", app_json["logo"])
         write_output("repo_name", item.repository.split("/")[-1])
         write_output("release_version", item.candidate_version)
+        write_output("previous_release_version", previous_release_version or "")
         write_output("release_notes", json.dumps(release_notes.split("\n")))
         write_output("new_app", new_app)
         write_output("publish_return_code", 2 if new_app else 0)
@@ -215,9 +233,20 @@ def defer_verification(queue, item, result, now, reason) -> int:
     return 0
 
 
+def worker_run_url() -> str | None:
+    server_url = os.getenv("GITHUB_SERVER_URL")
+    repository = os.getenv("GITHUB_REPOSITORY")
+    run_id = os.getenv("GITHUB_RUN_ID")
+    if not all((server_url, repository, run_id)):
+        return None
+    return f"{server_url.rstrip('/')}/{repository}/actions/runs/{run_id}"
+
+
 def block_publication(queue, item, result, reason, return_code=1) -> int:
     """Persist a terminal failure and expose sanitized notification fields."""
 
+    result["worker_run_url"] = worker_run_url()
+    result["failure_reason"] = reason
     queue.block(item, result)
     write_output("publish_return_code", return_code)
     write_output("request_id", result.get("request_id", ""))
@@ -363,7 +392,12 @@ def publish_item(args) -> int:
             "Splunkbase app metadata could not be read before upload; no POST was attempted.",
         )
 
-    retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
+    now, retry_at = wait_for_upload_budget(
+        queue,
+        item,
+        now,
+        getattr(args, "wait_for_budget_until", None),
+    )
     if retry_at:
         queue.requeue(
             item,
@@ -371,6 +405,7 @@ def publish_item(args) -> int:
             f"Per-user upload budget is unavailable until {format_datetime(retry_at)}.",
         )
         write_output("queue_status", "deferred")
+        write_output("not_before", format_datetime(retry_at))
         print(f"Upload budget unavailable until {format_datetime(retry_at)}.")
         return 0
 
@@ -434,7 +469,7 @@ def publish_item(args) -> int:
         queue,
         item,
         result,
-        f"Publisher stopped with terminal status {status}.",
+        result.get("failure_reason") or f"Publisher stopped with terminal status {status}.",
         return_code=return_code,
     )
 

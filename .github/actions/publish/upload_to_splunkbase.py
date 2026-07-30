@@ -34,6 +34,8 @@ NEW_APP_WARNING_MESSAGE = (
     "Please notify the Splunkbase team. "
     "See: http://go/new-soar-app-in-splunkbase for more."
 )
+LOG_FORMAT = "{asctime} - {levelname} - {message}"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 SPLUNKBASE_USER = os.getenv("SPLUNKBASE_USER")
 SPLUNKBASE_PASSWORD = os.getenv("SPLUNKBASE_PASSWORD")
@@ -52,9 +54,29 @@ RESULT_CODES = {
 }
 
 
+def configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        style="{",
+        force=True,
+    )
+
+
 def is_successful_rerun_of_existing_version(candidate_version, latest_release, run_attempt=None):
     attempt = int(run_attempt or os.getenv("GITHUB_RUN_ATTEMPT", "1"))
     return candidate_version == latest_release and attempt > 1
+
+
+def get_previous_release_version(existing_releases, candidate_version):
+    candidate = parse(candidate_version)
+    previous_versions = [
+        release["release_name"]
+        for release in existing_releases
+        if parse(release["release_name"]) < candidate
+    ]
+    return max(previous_versions, key=parse) if previous_versions else None
 
 
 def parse_args() -> argparse.Namespace:
@@ -146,6 +168,7 @@ def _write_github_outputs(
     new_app: bool,
     sb_appid: str,
     support_tag: str,
+    previous_release_version: Optional[str],
 ) -> None:
     github_output = os.getenv("GITHUB_OUTPUT")
     if not github_output:
@@ -160,6 +183,7 @@ def _write_github_outputs(
         f.write(f"app_logo={app_json['logo']}\n")
         f.write(f"repo_name={repo_name}\n")
         f.write(f"release_version={app_json['app_version']}\n")
+        f.write(f"previous_release_version={previous_release_version or ''}\n")
         f.write(f"new_app={'true' if new_app else 'false'}\n")
         f.write(f"support_tag={support_tag}\n")
         f.write(f"splunk_base_url={splunk_base_url}\n")
@@ -177,6 +201,14 @@ def _write_publish_result(status: str, **details: Any) -> None:
         **{key: value for key, value in details.items() if value is not None},
     }
     Path(PUBLISH_RESULT_PATH).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+
+
+def _fail(reason: str) -> int:
+    """Persist a controlled, public-safe diagnostic for a terminal failure."""
+
+    logging.error(reason)
+    _write_publish_result("failed", failure_reason=reason)
+    return RESULT_CODES["failed"]
 
 
 def _existing_publish_result() -> dict[str, Any]:
@@ -239,6 +271,7 @@ def main(args):
     )
 
     existing_releases = sb_client.get_existing_releases(appid)
+    previous_release_version = get_previous_release_version(existing_releases, app_version)
     if existing_releases:
         latest_release = max(parse(r["release_name"]) for r in existing_releases)
         logging.info("Latest released version: %s", latest_release.public)
@@ -251,18 +284,16 @@ def main(args):
             )
             apps = sb_client.get_apps({"appid": appid})
             if not apps:
-                logging.error(
-                    "Could not find Splunkbase app metadata for existing version %s", app_version
+                return _fail(
+                    f"Splunkbase app metadata was not found for existing version {app_version}."
                 )
-                return 1
 
             release_notes = get_release_notes(
                 app_version,
                 Path(os.environ["GITHUB_WORKSPACE"]) if os.getenv("GITHUB_WORKSPACE") else None,
             )
             if not release_notes:
-                logging.error("Could not find release notes for existing version %s", app_version)
-                return 1
+                return _fail(f"Release notes were not found for existing version {app_version}.")
 
             _write_github_outputs(
                 app_json,
@@ -271,6 +302,7 @@ def main(args):
                 new_app=False,
                 sb_appid=apps[0]["id"],
                 support_tag=apps[0]["support"],
+                previous_release_version=previous_release_version,
             )
             _write_publish_result(
                 "already_published",
@@ -282,12 +314,10 @@ def main(args):
             return 0
 
         if candidate_version <= latest_release:
-            logging.error(
-                "Candidate version %s must be greater than the latest released version %s",
-                app_version,
-                latest_release.public,
+            return _fail(
+                f"Candidate version {app_version} must be greater than the latest "
+                f"released version {latest_release.public}."
             )
-            return 1
     else:
         logging.info("Version %s will be the first release", app_version)
 
@@ -300,8 +330,9 @@ def main(args):
     if not release_notes:
         release_notes = get_release_notes_from_tarball(tarball, app_version)
     if not release_notes:
-        logging.error("Could not find release notes in tarball for version %s!", app_version)
-        return 1
+        return _fail(
+            f"Release notes for version {app_version} were not found in the workspace or package."
+        )
 
     logging.info("Found release notes for version %s: %s", app_version, release_notes)
 
@@ -313,6 +344,7 @@ def main(args):
         "appid": appid,
         "app_existed_before_upload": bool(apps),
         "app_name": app_json["name"],
+        "previous_release_version": previous_release_version,
         "release_version": app_version,
     }
     _write_publish_result("uploading", **publish_details)
@@ -355,6 +387,7 @@ def main(args):
             new_app=True,
             sb_appid=sb_appid,
             support_tag=support_tag,
+            previous_release_version=None,
         )
         _write_publish_result(
             "new_app",
@@ -372,6 +405,7 @@ def main(args):
         new_app=False,
         sb_appid=sb_appid,
         support_tag=apps[0]["support"],
+        previous_release_version=previous_release_version,
     )
     _write_publish_result(
         "published",
@@ -391,6 +425,10 @@ def _record_upload_error(status: str, exc: SplunkbaseUploadError) -> int:
     _write_publish_result(
         status,
         **context,
+        failure_reason={
+            "permission_denied": "Splunkbase denied the upload request.",
+            "validation_failed": "Splunkbase rejected the upload request.",
+        }.get(status),
         message=str(exc),
         request_id=exc.request_id,
         retry_after=exc.retry_after,
@@ -415,10 +453,13 @@ def cli() -> int:
         if _existing_publish_result().get("status") == "verifying":
             logging.error("The upload was already accepted; preserving GET-only verification state")
             return RESULT_CODES["verifying"]
-        _write_publish_result("failed")
+        _write_publish_result(
+            "failed",
+            failure_reason="The publisher raised an unexpected error before completing.",
+        )
         return RESULT_CODES["failed"]
 
 
 if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
+    configure_logging()
     sys.exit(cli())

@@ -14,22 +14,18 @@ import requests
 
 
 def build_message(environment: dict[str, str]) -> str:
-    request_id = environment.get("SPLUNKBASE_REQUEST_ID") or "unavailable"
-    package_id = environment.get("SPLUNKBASE_PACKAGE_ID") or "unavailable"
-    return "\n".join(
-        [
-            ":warning: Splunkbase connector publication blocked",
-            (
-                f"Repository: {environment['CONNECTOR_REPOSITORY']} "
-                f"v{environment['CONNECTOR_VERSION']}"
-            ),
-            f"Queue item: {environment['QUEUE_ISSUE_URL']}",
-            f"Request ID: {request_id}",
-            f"Package ID: {package_id}",
-            f"Reason: {environment['FAILURE_REASON']}",
-            "Automated by the Codex-authored Splunkbase publish queue.",
-        ]
-    )
+    lines = [
+        ":warning: Splunkbase connector publication blocked",
+        (f"Repository: {environment['CONNECTOR_REPOSITORY']} v{environment['CONNECTOR_VERSION']}"),
+        f"Queue item: {environment['QUEUE_ISSUE_URL']}",
+        f"Failed workflow: <{environment['WORKER_RUN_URL']}|open failed worker run>",
+    ]
+    if request_id := environment.get("SPLUNKBASE_REQUEST_ID"):
+        lines.append(f"Splunkbase request ID: {request_id}")
+    if package_id := environment.get("SPLUNKBASE_PACKAGE_ID"):
+        lines.append(f"Splunkbase package ID: {package_id}")
+    lines.append(f"Reason: {environment['FAILURE_REASON']}")
+    return "\n".join(lines)
 
 
 def main() -> None:

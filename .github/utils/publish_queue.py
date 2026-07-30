@@ -23,13 +23,13 @@ QUEUE_STATES = {
 STATE_LABEL = "splunkbase-publish-state"
 BODY_START = "<!-- splunkbase-publish-queue-json"
 BODY_END = "splunkbase-publish-queue-json -->"
-MAX_ATTEMPTS_PER_HOUR = 12
-MIN_ATTEMPT_INTERVAL = timedelta(minutes=5)
+MAX_ATTEMPTS_PER_HOUR = 20
+MIN_ATTEMPT_INTERVAL = timedelta(minutes=3)
 
 LABELS = {
-    QUEUE_MARKER: ("5319e7", "Managed by Codex-authored Splunkbase queue automation."),
+    QUEUE_MARKER: ("5319e7", "Managed by Splunkbase queue automation."),
     QUEUE_STATES["queued"]: ("fbca04", "Waiting for the shared Splunkbase publishing user."),
-    QUEUE_STATES["active"]: ("1d76db", "A Codex-authored worker is processing this publication."),
+    QUEUE_STATES["active"]: ("1d76db", "A worker is processing this publication."),
     QUEUE_STATES["verifying"]: (
         "bfd4f2",
         "Splunkbase accepted the upload; only GET reconciliation is permitted.",
@@ -37,7 +37,7 @@ LABELS = {
     QUEUE_STATES["rate_limited"]: ("d93f0b", "Splunkbase asked the shared user to wait."),
     QUEUE_STATES["blocked"]: ("b60205", "Publication needs human intervention."),
     QUEUE_STATES["published"]: ("0e8a16", "The connector version is present on Splunkbase."),
-    STATE_LABEL: ("c5def5", "Rate ledger for the Codex-authored Splunkbase queue."),
+    STATE_LABEL: ("c5def5", "Rate ledger for the Splunkbase queue."),
 }
 PUBLIC_RESULT_FIELDS = {
     "app_existed_before_upload",
@@ -48,6 +48,8 @@ PUBLIC_RESULT_FIELDS = {
     "release_version",
     "package_id",
     "splunkbase_app_id",
+    "worker_run_url",
+    "failure_reason",
 }
 
 
@@ -148,7 +150,7 @@ class GitHubClient:
                 "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {token}",
                 "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "Splunk-SOAR-Publish-Queue/1.0 (Codex-authored)",
+                "User-Agent": "Splunk-SOAR-Publish-Queue/1.0",
             }
         )
 
@@ -186,7 +188,7 @@ class GitHubClient:
 def _encode_body(item: PublishQueueItem, note: str | None = None) -> str:
     note_text = f"\n\nStatus note: {note}" if note else ""
     return (
-        "Created and managed by Codex-authored Splunkbase queue automation."
+        "Created and managed by Splunkbase queue automation."
         f"{note_text}\n\n{BODY_START}\n"
         f"{json.dumps(item.as_dict(), indent=2, sort_keys=True)}\n"
         f"{BODY_END}\n"
@@ -440,10 +442,15 @@ class GitHubIssuePublishQueue:
             item.attempts[-1].update(public_result)
         else:
             item.attempts.append(public_result)
+        worker_run_url = public_result.get("worker_run_url")
+        reason = public_result.get("failure_reason")
+        note = reason or "Publication stopped without an automatic retry."
+        if worker_run_url:
+            note = f"{note} See the [worker run]({worker_run_url})."
         self._update(
             item,
             state="blocked",
-            note="Publication stopped without an automatic retry; inspect the worker log.",
+            note=note,
         )
 
     def _state_issue(self, publisher_alias: str):
@@ -457,7 +464,7 @@ class GitHubIssuePublishQueue:
             json={
                 "title": title,
                 "body": (
-                    "Managed by Codex-authored Splunkbase queue automation.\n\n"
+                    "Managed by Splunkbase queue automation.\n\n"
                     f"{BODY_START}\n"
                     f"{json.dumps({'publisher_alias': publisher_alias, 'attempts': []}, indent=2)}\n"
                     f"{BODY_END}\n"
@@ -505,7 +512,7 @@ class GitHubIssuePublishQueue:
         )
         state["attempts"] = attempts
         state_body = (
-            "Managed by Codex-authored Splunkbase queue automation.\n\n"
+            "Managed by Splunkbase queue automation.\n\n"
             f"{BODY_START}\n{json.dumps(state, indent=2, sort_keys=True)}\n{BODY_END}\n"
         )
         self.client.request(

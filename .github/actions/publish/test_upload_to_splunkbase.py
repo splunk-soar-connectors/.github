@@ -7,6 +7,7 @@ import tarfile
 from packaging.version import parse
 import pytest
 import requests
+from unittest.mock import Mock
 
 
 MODULE_PATH = Path(__file__).with_name("upload_to_splunkbase.py")
@@ -15,6 +16,21 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 from utils.api.splunkbase import build_user_agent
+
+
+def test_logging_uses_only_time_level_and_message(monkeypatch):
+    basic_config = Mock()
+    monkeypatch.setattr(MODULE.logging, "basicConfig", basic_config)
+
+    MODULE.configure_logging()
+
+    basic_config.assert_called_once_with(
+        level=MODULE.logging.INFO,
+        format="{asctime} - {levelname} - {message}",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        style="{",
+        force=True,
+    )
 
 
 def test_existing_version_is_only_successful_on_rerun():
@@ -28,6 +44,41 @@ def test_rerun_does_not_accept_an_older_candidate():
     assert not MODULE.is_successful_rerun_of_existing_version(
         parse("2.3.3"), parse("2.3.4"), run_attempt="2"
     )
+
+
+def test_previous_release_version_uses_highest_version_below_candidate():
+    releases = [
+        {"release_name": "2.0.0"},
+        {"release_name": "1.2.3"},
+        {"release_name": "1.0.0"},
+    ]
+
+    assert MODULE.get_previous_release_version(releases, "2.0.0") == "1.2.3"
+
+
+def test_previous_release_version_is_empty_for_first_release():
+    assert MODULE.get_previous_release_version([], "1.0.0") is None
+
+
+def test_github_outputs_include_previous_release_version(tmp_path, monkeypatch):
+    output_path = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+
+    MODULE._write_github_outputs(
+        {
+            "name": "Test App",
+            "logo": "test.svg",
+            "app_version": "2.0.0",
+        },
+        "test-app",
+        "* Fixed behavior.",
+        new_app=False,
+        sb_appid="123",
+        support_tag="splunk",
+        previous_release_version="1.2.3",
+    )
+
+    assert "previous_release_version=1.2.3\n" in output_path.read_text()
 
 
 def test_release_notes_can_be_read_from_queued_tarball(tmp_path):
@@ -60,6 +111,19 @@ def test_structured_rate_limit_result_is_written(tmp_path, monkeypatch):
         "retry_after": "300",
         "status": "rate_limited",
         "status_code": 429,
+    }
+
+
+def test_terminal_failure_persists_public_safe_diagnostic(tmp_path, monkeypatch):
+    result_path = tmp_path / "publish-result.json"
+    monkeypatch.setattr(MODULE, "PUBLISH_RESULT_PATH", str(result_path))
+
+    reason = "Candidate version 1.0.0 must be greater than the latest released version 1.0.0."
+
+    assert MODULE._fail(reason) == MODULE.RESULT_CODES["failed"]
+    assert json.loads(result_path.read_text()) == {
+        "failure_reason": reason,
+        "status": "failed",
     }
 
 
@@ -153,6 +217,23 @@ def test_unexpected_failure_preserves_written_verification_result(tmp_path, monk
 
     assert MODULE.cli() == MODULE.RESULT_CODES["verifying"]
     assert json.loads(result_path.read_text()) == result
+
+
+def test_unexpected_pre_upload_failure_persists_safe_diagnostic(tmp_path, monkeypatch):
+    result_path = tmp_path / "publish-result.json"
+    monkeypatch.setattr(MODULE, "PUBLISH_RESULT_PATH", str(result_path))
+    monkeypatch.setattr(MODULE, "parse_args", lambda: object())
+    monkeypatch.setattr(
+        MODULE,
+        "main",
+        lambda args: (_ for _ in ()).throw(RuntimeError("secret response text")),
+    )
+
+    assert MODULE.cli() == MODULE.RESULT_CODES["failed"]
+    assert json.loads(result_path.read_text()) == {
+        "failure_reason": "The publisher raised an unexpected error before completing.",
+        "status": "failed",
+    }
 
 
 def test_accepted_upload_persists_package_metadata_before_failed_status_get(

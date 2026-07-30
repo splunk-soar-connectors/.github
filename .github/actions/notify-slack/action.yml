@@ -1,5 +1,5 @@
 name: "Notify Slack on App Release"
-description: "Posts a release notification to the appropriate Slack channel"
+description: "Posts a release notification to the internal and community Slack channels"
 inputs:
   app_name:
     description: "Name of the published app"
@@ -13,6 +13,10 @@ inputs:
   release_version:
     description: "Published version"
     required: true
+  previous_release_version:
+    description: "Previously published version, empty for a first release"
+    required: false
+    default: ""
   release_notes:
     description: "JSON-encoded list of release note lines"
     required: true
@@ -58,6 +62,7 @@ runs:
         APP_LOGO: ${{ inputs.app_logo }}
         REPO_NAME: ${{ inputs.repo_name }}
         RELEASE_VERSION: ${{ inputs.release_version }}
+        PREVIOUS_RELEASE_VERSION: ${{ inputs.previous_release_version }}
         RELEASE_NOTES: ${{ inputs.release_notes }}
         NEW_APP: ${{ inputs.new_app }}
         SUPPORT_TAG: ${{ inputs.support_tag }}

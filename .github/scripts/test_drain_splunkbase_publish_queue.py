@@ -29,13 +29,66 @@ def test_retry_after_supports_seconds_and_http_dates():
     )
 
 
+def test_worker_run_url_uses_current_actions_run(monkeypatch):
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.example.com/")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "splunk-soar-connectors/.github")
+    monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+
+    assert MODULE.worker_run_url() == (
+        "https://github.example.com/splunk-soar-connectors/.github/actions/runs/12345"
+    )
+
+
+def test_worker_waits_for_budget_available_within_run_deadline(monkeypatch):
+    queue = Mock()
+    item = verifying_item()
+    now = MODULE.parse_datetime("2026-07-29T12:00:00Z")
+    retry_at = MODULE.parse_datetime("2026-07-29T12:03:00Z")
+    queue.reserve_attempt.side_effect = [retry_at, None]
+    sleep = Mock()
+    monkeypatch.setattr(MODULE.time, "sleep", sleep)
+    monkeypatch.setattr(MODULE, "utc_now", lambda: retry_at)
+
+    current, remaining_retry = MODULE.wait_for_upload_budget(
+        queue,
+        item,
+        now,
+        MODULE.parse_datetime("2026-07-29T13:00:00Z"),
+    )
+
+    assert current == retry_at
+    assert remaining_retry is None
+    sleep.assert_called_once_with(180)
+
+
+def test_worker_does_not_wait_past_run_deadline(monkeypatch):
+    queue = Mock()
+    item = verifying_item()
+    now = MODULE.parse_datetime("2026-07-29T12:59:00Z")
+    retry_at = MODULE.parse_datetime("2026-07-29T13:02:00Z")
+    queue.reserve_attempt.return_value = retry_at
+    sleep = Mock()
+    monkeypatch.setattr(MODULE.time, "sleep", sleep)
+
+    current, remaining_retry = MODULE.wait_for_upload_budget(
+        queue,
+        item,
+        now,
+        MODULE.parse_datetime("2026-07-29T13:00:00Z"),
+    )
+
+    assert current == now
+    assert remaining_retry == retry_at
+    sleep.assert_not_called()
+
+
 def test_simulation_deduplicates_and_respects_hourly_budget(tmp_path, capsys):
     queue = [
         {
             "repository": f"splunk-soar-connectors/repo-{index:02}",
             "candidate_version": "1.0.0",
         }
-        for index in range(13)
+        for index in range(21)
     ]
     queue.append(queue[0])
     queue_file = tmp_path / "queue.json"
@@ -53,10 +106,10 @@ def test_simulation_deduplicates_and_respects_hourly_budget(tmp_path, capsys):
     assert MODULE.simulate(args) == 0
 
     lines = capsys.readouterr().out.splitlines()
-    assert len(lines) == 13
+    assert len(lines) == 21
     assert lines[0].endswith("2026-07-29T12:00:00Z")
-    assert lines[11].endswith("2026-07-29T12:55:00Z")
-    assert lines[12].endswith("2026-07-29T13:00:00Z")
+    assert lines[19].endswith("2026-07-29T12:57:00Z")
+    assert lines[20].endswith("2026-07-29T13:00:00Z")
 
 
 def verifying_item():
@@ -131,6 +184,7 @@ def test_verification_polls_every_ten_seconds_until_release_appears(monkeypatch)
     client.get_existing_releases.side_effect = [
         [],
         [],
+        [{"release_name": "1.2.3"}],
         [{"release_name": "1.2.3"}],
     ]
     client.get_upload_status.return_value = {"message": "Package validation still in progress."}
@@ -374,6 +428,35 @@ def test_pre_upload_metadata_failure_blocks_without_reserving_or_posting(monkeyp
     assert outputs["failure_reason"].startswith("Splunkbase app metadata")
 
 
+def test_terminal_publisher_diagnostic_is_preserved_in_issue_and_output(monkeypatch):
+    queue = Mock()
+    item = interrupted_item()
+    item.attempts = []
+    queue.get_item.return_value = item
+    queue.reserve_attempt.return_value = None
+    client = Mock()
+    client.get_existing_releases.return_value = []
+    client.get_apps.return_value = []
+    reason = "Candidate version 1.0.0 must be greater than the latest released version 1.0.0."
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setattr(
+        MODULE,
+        "run_publisher",
+        lambda args, item: (1, {"status": "failed", "failure_reason": reason}),
+    )
+    outputs = {}
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
+    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+
+    assert MODULE.publish_item(finalization_args()) == 1
+
+    blocked_result = queue.block.call_args.args[1]
+    assert blocked_result["failure_reason"] == reason
+    assert outputs["failure_reason"] == reason
+
+
 def test_continued_pending_validation_does_not_post_or_reserve(monkeypatch):
     queue = Mock()
     client = Mock()
@@ -515,19 +598,26 @@ def publisher_metadata():
             "get_app_json": staticmethod(lambda artifact: {"logo": "example.svg"}),
             "get_release_notes": staticmethod(lambda version, workspace: "* Fixed publication."),
             "get_release_notes_from_tarball": staticmethod(lambda artifact, version: None),
+            "get_previous_release_version": staticmethod(lambda releases, version: None),
         },
     )()
 
 
 @pytest.mark.parametrize(
-    ("existed_before", "expected_new_app", "expected_return_code"),
-    [(True, False, 0), (False, True, 2)],
+    (
+        "existed_before",
+        "expected_new_app",
+        "expected_return_code",
+        "previous_release_version",
+    ),
+    [(True, False, 0, "1.0.0"), (False, True, 2, None)],
 )
 def test_finalization_reconstructs_outputs_and_new_app_side_effects(
     monkeypatch,
     existed_before,
     expected_new_app,
     expected_return_code,
+    previous_release_version,
 ):
     queue = Mock()
     client = Mock()
@@ -540,6 +630,7 @@ def test_finalization_reconstructs_outputs_and_new_app_side_effects(
         "status": "verifying",
         "package_id": "package-123",
         "app_existed_before_upload": existed_before,
+        "previous_release_version": previous_release_version,
     }
 
     assert (
@@ -560,6 +651,7 @@ def test_finalization_reconstructs_outputs_and_new_app_side_effects(
         client.ensure_app_editors.assert_not_called()
     assert outputs["new_app"] is expected_new_app
     assert outputs["publish_return_code"] == expected_return_code
+    assert outputs["previous_release_version"] == (previous_release_version or "")
     assert outputs["support_tag"] == "splunk"
     assert outputs["splunk_base_url"] == "https://splunkbase.splunk.com/app/app-123"
     queue.complete.assert_called_once()

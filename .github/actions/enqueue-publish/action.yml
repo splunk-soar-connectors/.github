@@ -69,7 +69,7 @@ runs:
               --target main \
               --prerelease \
               --title "Splunkbase publish queue" \
-              --notes "Operational artifact storage managed by Codex-authored automation." \
+              --notes "Operational artifact storage managed by Splunkbase queue automation." \
               2>"$create_log"; then
             release_visible=false
             for delay in 1 2 3 4 5; do

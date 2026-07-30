@@ -12,9 +12,9 @@ immutable connector artifact and sends a `repository_dispatch` event to the cent
 repository. The `enqueue-splunkbase-publish.yml` workflow handles the event and creates
 or updates the GitHub issue that represents the publication.
 
-The `drain-splunkbase-publish-queue.yml` workflow is the central worker. It runs every
-five minutes and can also be started manually with `workflow_dispatch`. A concurrency
-group allows only one worker to drain the queue at a time.
+The `drain-splunkbase-publish-queue.yml` workflow is the central worker. It runs on a
+schedule and can also be started manually with `workflow_dispatch`. A concurrency group
+allows only one worker to drain the queue at a time.
 
 ```mermaid
 flowchart TB
@@ -26,10 +26,10 @@ flowchart TB
     D --> E["Send repository_dispatch<br/>to splunk-soar-connectors/.github"]
     E --> F["Enqueue workflow creates or updates<br/>the GitHub queue issue"]
 
-    F --> G["Central drain workflow<br/>• Runs every 5 minutes<br/>• Supports manual dispatch<br/>• Allows one active worker"]
+    F --> G["Central drain workflow<br/>• Runs on a schedule<br/>• Supports manual dispatch<br/>• Allows one active worker"]
     G --> H["Select the oldest eligible queue issue"]
 
-    P["Persistent per-user budget<br/>≤ 1 POST start every 5 minutes<br/>≤ 12 POSTs per rolling hour<br/>Splunkbase limit: 20/hour"] -.-> I
+    P["Persistent per-user budget<br/>≤ 1 POST start every 3 minutes<br/>≤ 20 POSTs per rolling hour"] -.-> I
     H --> I{"Upload slot available?"}
     I -- "No" --> J["Leave the issue queued"] --> G
     I -- "Yes" --> K["Persist the attempt and reserve<br/>the upload slot before the POST"]
@@ -42,7 +42,7 @@ flowchart TB
     M -- "429" --> Q["Requeue after Retry-After + 30 seconds"] --> G
     M -- "401 / 403 / definitive rejection" --> R["Mark queue issue blocked"]
 
-    R --> S["Send warning to internal Slack<br/>with issue, IDs, and failure reason"]
+    R --> S["Record the failure on the issue<br/>and warn internal Slack"]
     S --> T["Human review"]
 
     N --> U["Check for the release immediately"]
@@ -74,13 +74,15 @@ GitHub Actions secrets and are not stored in issues or release assets.
 ## Upload budget
 
 Splunkbase permits 20 upload attempts per hour for each publishing user, and every
-multipart upload attempt counts. The queue starts at most one upload every five minutes
-and no more than 12 during the preceding hour.
+multipart upload attempt counts. The queue starts at most one upload every three
+minutes and no more than 20 during the preceding hour.
 
-The worker records an upload slot before making the POST, so a restart cannot reset the
-budget. A single worker run does not retry a multipart upload POST. HTTP 429 responses
-schedule another queue attempt after `Retry-After` plus 30 seconds. Ambiguous transport
-results enter GET-only reconciliation and do not authorize another POST.
+Each worker run drains eligible work for at most one hour or 20 started upload attempts,
+whichever comes first. It records an upload slot before making the POST, so a restart
+cannot reset the budget. Read-only Splunkbase requests retain bounded retries, but
+multipart upload POSTs have no automatic retries. HTTP 429 responses schedule another
+queue attempt after `Retry-After` plus 30 seconds. Ambiguous transport results enter
+GET-only reconciliation and do not authorize another POST.
 
 Manual uploads must not use the same publishing identity while the queue is enabled
 because they are not represented in the persisted budget.
@@ -109,9 +111,10 @@ An active publication has a 15-minute lease. If the worker stops after recording
 attempt, the next eligible worker treats its result as ambiguous and performs GET-only
 reconciliation.
 
-The internal blocked-publication warning includes the connector, version, queue issue,
-request ID, package ID, and failure reason. It is independent of
-`SEND_RELEASE_MESSAGE`, which controls standard release announcements.
+The queue issue and internal blocked-publication warning include the connector, version,
+specific failure reason, and worker-run link. Request and package IDs are included only
+when the failure occurred after Splunkbase received an upload. The warning is independent
+of `SEND_RELEASE_MESSAGE`, which controls standard release announcements.
 
 Blocked issues remain open until an operator resolves the cause and explicitly
 authorizes another queue attempt. An operator must not retry the multipart POST

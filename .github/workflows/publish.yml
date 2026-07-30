@@ -189,6 +189,7 @@ jobs:
       app_logo: ${{ steps.publish_action.outputs.app_logo }}
       repo_name: ${{ steps.publish_action.outputs.repo_name }}
       release_version: ${{ steps.publish_action.outputs.release_version }}
+      previous_release_version: ${{ steps.publish_action.outputs.previous_release_version }}
       release_notes: ${{ steps.publish_action.outputs.release_notes }}
       new_app: ${{ steps.publish_action.outputs.new_app }}
       support_tag: ${{ steps.publish_action.outputs.support_tag }}
@@ -305,6 +306,7 @@ jobs:
           app_logo: ${{ needs.publish.outputs.app_logo }}
           repo_name: ${{ needs.publish.outputs.repo_name }}
           release_version: ${{ needs.publish.outputs.release_version }}
+          previous_release_version: ${{ needs.publish.outputs.previous_release_version }}
           release_notes: ${{ needs.publish.outputs.release_notes }}
           new_app: ${{ needs.publish.outputs.new_app }}
           support_tag: ${{ needs.publish.outputs.support_tag }}

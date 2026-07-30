@@ -17,6 +17,9 @@ outputs:
   release_version:
     description: "Published version"
     value: ${{ steps.publish_app.outputs.release_version }}
+  previous_release_version:
+    description: "Previously published version, empty for a first release"
+    value: ${{ steps.publish_app.outputs.previous_release_version }}
   release_notes:
     description: "JSON-encoded list of release note lines"
     value: ${{ steps.publish_app.outputs.release_notes }}

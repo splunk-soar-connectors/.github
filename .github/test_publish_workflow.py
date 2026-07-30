@@ -7,6 +7,7 @@ ENQUEUE_WORKFLOW = Path(__file__).parent / "workflows" / "enqueue-splunkbase-pub
 ENQUEUE_ACTION = Path(__file__).parent / "actions" / "enqueue-publish" / "action.yml"
 NOTIFY_ACTION = Path(__file__).parent / "actions" / "notify-slack" / "action.yml"
 NOTIFY_SCRIPT = Path(__file__).parent / "actions" / "notify-slack" / "notify_slack.py"
+QUEUE_WORKER = Path(__file__).parent / "scripts" / "drain_splunkbase_publish_queue_worker.py"
 
 
 def test_enqueue_uses_the_commit_that_created_the_artifact():
@@ -21,21 +22,27 @@ def test_enqueue_uses_the_commit_that_created_the_artifact():
 
 
 def test_drain_notifies_internal_slack_only_for_terminal_blocked_items():
-    workflow = DRAIN_WORKFLOW.read_text()
-    notification = workflow.split(
-        "\n      - name: Notify internal Slack of blocked publication\n",
-        1,
-    )[1]
+    worker = QUEUE_WORKER.read_text()
 
-    assert "if: always() && steps.publish.outputs.queue_status == 'blocked'" in notification
-    assert "SLACK_INTERNAL_TOKEN: ${{ secrets.SLACK_INTERNAL_TOKEN }}" in notification
-    assert "QUEUE_ISSUE_URL:" in notification
-    assert "SPLUNKBASE_REQUEST_ID:" in notification
-    assert "SPLUNKBASE_PACKAGE_ID:" in notification
-    assert "FAILURE_REASON:" in notification
-    assert "queue_status == 'verifying'" not in notification
-    assert "queue_status == 'deferred'" not in notification
-    assert "queue_status == 'rate_limited'" not in notification
+    assert 'elif queue_status == "blocked":' in worker
+    assert "send_blocked_notification(item, outputs)" in worker
+    assert '"QUEUE_ISSUE_URL":' in worker
+    assert '"SPLUNKBASE_REQUEST_ID":' in worker
+    assert '"SPLUNKBASE_PACKAGE_ID":' in worker
+    assert '"FAILURE_REASON":' in worker
+    assert 'queue_status == "verifying"' not in worker
+    assert 'queue_status == "deferred"' not in worker
+    assert 'queue_status == "rate_limited"' not in worker
+
+
+def test_drain_is_bounded_to_one_hour_and_twenty_upload_attempts():
+    workflow = DRAIN_WORKFLOW.read_text()
+    worker = QUEUE_WORKER.read_text()
+
+    assert "timeout-minutes: 60" in workflow
+    assert "MAX_RUN_SECONDS = 60 * 60" in worker
+    assert "MAX_UPLOAD_ATTEMPTS = 20" in worker
+    assert "attempts_started < MAX_UPLOAD_ATTEMPTS" in worker
 
 
 def test_skipped_direct_publish_cannot_trigger_release_slack():
@@ -56,15 +63,31 @@ def test_notify_action_uses_the_explicit_connector_workspace():
     assert 'os.getenv("GITHUB_WORKSPACE"' in script
 
 
+def test_release_version_transition_reaches_both_notification_paths():
+    workflow = WORKFLOW.read_text()
+
+    assert (
+        "previous_release_version: ${{ steps.publish_action.outputs.previous_release_version }}"
+        in workflow
+    )
+    assert (
+        "previous_release_version: ${{ needs.publish.outputs.previous_release_version }}"
+        in workflow
+    )
+    assert (
+        '"PREVIOUS_RELEASE_VERSION": outputs["previous_release_version"]'
+        in QUEUE_WORKER.read_text()
+    )
+
+
 def test_queue_workflows_execute_self_contained_uv_scripts():
     workflow = DRAIN_WORKFLOW.read_text()
     enqueue_workflow = ENQUEUE_WORKFLOW.read_text()
     enqueue_action = ENQUEUE_ACTION.read_text()
-    select = workflow.split("\n  select:\n", 1)[1].split("\n  publish-one:\n", 1)[0]
-    publish = workflow.split("\n  publish-one:\n", 1)[1]
     drain_script = (
         Path(__file__).parent / "scripts" / "drain_splunkbase_publish_queue.py"
     ).read_text()
+    worker_script = QUEUE_WORKER.read_text()
     enqueue_script = (
         Path(__file__).parent / "scripts" / "enqueue_splunkbase_publish.py"
     ).read_text()
@@ -76,14 +99,9 @@ def test_queue_workflows_execute_self_contained_uv_scripts():
     ).read_text()
 
     assert "uses: astral-sh/setup-uv" not in workflow
-    assert "uses: actions/setup-python@v5" in select
-    assert 'python -m pip install "uv==0.12.0"' in select
-    assert "uv run .github/scripts/drain_splunkbase_publish_queue.py select" in select
-    assert "uv run .github/scripts/drain_splunkbase_publish_queue.py download" in publish
-    assert "uv run .github/scripts/drain_splunkbase_publish_queue.py publish" in publish
-    assert "uv run .github/scripts/notify_splunkbase_publish_failure.py" in publish
-    assert "uses: actions/setup-python@v5" not in publish
-    assert 'python -m pip install "uv==0.12.0"' in publish
+    assert "uses: actions/setup-python@v5" not in workflow
+    assert 'python -m pip install "uv==0.12.0"' in workflow
+    assert "uv run .github/scripts/drain_splunkbase_publish_queue_worker.py" in workflow
     assert "uses: astral-sh/setup-uv" not in enqueue_workflow
     assert "uses: actions/setup-python@v5" in enqueue_workflow
     assert 'python -m pip install "uv==0.12.0"' in enqueue_workflow
@@ -92,13 +110,11 @@ def test_queue_workflows_execute_self_contained_uv_scripts():
     assert "uses: actions/setup-python@v5" in enqueue_action
     assert 'python -m pip install "uv==0.12.0"' in enqueue_action
     assert 'uv run "${{ github.action_path }}/prepare_enqueue.py"' in enqueue_action
-    assert "pip install -r" not in select
-    assert "backoff" not in select
-    assert "packaging" not in select
-    assert "requests" not in select
     assert '"backoff>=2.2.1,<3.0.0"' in drain_script
     assert '"requests>=2.32.3,<3.0.0"' in drain_script
     assert '"packaging>=24.2,<26.0"' in drain_script
+    assert '"cairosvg==2.7.0"' in worker_script
+    assert '"slack-sdk==3.41.0"' in worker_script
     assert '"requests>=2.32.3,<3.0.0"' in enqueue_script
     assert "dependencies = []" in prepare_script
     assert '"requests>=2.32.3,<3.0.0"' in notify_script
