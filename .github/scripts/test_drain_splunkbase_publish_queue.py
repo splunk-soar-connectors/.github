@@ -132,6 +132,7 @@ def test_verification_polls_every_ten_seconds_until_release_appears(monkeypatch)
         [],
         [],
         [{"release_name": "1.2.3"}],
+        [{"release_name": "1.2.3"}],
     ]
     client.get_upload_status.return_value = {"message": "Package validation still in progress."}
     client._is_retryable_response.return_value = True
@@ -515,19 +516,26 @@ def publisher_metadata():
             "get_app_json": staticmethod(lambda artifact: {"logo": "example.svg"}),
             "get_release_notes": staticmethod(lambda version, workspace: "* Fixed publication."),
             "get_release_notes_from_tarball": staticmethod(lambda artifact, version: None),
+            "get_previous_release_version": staticmethod(lambda releases, version: None),
         },
     )()
 
 
 @pytest.mark.parametrize(
-    ("existed_before", "expected_new_app", "expected_return_code"),
-    [(True, False, 0), (False, True, 2)],
+    (
+        "existed_before",
+        "expected_new_app",
+        "expected_return_code",
+        "previous_release_version",
+    ),
+    [(True, False, 0, "1.0.0"), (False, True, 2, None)],
 )
 def test_finalization_reconstructs_outputs_and_new_app_side_effects(
     monkeypatch,
     existed_before,
     expected_new_app,
     expected_return_code,
+    previous_release_version,
 ):
     queue = Mock()
     client = Mock()
@@ -540,6 +548,7 @@ def test_finalization_reconstructs_outputs_and_new_app_side_effects(
         "status": "verifying",
         "package_id": "package-123",
         "app_existed_before_upload": existed_before,
+        "previous_release_version": previous_release_version,
     }
 
     assert (
@@ -560,6 +569,7 @@ def test_finalization_reconstructs_outputs_and_new_app_side_effects(
         client.ensure_app_editors.assert_not_called()
     assert outputs["new_app"] is expected_new_app
     assert outputs["publish_return_code"] == expected_return_code
+    assert outputs["previous_release_version"] == (previous_release_version or "")
     assert outputs["support_tag"] == "splunk"
     assert outputs["splunk_base_url"] == "https://splunkbase.splunk.com/app/app-123"
     queue.complete.assert_called_once()

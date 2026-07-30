@@ -2,7 +2,7 @@
 
 {% if new_app %}A new{% else %}An updated{% endif %} *{{ support_alias }}* app is now available on Splunkbase! :release:
 
-:splunk-arrow: <{{ splunk_base_url }}|*{{ app_name }}*>
+:splunk-arrow: <{{ splunk_base_url }}|*{{ app_name }}*> {% if previous_release_version %}`v{{ previous_release_version }} -> v{{ release_version }}`{% else %}`v{{ release_version }}`{% endif %}
 
 {%- for note in release_notes %}
 {{ note }}

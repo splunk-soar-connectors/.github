@@ -167,6 +167,12 @@ def finalize_publication(queue, client, item, args, result, now) -> int:
             raise RuntimeError(f"Expected one Splunkbase app for {item.appid}, found {len(apps)}")
         app = apps[0]
         new_app = not result.get("app_existed_before_upload", True)
+        previous_release_version = result.get("previous_release_version")
+        if not new_app and not previous_release_version:
+            previous_release_version = publisher.get_previous_release_version(
+                client.get_existing_releases(item.appid),
+                item.candidate_version,
+            )
         if new_app:
             client.ensure_app_editors(app["id"])
 
@@ -183,6 +189,7 @@ def finalize_publication(queue, client, item, args, result, now) -> int:
         write_output("app_logo", app_json["logo"])
         write_output("repo_name", item.repository.split("/")[-1])
         write_output("release_version", item.candidate_version)
+        write_output("previous_release_version", previous_release_version or "")
         write_output("release_notes", json.dumps(release_notes.split("\n")))
         write_output("new_app", new_app)
         write_output("publish_return_code", 2 if new_app else 0)

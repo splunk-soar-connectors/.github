@@ -56,6 +56,24 @@ def test_notify_action_uses_the_explicit_connector_workspace():
     assert 'os.getenv("GITHUB_WORKSPACE"' in script
 
 
+def test_release_version_transition_reaches_both_notification_paths():
+    workflow = WORKFLOW.read_text()
+    drain_workflow = DRAIN_WORKFLOW.read_text()
+
+    assert (
+        "previous_release_version: ${{ steps.publish_action.outputs.previous_release_version }}"
+        in workflow
+    )
+    assert (
+        "previous_release_version: ${{ needs.publish.outputs.previous_release_version }}"
+        in workflow
+    )
+    assert (
+        "previous_release_version: ${{ steps.publish.outputs.previous_release_version }}"
+        in drain_workflow
+    )
+
+
 def test_queue_workflows_execute_self_contained_uv_scripts():
     workflow = DRAIN_WORKFLOW.read_text()
     enqueue_workflow = ENQUEUE_WORKFLOW.read_text()

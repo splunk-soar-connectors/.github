@@ -92,6 +92,8 @@ def _build_message(
     app_name,
     support_tag,
     splunk_base_url,
+    release_version,
+    previous_release_version=None,
     release_notes=None,
     new_app=False,
     template_name=RELEASE_TEMPLATE,
@@ -108,6 +110,8 @@ def _build_message(
         app_name=app_name,
         support_alias=support_alias,
         splunk_base_url=splunk_base_url,
+        release_version=release_version,
+        previous_release_version=previous_release_version,
         release_notes=_convert_release_notes_to_slack_list(release_notes),
         new_app=new_app,
     )
@@ -147,6 +151,8 @@ def _notify_slack_channel(slack_client, slack_channel, release_data):
         support_tag=release_data["support_tag"],
         release_notes=release_data["release_notes"],
         splunk_base_url=release_data["splunk_base_url"],
+        release_version=release_data["release_version"],
+        previous_release_version=release_data["previous_release_version"],
         new_app=release_data["new_app"],
         template_name=template_name,
     )
@@ -198,19 +204,18 @@ def main():
         "app_logo": os.environ["APP_LOGO"],
         "repo_name": os.environ["REPO_NAME"],
         "release_version": os.environ["RELEASE_VERSION"],
+        "previous_release_version": os.getenv("PREVIOUS_RELEASE_VERSION") or None,
         "release_notes": json.loads(os.environ["RELEASE_NOTES"]),
         "new_app": os.environ["NEW_APP"].lower() == "true",
         "support_tag": os.environ["SUPPORT_TAG"],
         "splunk_base_url": os.environ["SPLUNK_BASE_URL"],
     }
 
-    # Route: splunk-supported → internal + community channels, everything else → community only
-    if release_data["support_tag"] == "splunk":
-        _notify_slack_channel(
-            WebClient(token=os.environ["SLACK_INTERNAL_TOKEN"]),
-            os.environ["SLACK_INTERNAL_CHANNEL"],
-            release_data,
-        )
+    _notify_slack_channel(
+        WebClient(token=os.environ["SLACK_INTERNAL_TOKEN"]),
+        os.environ["SLACK_INTERNAL_CHANNEL"],
+        release_data,
+    )
 
     _notify_slack_channel(
         WebClient(token=os.environ["SLACK_COMMUNITY_TOKEN"]),
