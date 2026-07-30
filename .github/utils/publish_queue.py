@@ -23,8 +23,8 @@ QUEUE_STATES = {
 STATE_LABEL = "splunkbase-publish-state"
 BODY_START = "<!-- splunkbase-publish-queue-json"
 BODY_END = "splunkbase-publish-queue-json -->"
-MAX_ATTEMPTS_PER_HOUR = 12
-MIN_ATTEMPT_INTERVAL = timedelta(minutes=5)
+MAX_ATTEMPTS_PER_HOUR = 20
+MIN_ATTEMPT_INTERVAL = timedelta(minutes=3)
 
 LABELS = {
     QUEUE_MARKER: ("5319e7", "Managed by Codex-authored Splunkbase queue automation."),

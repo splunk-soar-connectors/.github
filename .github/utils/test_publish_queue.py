@@ -199,7 +199,7 @@ def test_verifying_item_is_selected_without_becoming_queued():
     ]
 
 
-def test_rate_ledger_never_reserves_more_than_twelve_in_a_rolling_hour():
+def test_rate_ledger_never_reserves_more_than_twenty_in_a_rolling_hour():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
     item = queue.enqueue(make_item())
