@@ -23,8 +23,8 @@ QUEUE_STATES = {
 STATE_LABEL = "splunkbase-publish-state"
 BODY_START = "<!-- splunkbase-publish-queue-json"
 BODY_END = "splunkbase-publish-queue-json -->"
-MAX_ATTEMPTS_PER_HOUR = 12
-MIN_ATTEMPT_INTERVAL = timedelta(minutes=5)
+MAX_ATTEMPTS_PER_HOUR = 20
+MIN_ATTEMPT_INTERVAL = timedelta(minutes=3)
 
 LABELS = {
     QUEUE_MARKER: ("5319e7", "Managed by Codex-authored Splunkbase queue automation."),
@@ -48,6 +48,7 @@ PUBLIC_RESULT_FIELDS = {
     "release_version",
     "package_id",
     "splunkbase_app_id",
+    "worker_run_url",
 }
 
 
@@ -440,10 +441,17 @@ class GitHubIssuePublishQueue:
             item.attempts[-1].update(public_result)
         else:
             item.attempts.append(public_result)
+        worker_run_url = public_result.get("worker_run_url")
+        note = "Publication stopped without an automatic retry; inspect the worker log."
+        if worker_run_url:
+            note = (
+                "Publication stopped without an automatic retry; inspect the "
+                f"[failed worker run]({worker_run_url})."
+            )
         self._update(
             item,
             state="blocked",
-            note="Publication stopped without an automatic retry; inspect the worker log.",
+            note=note,
         )
 
     def _state_issue(self, publisher_alias: str):

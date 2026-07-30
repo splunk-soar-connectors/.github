@@ -199,7 +199,7 @@ def test_verifying_item_is_selected_without_becoming_queued():
     ]
 
 
-def test_rate_ledger_never_reserves_more_than_twelve_in_a_rolling_hour():
+def test_rate_ledger_never_reserves_more_than_twenty_in_a_rolling_hour():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
     item = queue.enqueue(make_item())
@@ -254,6 +254,9 @@ def test_blocked_issue_does_not_publish_raw_response_text():
             "status": "validation_failed",
             "status_code": 422,
             "request_id": "request-123",
+            "worker_run_url": (
+                "https://github.com/splunk-soar-connectors/.github/actions/runs/12345"
+            ),
             "message": "internal Splunkbase response details",
         },
     )
@@ -261,4 +264,7 @@ def test_blocked_issue_does_not_publish_raw_response_text():
     body = client.issues[0]["body"]
     assert "validation_failed" in body
     assert "request-123" in body
+    assert (
+        "[failed worker run](https://github.com/splunk-soar-connectors/.github/actions/runs/12345)"
+    ) in body
     assert "internal Splunkbase response details" not in body

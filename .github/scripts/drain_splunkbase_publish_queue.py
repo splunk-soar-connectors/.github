@@ -98,6 +98,17 @@ def retry_after_datetime(value: str | None, now: datetime) -> datetime:
             return now + MIN_ATTEMPT_INTERVAL
 
 
+def wait_for_upload_budget(queue, item, now, wait_until=None):
+    retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
+    while retry_at and wait_until and retry_at < wait_until:
+        wait_seconds = max((retry_at - now).total_seconds(), 0)
+        print(f"Upload budget unavailable until {format_datetime(retry_at)}; waiting.")
+        time.sleep(wait_seconds)
+        now = utc_now()
+        retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
+    return now, retry_at
+
+
 def version_exists(client: Splunkbase, appid: str, version: str) -> bool:
     return any(
         parse(str(release["release_name"])) == parse(version)
@@ -222,9 +233,19 @@ def defer_verification(queue, item, result, now, reason) -> int:
     return 0
 
 
+def worker_run_url() -> str | None:
+    server_url = os.getenv("GITHUB_SERVER_URL")
+    repository = os.getenv("GITHUB_REPOSITORY")
+    run_id = os.getenv("GITHUB_RUN_ID")
+    if not all((server_url, repository, run_id)):
+        return None
+    return f"{server_url.rstrip('/')}/{repository}/actions/runs/{run_id}"
+
+
 def block_publication(queue, item, result, reason, return_code=1) -> int:
     """Persist a terminal failure and expose sanitized notification fields."""
 
+    result["worker_run_url"] = worker_run_url()
     queue.block(item, result)
     write_output("publish_return_code", return_code)
     write_output("request_id", result.get("request_id", ""))
@@ -370,7 +391,12 @@ def publish_item(args) -> int:
             "Splunkbase app metadata could not be read before upload; no POST was attempted.",
         )
 
-    retry_at = queue.reserve_attempt(item.publisher_alias, item, now)
+    now, retry_at = wait_for_upload_budget(
+        queue,
+        item,
+        now,
+        getattr(args, "wait_for_budget_until", None),
+    )
     if retry_at:
         queue.requeue(
             item,
@@ -378,6 +404,7 @@ def publish_item(args) -> int:
             f"Per-user upload budget is unavailable until {format_datetime(retry_at)}.",
         )
         write_output("queue_status", "deferred")
+        write_output("not_before", format_datetime(retry_at))
         print(f"Upload budget unavailable until {format_datetime(retry_at)}.")
         return 0
 

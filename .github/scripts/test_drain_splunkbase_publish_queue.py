@@ -29,13 +29,66 @@ def test_retry_after_supports_seconds_and_http_dates():
     )
 
 
+def test_worker_run_url_uses_current_actions_run(monkeypatch):
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.example.com/")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "splunk-soar-connectors/.github")
+    monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+
+    assert MODULE.worker_run_url() == (
+        "https://github.example.com/splunk-soar-connectors/.github/actions/runs/12345"
+    )
+
+
+def test_worker_waits_for_budget_available_within_run_deadline(monkeypatch):
+    queue = Mock()
+    item = verifying_item()
+    now = MODULE.parse_datetime("2026-07-29T12:00:00Z")
+    retry_at = MODULE.parse_datetime("2026-07-29T12:03:00Z")
+    queue.reserve_attempt.side_effect = [retry_at, None]
+    sleep = Mock()
+    monkeypatch.setattr(MODULE.time, "sleep", sleep)
+    monkeypatch.setattr(MODULE, "utc_now", lambda: retry_at)
+
+    current, remaining_retry = MODULE.wait_for_upload_budget(
+        queue,
+        item,
+        now,
+        MODULE.parse_datetime("2026-07-29T13:00:00Z"),
+    )
+
+    assert current == retry_at
+    assert remaining_retry is None
+    sleep.assert_called_once_with(180)
+
+
+def test_worker_does_not_wait_past_run_deadline(monkeypatch):
+    queue = Mock()
+    item = verifying_item()
+    now = MODULE.parse_datetime("2026-07-29T12:59:00Z")
+    retry_at = MODULE.parse_datetime("2026-07-29T13:02:00Z")
+    queue.reserve_attempt.return_value = retry_at
+    sleep = Mock()
+    monkeypatch.setattr(MODULE.time, "sleep", sleep)
+
+    current, remaining_retry = MODULE.wait_for_upload_budget(
+        queue,
+        item,
+        now,
+        MODULE.parse_datetime("2026-07-29T13:00:00Z"),
+    )
+
+    assert current == now
+    assert remaining_retry == retry_at
+    sleep.assert_not_called()
+
+
 def test_simulation_deduplicates_and_respects_hourly_budget(tmp_path, capsys):
     queue = [
         {
             "repository": f"splunk-soar-connectors/repo-{index:02}",
             "candidate_version": "1.0.0",
         }
-        for index in range(13)
+        for index in range(21)
     ]
     queue.append(queue[0])
     queue_file = tmp_path / "queue.json"
@@ -53,10 +106,10 @@ def test_simulation_deduplicates_and_respects_hourly_budget(tmp_path, capsys):
     assert MODULE.simulate(args) == 0
 
     lines = capsys.readouterr().out.splitlines()
-    assert len(lines) == 13
+    assert len(lines) == 21
     assert lines[0].endswith("2026-07-29T12:00:00Z")
-    assert lines[11].endswith("2026-07-29T12:55:00Z")
-    assert lines[12].endswith("2026-07-29T13:00:00Z")
+    assert lines[19].endswith("2026-07-29T12:57:00Z")
+    assert lines[20].endswith("2026-07-29T13:00:00Z")
 
 
 def verifying_item():

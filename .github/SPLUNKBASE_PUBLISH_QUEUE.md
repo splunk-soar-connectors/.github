@@ -8,10 +8,11 @@ serializes the upload POSTs made by the shared SOAR connector user.
 
 ## Safety properties
 
-The worker starts at most one upload every five minutes and no more than 12 uploads
-during the preceding hour. It records a slot before making the POST. A worker restart
-therefore cannot reset the budget. Read-only Splunkbase requests retain bounded retries,
-but multipart upload POSTs have no automatic retries.
+The worker starts at most one upload every three minutes and no more than 20 uploads
+during the preceding hour. Each run drains eligible work for at most one hour or 20
+started upload attempts, whichever comes first. It records a slot before making the
+POST. A worker restart therefore cannot reset the budget. Read-only Splunkbase requests
+retain bounded retries, but multipart upload POSTs have no automatic retries.
 
 Queue items are GitHub issues in this repository. Artifacts are uniquely named assets on
 the `splunkbase-publish-queue` prerelease. Both contain only public connector and
@@ -76,7 +77,8 @@ already has read/write workflow permissions.
 Enqueue five approved connector versions together. Verify:
 
 1. Five open issues appear with `splunkbase-publish` and `splunkbase-queued`.
-2. The state issue records no starts less than five minutes apart.
+2. The state issue records no starts less than three minutes apart and no more than 20
+   starts in any rolling hour.
 3. Each successful issue closes with `splunkbase-published`.
 4. Metrics and Slack notifications run only after the worker confirms publication.
 5. Splunkbase logs show the stable `Splunk-SOAR-Connector-Publisher/1.0` User-Agent plus
@@ -102,7 +104,9 @@ GETs; they neither reserve another upload slot nor send another multipart POST.
 Continued validation, timeouts, exhausted server-error retries, and unreadable
 responses remain in verification. The issue closes when the version appears or the
 package validates, while a definitive rejection transitions to `splunkbase-blocked`
-and fails the worker job.
+and records a failed worker result after the run finishes draining other eligible
+items. Scheduled runs are a recovery trigger; an active run waits for its next
+three-minute upload slot instead of relying on another scheduled event.
 
 To retry a corrected blocked item, preserve its JSON body, replace
 `splunkbase-blocked` with `splunkbase-queued`, and set `not_before` to the current UTC
