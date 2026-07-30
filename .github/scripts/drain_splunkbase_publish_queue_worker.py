@@ -241,10 +241,7 @@ def drain_queue(_args) -> int:
     items_processed = 0
     had_failures = False
 
-    while (
-        time.monotonic() - started < MAX_RUN_SECONDS
-        and attempts_started < MAX_UPLOAD_ATTEMPTS
-    ):
+    while time.monotonic() - started < MAX_RUN_SECONDS and attempts_started < MAX_UPLOAD_ATTEMPTS:
         queue = DRAIN.queue_from_environment()
         item = queue.oldest_eligible("soar-connectors-default", DRAIN.utc_now())
         if item is None:

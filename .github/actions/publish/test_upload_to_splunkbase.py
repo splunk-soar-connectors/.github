@@ -98,6 +98,19 @@ def test_structured_rate_limit_result_is_written(tmp_path, monkeypatch):
     }
 
 
+def test_terminal_failure_persists_public_safe_diagnostic(tmp_path, monkeypatch):
+    result_path = tmp_path / "publish-result.json"
+    monkeypatch.setattr(MODULE, "PUBLISH_RESULT_PATH", str(result_path))
+
+    reason = "Candidate version 1.0.0 must be greater than the latest released version 1.0.0."
+
+    assert MODULE._fail(reason) == MODULE.RESULT_CODES["failed"]
+    assert json.loads(result_path.read_text()) == {
+        "failure_reason": reason,
+        "status": "failed",
+    }
+
+
 @pytest.mark.parametrize(
     "validation_error",
     [
@@ -188,6 +201,23 @@ def test_unexpected_failure_preserves_written_verification_result(tmp_path, monk
 
     assert MODULE.cli() == MODULE.RESULT_CODES["verifying"]
     assert json.loads(result_path.read_text()) == result
+
+
+def test_unexpected_pre_upload_failure_persists_safe_diagnostic(tmp_path, monkeypatch):
+    result_path = tmp_path / "publish-result.json"
+    monkeypatch.setattr(MODULE, "PUBLISH_RESULT_PATH", str(result_path))
+    monkeypatch.setattr(MODULE, "parse_args", lambda: object())
+    monkeypatch.setattr(
+        MODULE,
+        "main",
+        lambda args: (_ for _ in ()).throw(RuntimeError("secret response text")),
+    )
+
+    assert MODULE.cli() == MODULE.RESULT_CODES["failed"]
+    assert json.loads(result_path.read_text()) == {
+        "failure_reason": "The publisher raised an unexpected error before completing.",
+        "status": "failed",
+    }
 
 
 def test_accepted_upload_persists_package_metadata_before_failed_status_get(
