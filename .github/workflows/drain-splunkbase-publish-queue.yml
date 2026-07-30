@@ -105,6 +105,7 @@ jobs:
           app_logo: ${{ steps.publish.outputs.app_logo }}
           repo_name: ${{ steps.publish.outputs.repo_name }}
           release_version: ${{ steps.publish.outputs.release_version }}
+          previous_release_version: ${{ steps.publish.outputs.previous_release_version }}
           release_notes: ${{ steps.publish.outputs.release_notes }}
           new_app: ${{ steps.publish.outputs.new_app }}
           support_tag: ${{ steps.publish.outputs.support_tag }}

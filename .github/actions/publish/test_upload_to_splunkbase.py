@@ -30,6 +30,41 @@ def test_rerun_does_not_accept_an_older_candidate():
     )
 
 
+def test_previous_release_version_uses_highest_version_below_candidate():
+    releases = [
+        {"release_name": "2.0.0"},
+        {"release_name": "1.2.3"},
+        {"release_name": "1.0.0"},
+    ]
+
+    assert MODULE.get_previous_release_version(releases, "2.0.0") == "1.2.3"
+
+
+def test_previous_release_version_is_empty_for_first_release():
+    assert MODULE.get_previous_release_version([], "1.0.0") is None
+
+
+def test_github_outputs_include_previous_release_version(tmp_path, monkeypatch):
+    output_path = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+
+    MODULE._write_github_outputs(
+        {
+            "name": "Test App",
+            "logo": "test.svg",
+            "app_version": "2.0.0",
+        },
+        "test-app",
+        "* Fixed behavior.",
+        new_app=False,
+        sb_appid="123",
+        support_tag="splunk",
+        previous_release_version="1.2.3",
+    )
+
+    assert "previous_release_version=1.2.3\n" in output_path.read_text()
+
+
 def test_release_notes_can_be_read_from_queued_tarball(tmp_path):
     tarball = tmp_path / "connector.tgz"
     release_notes = b"**Unreleased**\n\n* Fixed upload handling.\n"

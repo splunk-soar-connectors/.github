@@ -57,6 +57,16 @@ def is_successful_rerun_of_existing_version(candidate_version, latest_release, r
     return candidate_version == latest_release and attempt > 1
 
 
+def get_previous_release_version(existing_releases, candidate_version):
+    candidate = parse(candidate_version)
+    previous_versions = [
+        release["release_name"]
+        for release in existing_releases
+        if parse(release["release_name"]) < candidate
+    ]
+    return max(previous_versions, key=parse) if previous_versions else None
+
+
 def parse_args() -> argparse.Namespace:
     help_str = " ".join(line.strip() for line in (__doc__ or "").splitlines())
     parser = argparse.ArgumentParser(description=help_str)
@@ -146,6 +156,7 @@ def _write_github_outputs(
     new_app: bool,
     sb_appid: str,
     support_tag: str,
+    previous_release_version: Optional[str],
 ) -> None:
     github_output = os.getenv("GITHUB_OUTPUT")
     if not github_output:
@@ -160,6 +171,7 @@ def _write_github_outputs(
         f.write(f"app_logo={app_json['logo']}\n")
         f.write(f"repo_name={repo_name}\n")
         f.write(f"release_version={app_json['app_version']}\n")
+        f.write(f"previous_release_version={previous_release_version or ''}\n")
         f.write(f"new_app={'true' if new_app else 'false'}\n")
         f.write(f"support_tag={support_tag}\n")
         f.write(f"splunk_base_url={splunk_base_url}\n")
@@ -239,6 +251,7 @@ def main(args):
     )
 
     existing_releases = sb_client.get_existing_releases(appid)
+    previous_release_version = get_previous_release_version(existing_releases, app_version)
     if existing_releases:
         latest_release = max(parse(r["release_name"]) for r in existing_releases)
         logging.info("Latest released version: %s", latest_release.public)
@@ -271,6 +284,7 @@ def main(args):
                 new_app=False,
                 sb_appid=apps[0]["id"],
                 support_tag=apps[0]["support"],
+                previous_release_version=previous_release_version,
             )
             _write_publish_result(
                 "already_published",
@@ -313,6 +327,7 @@ def main(args):
         "appid": appid,
         "app_existed_before_upload": bool(apps),
         "app_name": app_json["name"],
+        "previous_release_version": previous_release_version,
         "release_version": app_version,
     }
     _write_publish_result("uploading", **publish_details)
@@ -355,6 +370,7 @@ def main(args):
             new_app=True,
             sb_appid=sb_appid,
             support_tag=support_tag,
+            previous_release_version=None,
         )
         _write_publish_result(
             "new_app",
@@ -372,6 +388,7 @@ def main(args):
         new_app=False,
         sb_appid=sb_appid,
         support_tag=apps[0]["support"],
+        previous_release_version=previous_release_version,
     )
     _write_publish_result(
         "published",
