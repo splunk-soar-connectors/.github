@@ -36,6 +36,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+          allow-unsafe-pr-checkout: true
 
       - name: Detect App Type
         id: detect
@@ -76,6 +77,7 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          allow-unsafe-pr-checkout: true
 
       - name: Set up SDKfied app environment
         uses: splunk-soar-connectors/.github/.github/actions/sdkfied-app-setup@main
@@ -110,6 +112,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+          allow-unsafe-pr-checkout: true
 
       - name: Check out shared workflow files
         uses: actions/checkout@v4
@@ -183,6 +186,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+          allow-unsafe-pr-checkout: true
 
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
@@ -216,6 +220,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+          allow-unsafe-pr-checkout: true
 
       - name: Build Application
         if: env.IS_SDKFIED == 'false'
@@ -256,6 +261,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+          allow-unsafe-pr-checkout: true
 
       - name: Setup Python 3.13 for SDKfied apps
         if: env.IS_SDKFIED == 'true'
@@ -309,6 +315,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+          allow-unsafe-pr-checkout: true
 
       - name: Setup SDKfied App Environment
         if: env.IS_SDKFIED == 'true'
