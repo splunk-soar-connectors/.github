@@ -1,0 +1,113 @@
+name: "Enqueue Splunkbase publish"
+description: "Stores an immutable connector artifact and enqueues one serialized upload."
+inputs:
+  artifact_path:
+    description: "Path to the connector .tgz artifact."
+    required: true
+  github_token:
+    description: "GitHub App token with contents:write on the central queue repository."
+    required: true
+  commit_sha:
+    description: "Immutable connector release commit represented by the artifact."
+    required: true
+  queue_repository:
+    description: "Repository that owns the central Splunkbase queue."
+    required: false
+    default: "splunk-soar-connectors/.github"
+  publisher_alias:
+    description: "Stable non-secret name for the shared Splunkbase identity."
+    required: false
+    default: "soar-connectors-default"
+  release_tag:
+    description: "Prerelease used as durable queue artifact storage."
+    required: false
+    default: "splunkbase-publish-queue"
+outputs:
+  candidate_version:
+    description: "Connector version placed in the queue."
+    value: ${{ steps.prepare.outputs.candidate_version }}
+  dedupe_key:
+    description: "Per-user, repository, and version idempotency key."
+    value: ${{ steps.prepare.outputs.dedupe_key }}
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Install uv
+      shell: bash
+      run: python -m pip install "uv==0.12.0"
+
+    - name: Prepare queue metadata
+      id: prepare
+      shell: bash
+      run: |
+        uv run "${{ github.action_path }}/prepare_enqueue.py" \
+          --artifact "${{ inputs.artifact_path }}" \
+          --repository "${{ github.repository }}" \
+          --commit-sha "${{ inputs.commit_sha }}" \
+          --run-id "${{ github.run_id }}" \
+          --run-attempt "${{ github.run_attempt }}" \
+          --publisher-alias "${{ inputs.publisher_alias }}" \
+          --release-tag "${{ inputs.release_tag }}" \
+          --payload-path "${RUNNER_TEMP}/splunkbase-enqueue.json"
+
+    - name: Ensure durable queue release exists
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        QUEUE_REPOSITORY: ${{ inputs.queue_repository }}
+        RELEASE_TAG: ${{ inputs.release_tag }}
+      run: |
+        if ! gh release view "$RELEASE_TAG" --repo "$QUEUE_REPOSITORY" >/dev/null 2>&1; then
+          create_log="${RUNNER_TEMP}/splunkbase-release-create.log"
+          if ! gh release create "$RELEASE_TAG" \
+              --repo "$QUEUE_REPOSITORY" \
+              --target main \
+              --prerelease \
+              --title "Splunkbase publish queue" \
+              --notes "Operational artifact storage managed by Splunkbase queue automation." \
+              2>"$create_log"; then
+            release_visible=false
+            for delay in 1 2 3 4 5; do
+              if gh release view "$RELEASE_TAG" \
+                  --repo "$QUEUE_REPOSITORY" >/dev/null 2>&1; then
+                release_visible=true
+                break
+              fi
+              sleep "$delay"
+            done
+            if [ "$release_visible" != "true" ]; then
+              cat "$create_log" >&2
+              exit 1
+            fi
+            echo "Another publisher created the queue release."
+          fi
+        fi
+        gh release view "$RELEASE_TAG" --repo "$QUEUE_REPOSITORY" >/dev/null
+
+    - name: Store immutable connector artifact
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        QUEUE_REPOSITORY: ${{ inputs.queue_repository }}
+        RELEASE_TAG: ${{ inputs.release_tag }}
+        ASSET_NAME: ${{ steps.prepare.outputs.asset_name }}
+      run: |
+        cp "${{ inputs.artifact_path }}" "${RUNNER_TEMP}/$ASSET_NAME"
+        gh release upload "$RELEASE_TAG" "${RUNNER_TEMP}/$ASSET_NAME" \
+          --repo "$QUEUE_REPOSITORY" \
+          --clobber
+
+    - name: Enqueue central publication
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        QUEUE_REPOSITORY: ${{ inputs.queue_repository }}
+      run: |
+        gh api "repos/$QUEUE_REPOSITORY/dispatches" \
+          --method POST \
+          --input "${RUNNER_TEMP}/splunkbase-enqueue.json"

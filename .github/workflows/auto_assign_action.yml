@@ -5,6 +5,7 @@ on:
 
 jobs:
   auto-assign:
+    if: github.repository != 'splunk-soar-connectors/.github'
     runs-on: ubuntu-latest
     steps:
       - name: 'Auto-assign issue'

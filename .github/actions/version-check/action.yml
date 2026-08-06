@@ -21,6 +21,7 @@ runs:
     - name: Check version compatibility
       id: check
       run: |
-        COMPATIBLE=$(python ${{ github.action_path }}/../../utils/version_compat.py "${{ inputs.tarball_name }}" "${{ inputs.phantom_ip }}" "$PHANTOM_USERNAME" "$PHANTOM_PASSWORD")
+        TARBALL_ABS_PATH=$(readlink -f "${{ inputs.tarball_name }}")
+        COMPATIBLE=$(python ${{ github.action_path }}/../../utils/version_compat.py "$TARBALL_ABS_PATH" "${{ inputs.phantom_ip }}" "$PHANTOM_USERNAME" "$PHANTOM_PASSWORD")
         echo "compatible=$COMPATIBLE" >> $GITHUB_OUTPUT
       shell: bash

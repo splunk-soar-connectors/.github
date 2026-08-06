@@ -1,0 +1,48 @@
+name: Drain Splunkbase publish queue
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: splunkbase-publisher-soar-connectors-default
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  drain:
+    if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED == 'true'
+    timeout-minutes: 60
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+    steps:
+      - name: Check out queue implementation
+        uses: actions/checkout@v4
+
+      - name: Install worker dependencies
+        run: |
+          python -m pip install "uv==0.12.0"
+          if command -v yum >/dev/null 2>&1; then
+            yum install -y cairo
+          else
+            apt-get update
+            apt-get install -y libcairo2
+          fi
+
+      - name: Drain queued connector publications
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          QUEUE_REPOSITORY: ${{ github.repository }}
+          SPLUNKBASE_USER: ${{ secrets.SPLUNKBASE_USER }}
+          SPLUNKBASE_PASSWORD: ${{ secrets.SPLUNKBASE_PASSWORD }}
+          SLACK_INTERNAL_TOKEN: ${{ secrets.SLACK_INTERNAL_TOKEN }}
+          SLACK_COMMUNITY_TOKEN: ${{ secrets.SLACK_COMMUNITY_TOKEN }}
+          SLACK_INTERNAL_CHANNEL: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}
+          SLACK_COMMUNITY_CHANNEL: ${{ vars.SLACK_COMMUNITY_CHANNEL_ID }}
+          SEND_RELEASE_MESSAGE: ${{ vars.SEND_RELEASE_MESSAGE }}
+        run: uv run .github/scripts/drain_splunkbase_publish_queue_worker.py

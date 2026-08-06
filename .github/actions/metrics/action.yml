@@ -5,6 +5,10 @@ inputs:
     description: "What the return code was from the publish action was"
     required: true
     default: 0
+  repo_path:
+    description: "Connector checkout containing the current and previous app manifests."
+    required: false
+    default: "."
 runs:
   using: 'composite'
   steps:
@@ -21,6 +25,7 @@ runs:
     - name: Send metrics
       shell: bash
       run: |
+        cd "${{ inputs.repo_path }}"
         APP_JSON=$(find "$(pwd)" -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
         APP_JSON_NAME=$(find . -maxdepth 1 -name '*.json' ! -name '*.postman_collection.json')
 

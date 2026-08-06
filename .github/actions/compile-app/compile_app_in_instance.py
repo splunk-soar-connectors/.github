@@ -20,6 +20,7 @@ from utils import compile_app
 
 LOCAL_REPO_DIRECTORY = os.getenv("GITHUB_WORKSPACE", ".")
 PHANTOM_PASSWORD = os.getenv("PHANTOM_PASSWORD", ".")
+PHANTOM_REST_USERNAME = "soar_local_admin"
 
 
 @contextmanager
@@ -61,6 +62,7 @@ def main():
             next_phantom_ip,
             previous_phantom_ip,
             phantom_username,
+            PHANTOM_REST_USERNAME,
             PHANTOM_PASSWORD,
         )
 

@@ -120,8 +120,12 @@ jobs:
         shell: bash
 
   build:
+    # connector-template intentionally uses a sentinel app ID and is not a publishable app.
+    if: github.event.repository.name != 'connector-template'
     runs-on: ubuntu-latest
     needs: [semantic-version, detect-app-type]
+    outputs:
+      commit_sha: ${{ steps.source.outputs.commit_sha }}
     env:
       IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
       UV_LOCK_DIRECTORY: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
@@ -131,6 +135,10 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+
+      - name: Record immutable build source
+        id: source
+        run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -170,6 +178,7 @@ jobs:
           path: /tmp/${{ github.event.repository.name }}.tgz
 
   publish:
+    if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED != 'true'
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
@@ -180,6 +189,7 @@ jobs:
       app_logo: ${{ steps.publish_action.outputs.app_logo }}
       repo_name: ${{ steps.publish_action.outputs.repo_name }}
       release_version: ${{ steps.publish_action.outputs.release_version }}
+      previous_release_version: ${{ steps.publish_action.outputs.previous_release_version }}
       release_notes: ${{ steps.publish_action.outputs.release_notes }}
       new_app: ${{ steps.publish_action.outputs.new_app }}
       support_tag: ${{ steps.publish_action.outputs.support_tag }}
@@ -217,12 +227,42 @@ jobs:
             exit $return_code
           fi
 
+  enqueue-publish:
+    if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    steps:
+      - name: Create central queue token
+        uses: actions/create-github-app-token@v1
+        id: queue-token
+        with:
+          app-id: ${{ vars.SEMANTIC_RELEASE_APP_ID }}
+          private-key: ${{ secrets.semantic_release_pk }}
+          owner: splunk-soar-connectors
+          repositories: |
+            .github
+
+      - name: Download app tar file for queue storage
+        uses: actions/download-artifact@v4
+        with:
+          name: app-tar
+          path: ${{ github.workspace }}/artifacts
+
+      - name: Enqueue serialized Splunkbase publication
+        uses: splunk-soar-connectors/.github/.github/actions/enqueue-publish@main
+        with:
+          artifact_path: ${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz
+          commit_sha: ${{ needs.build.outputs.commit_sha }}
+          github_token: ${{ steps.queue-token.outputs.token }}
+
   metrics:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: publish
-    if: always()
+    if: always() && needs.publish.result != 'skipped'
     steps:
     - name: Check out app repo
       uses: actions/checkout@v4
@@ -245,7 +285,13 @@ jobs:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: publish
-    if: always() && vars.SEND_RELEASE_MESSAGE == 'true' && (needs.publish.outputs.return_code == '0' || needs.publish.outputs.return_code == '2')
+    if: >-
+      always() &&
+      vars.SEND_RELEASE_MESSAGE == 'true' &&
+      needs.publish.result != 'skipped' &&
+      needs.publish.outputs.return_code != '' &&
+      (needs.publish.outputs.return_code == '0' ||
+      needs.publish.outputs.return_code == '2')
     steps:
       - name: Check out app repo
         uses: actions/checkout@v4
@@ -260,6 +306,7 @@ jobs:
           app_logo: ${{ needs.publish.outputs.app_logo }}
           repo_name: ${{ needs.publish.outputs.repo_name }}
           release_version: ${{ needs.publish.outputs.release_version }}
+          previous_release_version: ${{ needs.publish.outputs.previous_release_version }}
           release_notes: ${{ needs.publish.outputs.release_notes }}
           new_app: ${{ needs.publish.outputs.new_app }}
           support_tag: ${{ needs.publish.outputs.support_tag }}

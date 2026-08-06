@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 import tomlkit
 
+
 def find_app_json_name(json_filenames: list[str]) -> str:
     """
     Given a list of possible json files and the app repo name, return the name of the file
@@ -36,7 +37,6 @@ def find_app_json_name(json_filenames: list[str]) -> str:
 
     # There's only one json file in the top level, so it must be the app's json
     return filtered_json_filenames[0]
-
 
 
 def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None:
@@ -69,7 +69,7 @@ def update_app_version_in_toml(toml_path: Path, new_version: str) -> None:
     print(f"Updating {toml_path} with new version: {new_version}")
     with open(toml_path) as f:
         toml_data = tomlkit.load(f)
-    
+
     toml_data["project"]["version"] = new_version
     with open(toml_path, "w") as f:
         tomlkit.dump(toml_data, f)
@@ -128,9 +128,15 @@ def create_cmdline_parser() -> argparse.ArgumentParser:
     argparser.add_argument(
         "new_version", type=str, help="The new version the app json will be updated to"
     )
-    argparser.add_argument("release_notes", type=str, nargs='?', help="The release notes for the new version (optional, can also be passed via RELEASE_NOTES env var)")
+    argparser.add_argument(
+        "release_notes",
+        type=str,
+        nargs="?",
+        help="The release notes for the new version (optional, can also be passed via RELEASE_NOTES env var)",
+    )
 
     return argparser
+
 
 def find_uv_lock_file(connector_path: Path) -> Optional[Path]:
     """
@@ -141,6 +147,7 @@ def find_uv_lock_file(connector_path: Path) -> Optional[Path]:
     for uv_lock_path in connector_path.rglob("uv.lock"):
         return uv_lock_path
 
+
 def main(**kwargs):
     if not kwargs.get("new_version") or not re.match(r"^\d+\.\d+\.\d+$", kwargs.get("new_version")):
         print(
@@ -149,16 +156,15 @@ def main(**kwargs):
         exit(1)
 
     new_version = kwargs.get("new_version")
-    
-    # Get release notes from argument or environment variable (env var fixes arg passing issues)
-    release_notes = kwargs.get("release_notes") or os.environ.get("RELEASE_NOTES", "")
 
     # Look for the app json file in the current directory
     if uv_lock_file := find_uv_lock_file(Path(os.getcwd())):
         pyproject_toml_path = uv_lock_file.parent / "pyproject.toml"
         update_app_version_in_toml(pyproject_toml_path, new_version)
     else:
-        app_json_name = find_app_json_name([f for f in os.listdir(os.getcwd()) if f.endswith(".json")])
+        app_json_name = find_app_json_name(
+            [f for f in os.listdir(os.getcwd()) if f.endswith(".json")]
+        )
         print(f"Found one top-level json file: {app_json_name}")
         update_app_version_in_app_json(app_json_name, new_version)
 

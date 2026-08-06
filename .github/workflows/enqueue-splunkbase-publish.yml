@@ -1,0 +1,32 @@
+name: Enqueue Splunkbase publication
+
+on:
+  repository_dispatch:
+    types:
+      - splunkbase-publish-enqueue
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  enqueue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out queue implementation
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install "uv==0.12.0"
+
+      - name: Create or update queue item
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          QUEUE_REPOSITORY: ${{ github.repository }}
+          QUEUE_ITEM_JSON: ${{ toJSON(github.event.client_payload) }}
+        run: uv run .github/scripts/enqueue_splunkbase_publish.py
