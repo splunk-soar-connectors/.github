@@ -175,7 +175,7 @@ jobs:
   compile:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: detect-app-type
     env:
       IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
@@ -210,7 +210,7 @@ jobs:
     if: github.event.repository.name != 'connector-template'
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: [compile, detect-app-type]
     env:
       IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
@@ -302,7 +302,7 @@ jobs:
   test-coverage:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: [test-setup, detect-app-type]
     env:
       IS_SDKFIED: ${{ needs.detect-app-type.outputs.is_sdkfied }}
@@ -345,7 +345,7 @@ jobs:
   sanity-test:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: test-setup
     if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
     strategy:
@@ -406,7 +406,7 @@ jobs:
   aws-sanity-test:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: test-setup
     if: ${{ needs.test-setup.outputs.publisher == 'Splunk' && contains(github.event.repository.name, 'aws') }}
     strategy:
@@ -483,7 +483,7 @@ jobs:
   integration-test:
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
     needs: test-setup
     if: ${{ needs.test-setup.outputs.publisher == 'Splunk' }}
     env:
