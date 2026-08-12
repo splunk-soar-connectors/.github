@@ -22,7 +22,7 @@ class ApiSession(requests.Session):
             total=5,
             backoff_factor=1,
             status_forcelist=[408, 409, 500, 502, 503, 504],
-            method_whitelist=["GET", "POST"],
+            allowed_methods=frozenset(["GET", "POST"]),
             raise_on_status=False,
         )
         self.mount(self.base_url, HTTPAdapter(max_retries=retry_strategy))
