@@ -331,6 +331,9 @@ jobs:
         shell: bash
 
       - name: Run Test Coverage
+        env:
+          CONJUR_AUTHN_LOGIN: ${{ secrets.CONJUR_AUTHN_LOGIN }}
+          CONJUR_AUTHN_API_KEY: ${{ secrets.CONJUR_AUTHN_API_KEY }}
         uses: splunk-soar-connectors/.github/.github/actions/test-coverage@main
         with:
           app_repo: ${{ github.event.repository.name }}
@@ -387,6 +390,9 @@ jobs:
 
       - name: Run Sanity Tests
         if: steps.version-check.outputs.compatible == 'true'
+        env:
+          CONJUR_AUTHN_LOGIN: ${{ secrets.CONJUR_AUTHN_LOGIN }}
+          CONJUR_AUTHN_API_KEY: ${{ secrets.CONJUR_AUTHN_API_KEY }}
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
           phantom_ip: ${{ matrix.ip }}
@@ -449,6 +455,9 @@ jobs:
           name: app-tar
 
       - name: Run Sanity Tests
+        env:
+          CONJUR_AUTHN_LOGIN: ${{ secrets.CONJUR_AUTHN_LOGIN }}
+          CONJUR_AUTHN_API_KEY: ${{ secrets.CONJUR_AUTHN_API_KEY }}
         uses: splunk-soar-connectors/.github/.github/actions/sanity-tests@main
         with:
           phantom_ip: ${{ steps.resolve-ip.outputs.ip }}
@@ -500,6 +509,9 @@ jobs:
           name: app-tar
 
       - name: Run Integration Tests
+        env:
+          CONJUR_AUTHN_LOGIN: ${{ secrets.CONJUR_AUTHN_LOGIN }}
+          CONJUR_AUTHN_API_KEY: ${{ secrets.CONJUR_AUTHN_API_KEY }}
         uses: splunk-soar-connectors/.github/.github/actions/integration-tests@main
         with:
           fips_compliant: ${{ needs.test-setup.outputs.fips_compliant }}
