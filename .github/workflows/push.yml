@@ -127,7 +127,12 @@ jobs:
           node-version: "24"
 
       - name: Install semantic-release dependencies
-        run: npm install --global semantic-release @semantic-release/exec @semantic-release/git conventional-changelog-conventionalcommits
+        run: |
+          npm install --global \
+            semantic-release \
+            @semantic-release/exec \
+            @semantic-release/git \
+            conventional-changelog-conventionalcommits@9.3.1
 
       - name: Prepare release configuration
         run: |
