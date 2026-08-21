@@ -2,12 +2,19 @@ from pathlib import Path
 
 
 WORKFLOW = Path(__file__).parent / "workflows" / "publish.yml"
+PUSH_WORKFLOW = Path(__file__).parent / "workflows" / "push.yml"
 DRAIN_WORKFLOW = Path(__file__).parent / "workflows" / "drain-splunkbase-publish-queue.yml"
 ENQUEUE_WORKFLOW = Path(__file__).parent / "workflows" / "enqueue-splunkbase-publish.yml"
 ENQUEUE_ACTION = Path(__file__).parent / "actions" / "enqueue-publish" / "action.yml"
 NOTIFY_ACTION = Path(__file__).parent / "actions" / "notify-slack" / "action.yml"
 NOTIFY_SCRIPT = Path(__file__).parent / "actions" / "notify-slack" / "notify_slack.py"
 QUEUE_WORKER = Path(__file__).parent / "scripts" / "drain_splunkbase_publish_queue_worker.py"
+
+
+def test_semantic_release_uses_compatible_conventional_commits_preset():
+    workflow = PUSH_WORKFLOW.read_text()
+
+    assert "conventional-changelog-conventionalcommits@9.3.1" in workflow
 
 
 def test_enqueue_uses_the_commit_that_created_the_artifact():
