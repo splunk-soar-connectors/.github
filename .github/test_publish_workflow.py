@@ -12,9 +12,10 @@ QUEUE_WORKER = Path(__file__).parent / "scripts" / "drain_splunkbase_publish_que
 
 
 def test_semantic_release_uses_compatible_conventional_commits_preset():
-    workflow = PUSH_WORKFLOW.read_text()
+    for workflow_path in (WORKFLOW, PUSH_WORKFLOW):
+        workflow = workflow_path.read_text()
 
-    assert "conventional-changelog-conventionalcommits@9.3.1" in workflow
+        assert "conventional-changelog-conventionalcommits@9.3.1" in workflow
 
 
 def test_enqueue_uses_the_commit_that_created_the_artifact():
