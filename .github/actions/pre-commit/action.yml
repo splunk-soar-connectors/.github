@@ -4,18 +4,61 @@ runs:
   using: "composite"
   steps:
 
+    - name: Restore pre-commit environments
+      id: pre-commit-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-env-v1-${{ runner.os }}-${{ runner.arch }}-py3.13-${{ hashFiles('.pre-commit-config.yaml') }}
+
     - name: Install dependencies
       shell: bash
       run: |
         pip install --upgrade pip pre-commit
         pre-commit install
 
+    - name: Select hook wheels
+      id: hook-wheels
+      shell: bash
+      run: |
+        python "${{ github.action_path }}/../../utils/prewarm_precommit_wheels.py" \
+          --github-output "$GITHUB_OUTPUT"
+
+    - name: Prepare hook wheelhouse
+      shell: bash
+      run: mkdir -p "${{ runner.temp }}/pre-commit-wheelhouse"
+
+    - name: Restore hook wheelhouse
+      id: hook-wheelhouse
+      if: steps.hook-wheels.outputs.enabled == 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ runner.temp }}/pre-commit-wheelhouse
+        key: pre-commit-wheelhouse-v1-${{ runner.os }}-${{ runner.arch }}-py3.13-${{ steps.hook-wheels.outputs.digest }}
+
+    - name: Prewarm hook wheels
+      if: steps.hook-wheels.outputs.enabled == 'true' && steps.hook-wheelhouse.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        python "${{ github.action_path }}/../../utils/prewarm_precommit_wheels.py" \
+          --wheelhouse "${{ runner.temp }}/pre-commit-wheelhouse"
+
+    - name: Save hook wheelhouse
+      if: steps.hook-wheels.outputs.enabled == 'true' && steps.hook-wheelhouse.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ runner.temp }}/pre-commit-wheelhouse
+        key: pre-commit-wheelhouse-v1-${{ runner.os }}-${{ runner.arch }}-py3.13-${{ steps.hook-wheels.outputs.digest }}
+
     - name: Run pre-commit
       shell: bash
+      env:
+        PIP_FIND_LINKS: ${{ runner.temp }}/pre-commit-wheelhouse
       run: pre-commit run --all-files --show-diff-on-failure
 
-    - name: Cache pre-commit
-      uses: actions/cache@v4
+    - name: Save pre-commit environments
+      if: steps.pre-commit-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
       with:
         path: ~/.cache/pre-commit
-        key: ${{ runner.os }}-pre-commit-cache
+        key: pre-commit-env-v1-${{ runner.os }}-${{ runner.arch }}-py3.13-${{ hashFiles('.pre-commit-config.yaml') }}
