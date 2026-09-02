@@ -97,6 +97,10 @@ worker continues with GET requests only.
 Release metrics and the standard Slack release announcement are sent only after the
 connector version is confirmed on Splunkbase.
 
+For SDK apps, metrics compare the manifest in the immutable queued package with a
+manifest generated from the previous semantic-release tag. Metrics and Slack
+notifications are attempted independently so one failure does not suppress the other.
+
 ## Failure handling
 
 | Condition | Queue behavior | Notification |
