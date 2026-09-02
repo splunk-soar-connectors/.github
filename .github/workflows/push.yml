@@ -85,7 +85,18 @@ jobs:
           uv_lock_directory: ${{ env.UV_LOCK_DIRECTORY }}
 
       - name: Run pytest
-        run: uv run --project "$UV_LOCK_DIRECTORY" python -m pytest
+        run: |
+          set +e
+          uv run --project "$UV_LOCK_DIRECTORY" python -m pytest
+          pytest_exit_code=$?
+          set -e
+
+          if [ "$pytest_exit_code" -eq 5 ]; then
+            echo "No tests were collected; continuing."
+            exit 0
+          fi
+
+          exit "$pytest_exit_code"
 
   pre-commit:
     runs-on: ubuntu-latest

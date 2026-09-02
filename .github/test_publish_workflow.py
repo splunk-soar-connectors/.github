@@ -18,6 +18,18 @@ def test_semantic_release_uses_compatible_conventional_commits_preset():
         assert "conventional-changelog-conventionalcommits@9.3.1" in workflow
 
 
+def test_sdk_pytest_allows_only_no_tests_collected():
+    workflow = PUSH_WORKFLOW.read_text()
+    pytest_step = workflow.split("\n      - name: Run pytest\n", 1)[1].split(
+        "\n  pre-commit:\n", 1
+    )[0]
+
+    assert "set +e" in pytest_step
+    assert "pytest_exit_code=$?" in pytest_step
+    assert 'if [ "$pytest_exit_code" -eq 5 ]; then' in pytest_step
+    assert 'exit "$pytest_exit_code"' in pytest_step
+
+
 def test_enqueue_uses_the_commit_that_created_the_artifact():
     workflow = WORKFLOW.read_text()
     build = workflow.split("\n  build:\n", 1)[1].split("\n  publish:\n", 1)[0]
