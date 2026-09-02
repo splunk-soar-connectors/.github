@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 import importlib.util
+import json
 import logging
 import os
 from pathlib import Path
@@ -108,29 +109,111 @@ def checkout_connector(repository: str, commit_sha: str, destination: Path) -> N
     run_checked(["git", "-C", str(destination), "checkout", "--quiet", "--detach", "FETCH_HEAD"])
 
 
-def send_release_metrics(outputs: dict[str, str], connector: Path, temporary: Path) -> None:
+def _sdk_project_root(connector: Path) -> Path:
+    uv_locks = list(connector.rglob("uv.lock"))
+    if len(uv_locks) != 1:
+        raise RuntimeError(f"Expected one SDK uv.lock, found {len(uv_locks)}")
+    return uv_locks[0].parent
+
+
+def _prepare_sdk_metric_manifests(
+    outputs: dict[str, str],
+    connector: Path,
+    artifact: Path,
+    temporary: Path,
+) -> tuple[Path, Path]:
+    _sdk_project_root(connector)
+    current_manifest = temporary / "current-app.json"
+    current_app = DRAIN.load_publisher_module().get_app_json(artifact)
+    current_manifest.write_text(json.dumps(current_app))
+
+    previous_manifest = temporary / "old-app.json"
+    previous_version = outputs.get("previous_release_version")
+    if not previous_version:
+        previous_manifest.write_text("{}")
+        return current_manifest, previous_manifest
+
+    tag_ref = f"refs/tags/{previous_version}"
+    try:
+        run_checked(
+            [
+                "git",
+                "-C",
+                str(connector),
+                "fetch",
+                "--quiet",
+                "--depth=1",
+                "origin",
+                f"{tag_ref}:{tag_ref}",
+            ]
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"Could not fetch previous release tag {previous_version}") from exc
+    previous_checkout = temporary / "previous-release"
+    run_checked(
+        [
+            "git",
+            "-C",
+            str(connector),
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            str(previous_checkout),
+            tag_ref,
+        ]
+    )
+    previous_project = _sdk_project_root(previous_checkout)
+    run_checked(
+        [
+            "uv",
+            "run",
+            "--project",
+            str(previous_project),
+            "soarapps",
+            "manifests",
+            "create",
+            str(previous_manifest),
+            str(previous_project),
+        ]
+    )
+    return current_manifest, previous_manifest
+
+
+def send_release_metrics(
+    outputs: dict[str, str], connector: Path, artifact: Path, temporary: Path
+) -> None:
     manifests = [
         path
         for path in connector.glob("*.json")
         if not path.name.endswith(".postman_collection.json")
     ]
-    if len(manifests) != 1:
+    if len(manifests) == 1:
+        current_manifest = manifests[0]
+        old_manifest = temporary / "old-app.json"
+        previous = subprocess.run(
+            ["git", "show", f"HEAD^:{current_manifest.name}"],
+            cwd=connector,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        old_manifest.write_text(previous.stdout if previous.returncode == 0 else "{}")
+    elif manifests:
         raise RuntimeError(f"Expected one connector manifest, found {len(manifests)}")
+    else:
+        current_manifest, old_manifest = _prepare_sdk_metric_manifests(
+            outputs,
+            connector,
+            artifact,
+            temporary,
+        )
 
-    old_manifest = temporary / "old-app.json"
-    previous = subprocess.run(
-        ["git", "show", f"HEAD^:{manifests[0].name}"],
-        cwd=connector,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    old_manifest.write_text(previous.stdout if previous.returncode == 0 else "{}")
     run_checked(
         [
             sys.executable,
             str(REPO_ROOT / "actions" / "metrics" / "send_metrics.py"),
-            str(manifests[0]),
+            str(current_manifest),
             str(old_manifest),
             "--publish-code",
             outputs["publish_return_code"],
@@ -228,19 +311,34 @@ def process_item(queue, item, wait_until) -> ItemOutcome:
         queue_status = outputs.get("queue_status", "failed")
         side_effect_failed = False
 
-        try:
-            if queue_status == "published":
-                send_release_metrics(outputs, connector, temporary)
+        if queue_status == "published":
+            try:
+                send_release_metrics(outputs, connector, artifact, temporary)
+            except Exception as exc:
+                side_effect_failed = True
+                print(
+                    f"Release metrics failed for {item.repository}: {type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+
+            try:
                 send_release_notification(outputs, connector)
-            elif queue_status == "blocked":
+            except Exception as exc:
+                side_effect_failed = True
+                print(
+                    f"Slack notification failed for {item.repository}: {type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+        elif queue_status == "blocked":
+            try:
                 send_blocked_notification(item, outputs)
-        except Exception as exc:
-            side_effect_failed = True
-            print(
-                f"Post-publication side effect failed for {item.repository}: "
-                f"{type(exc).__name__}: {exc}",
-                file=sys.stderr,
-            )
+            except Exception as exc:
+                side_effect_failed = True
+                print(
+                    f"Blocked-publication notification failed for {item.repository}: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
 
         return ItemOutcome(
             queue_status=queue_status,
