@@ -23,6 +23,9 @@ ACK_COMMENT_NO_PRS_OPEN = "Thank you for your submission! We will take a look as
 EXTERNAL_CONTRIBUTOR_LABEL = "external-contributor"
 CERTIFIED_LABEL = "splunk-supported"
 NOT_CERTIFIED_LABEL = "developer-supported"
+SKIP_INTEGRATION_LABEL = "skip-integration"
+SKIP_INTEGRATION_LABEL_COLOR = "d73a4a"
+SKIP_INTEGRATION_LABEL_DESCRIPTION = "Skip asset-lab integration jobs for this PR"
 
 # JIRA Configuration
 JIRA_URL = "https://splunk.atlassian.net"
@@ -196,6 +199,13 @@ def assign_pr_labels():
     github_client = Github(github_token)
     repo = github_client.get_repo(repo_name)
     pr = repo.get_pull(pr_number)
+
+    if SKIP_INTEGRATION_LABEL not in {label.name for label in repo.get_labels()}:
+        repo.create_label(
+            SKIP_INTEGRATION_LABEL,
+            SKIP_INTEGRATION_LABEL_COLOR,
+            SKIP_INTEGRATION_LABEL_DESCRIPTION,
+        )
 
     user = pr.user.login
 
