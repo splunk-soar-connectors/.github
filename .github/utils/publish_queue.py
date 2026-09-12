@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
@@ -84,6 +85,7 @@ class PublishQueueItem:
     issue_number: int | None = None
     attempts: list[dict[str, Any]] = field(default_factory=list)
     verification: dict[str, Any] | None = None
+    verification_rechecks: int = 0
 
     @property
     def dedupe_key(self) -> str:
@@ -115,6 +117,7 @@ class PublishQueue(Protocol):
         self,
         publisher_alias: str,
         now: datetime,
+        excluded_issue_numbers: Collection[int] = (),
     ) -> PublishQueueItem | None: ...
 
     def record_attempt(self, item: PublishQueueItem, attempt: PublishAttempt) -> None: ...
@@ -323,9 +326,12 @@ class GitHubIssuePublishQueue:
         self,
         publisher_alias: str,
         now: datetime,
+        excluded_issue_numbers: Collection[int] = (),
     ) -> PublishQueueItem | None:
         candidates = []
         for issue in self._issues(state="open", labels=QUEUE_MARKER):
+            if issue["number"] in excluded_issue_numbers:
+                continue
             labels = self._label_names(issue)
             if not (
                 QUEUE_STATES["queued"] in labels
@@ -342,10 +348,21 @@ class GitHubIssuePublishQueue:
             if parse_datetime(item.not_before) > now:
                 continue
             item.issue_number = issue["number"]
-            candidates.append(item)
+            state_priority = (
+                0 if QUEUE_STATES["queued"] in labels or QUEUE_STATES["active"] in labels else 1
+            )
+            candidates.append((state_priority, item, issue["number"]))
         if not candidates:
             return None
-        return min(candidates, key=lambda candidate: parse_datetime(candidate.enqueued_at))
+        _, item, _ = min(
+            candidates,
+            key=lambda candidate: (
+                candidate[0],
+                parse_datetime(candidate[1].enqueued_at),
+                candidate[2],
+            ),
+        )
+        return item
 
     def get_item(self, issue_number: int) -> PublishQueueItem:
         issue = self.client.request(

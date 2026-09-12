@@ -198,7 +198,7 @@ def test_sdk_release_metrics_require_one_uv_lock(tmp_path):
     connector = tmp_path / "connector"
     connector.mkdir()
 
-    with pytest.raises(RuntimeError, match="Expected one SDK uv.lock, found 0"):
+    with pytest.raises(RuntimeError, match=r"Expected one SDK uv.lock, found 0"):
         MODULE.send_release_metrics(
             {"publish_return_code": "0"},
             connector,
@@ -244,7 +244,7 @@ def test_existing_sdk_release_metrics_require_previous_tag(tmp_path, monkeypatch
         Mock(side_effect=subprocess.CalledProcessError(1, ["git", "fetch"])),
     )
 
-    with pytest.raises(RuntimeError, match="previous release tag 1.2.2"):
+    with pytest.raises(RuntimeError, match=r"previous release tag 1.2.2"):
         MODULE.send_release_metrics(
             {"publish_return_code": "0", "previous_release_version": "1.2.2"},
             connector,
@@ -269,7 +269,7 @@ def test_existing_sdk_release_metrics_require_previous_lock(tmp_path, monkeypatc
 
     monkeypatch.setattr(MODULE, "run_checked", run_checked)
 
-    with pytest.raises(RuntimeError, match="Expected one SDK uv.lock, found 0"):
+    with pytest.raises(RuntimeError, match=r"Expected one SDK uv.lock, found 0"):
         MODULE.send_release_metrics(
             {"publish_return_code": "0", "previous_release_version": "1.2.2"},
             connector,
@@ -357,6 +357,66 @@ def test_drain_stops_selecting_after_one_hour(monkeypatch):
     assert MODULE.drain_queue(SimpleNamespace()) == 1
 
     process_item.assert_called_once()
+
+
+def test_drain_excludes_an_issue_after_it_is_selected(monkeypatch):
+    queue = Mock()
+    item = SimpleNamespace(
+        attempts=[],
+        candidate_version="1.0.0",
+        issue_number=1,
+        repository="splunk-soar-connectors/example",
+    )
+    queue.oldest_eligible.side_effect = [item, item, None]
+    process_item = Mock(
+        return_value=MODULE.ItemOutcome(
+            queue_status="published",
+            attempts_started=0,
+            failed=False,
+        )
+    )
+    monkeypatch.setattr(MODULE.DRAIN, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "process_item", process_item)
+    monkeypatch.setattr(MODULE.time, "monotonic", lambda: 0)
+
+    assert MODULE.drain_queue(SimpleNamespace()) == 0
+
+    process_item.assert_called_once()
+    assert process_item.call_args.args[0] is queue
+    assert process_item.call_args.args[1] is item
+    assert queue.oldest_eligible.call_args_list[0].kwargs["excluded_issue_numbers"] == set()
+    assert queue.oldest_eligible.call_args_list[1].kwargs["excluded_issue_numbers"] == {1}
+
+
+def test_unexpected_worker_exception_sends_run_level_notification(monkeypatch):
+    failure = RuntimeError("unexpected failure")
+    notify = Mock()
+    monkeypatch.setattr(MODULE, "drain_queue", Mock(side_effect=failure))
+    monkeypatch.setattr(MODULE, "send_worker_failure_notification", notify)
+
+    with pytest.raises(RuntimeError, match="unexpected failure"):
+        MODULE.main()
+
+    notify.assert_called_once_with(
+        "The queue worker raised an unexpected RuntimeError; inspect the worker run for details."
+    )
+
+
+def test_worker_failure_notification_passes_run_context(monkeypatch):
+    run_checked = Mock()
+    monkeypatch.setattr(MODULE, "run_checked", run_checked)
+    monkeypatch.setattr(
+        MODULE.DRAIN,
+        "worker_run_url",
+        lambda: "https://github.com/example/actions/runs/123",
+    )
+
+    MODULE.send_worker_failure_notification("sanitized failure", "cancelled")
+
+    environment = run_checked.call_args.kwargs["env"]
+    assert environment["WORKER_RUN_URL"] == "https://github.com/example/actions/runs/123"
+    assert environment["WORKER_CONCLUSION"] == "cancelled"
+    assert environment["WORKER_REASON"] == "sanitized failure"
 
 
 def test_rate_limit_stops_the_current_drain(monkeypatch):

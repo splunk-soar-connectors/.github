@@ -130,6 +130,7 @@ def verifying_item():
             "repository": "splunk-soar-connectors/example",
             "run_attempt": 2,
             "run_id": 123,
+            "verification_rechecks": 0,
         },
     )()
 
@@ -478,6 +479,57 @@ def test_continued_pending_validation_does_not_post_or_reserve(monkeypatch):
     queue.verify.assert_called_once()
     queue.reserve_attempt.assert_not_called()
     run_publisher.assert_not_called()
+
+
+def test_three_unsuccessful_verification_rechecks_block_without_post(monkeypatch):
+    queue = Mock()
+    client = Mock()
+    client.get_existing_releases.return_value = []
+    client.get_upload_status.return_value = {"message": "Package validation still in progress."}
+    client._is_retryable_response.return_value = True
+    run_publisher = Mock()
+    outputs = {}
+    item = verifying_item()
+    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
+    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
+
+    for rechecks in (1, 2):
+        assert (
+            MODULE.reconcile_verification(
+                queue,
+                client,
+                item,
+                object(),
+                MODULE.parse_datetime("2026-07-29T12:00:00Z"),
+            )
+            == 0
+        )
+        assert item.verification_rechecks == rechecks
+        queue.block.assert_not_called()
+
+    assert (
+        MODULE.reconcile_verification(
+            queue,
+            client,
+            item,
+            object(),
+            MODULE.parse_datetime("2026-07-29T12:00:00Z"),
+        )
+        == 1
+    )
+
+    assert item.verification_rechecks == 3
+    assert queue.verify.call_count == 2
+    queue.block.assert_called_once()
+    queue.reserve_attempt.assert_not_called()
+    run_publisher.assert_not_called()
+    assert outputs["queue_status"] == "blocked"
+    assert outputs["verification_rechecks"] == 3
+    assert outputs["failure_reason"] == (
+        "Splunkbase publication remained unconfirmed after three GET-only verification "
+        "rechecks; no further upload was attempted."
+    )
+    assert client.get_upload_status.call_count == 3
 
 
 def test_definitive_rejection_blocks_without_post_or_reserve(monkeypatch):

@@ -1,0 +1,38 @@
+name: Notify Splunkbase publish queue worker failure
+
+on:
+  workflow_run:
+    workflows:
+      - Drain Splunkbase publish queue
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    if: >-
+      github.event.workflow_run.conclusion == 'cancelled' ||
+      github.event.workflow_run.conclusion == 'timed_out'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out queue implementation
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install notification dependency
+        run: python -m pip install "requests>=2.32.3,<3.0.0"
+
+      - name: Notify internal connector channel
+        env:
+          SLACK_INTERNAL_TOKEN: ${{ secrets.SLACK_INTERNAL_TOKEN }}
+          SLACK_INTERNAL_CHANNEL: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}
+          WORKER_RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WORKER_REASON: The queue drain was cancelled or timed out before it completed.
+        run: python .github/scripts/notify_splunkbase_publish_worker.py

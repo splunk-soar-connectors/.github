@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = SCRIPT_DIR.parent.resolve()
-MAX_RUN_SECONDS = 60 * 60
+MAX_RUN_SECONDS = 50 * 60
 MAX_UPLOAD_ATTEMPTS = 20
 LOG_SEPARATOR = "=" * 80
 LOG_FORMAT = "{asctime} - {levelname} - {message}"
@@ -250,6 +250,24 @@ def send_release_notification(outputs: dict[str, str], connector: Path) -> None:
     )
 
 
+def send_worker_failure_notification(reason: str, conclusion: str = "failure") -> None:
+    env = os.environ.copy()
+    env.update(
+        {
+            "WORKER_RUN_URL": DRAIN.worker_run_url() or "",
+            "WORKER_CONCLUSION": conclusion,
+            "WORKER_REASON": reason,
+        }
+    )
+    run_checked(
+        [
+            sys.executable,
+            str(SCRIPT_DIR / "notify_splunkbase_publish_worker.py"),
+        ],
+        env=env,
+    )
+
+
 def send_blocked_notification(item, outputs: dict[str, str]) -> None:
     server_url = os.getenv("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
     env = os.environ.copy()
@@ -353,13 +371,22 @@ def drain_queue(_args) -> int:
     attempts_started = 0
     items_processed = 0
     had_failures = False
+    selected_issue_numbers = set()
 
     while time.monotonic() - started < MAX_RUN_SECONDS and attempts_started < MAX_UPLOAD_ATTEMPTS:
         queue = DRAIN.queue_from_environment()
-        item = queue.oldest_eligible("soar-connectors-default", DRAIN.utc_now())
+        item = queue.oldest_eligible(
+            "soar-connectors-default",
+            DRAIN.utc_now(),
+            excluded_issue_numbers=selected_issue_numbers.copy(),
+        )
         if item is None:
             print("No eligible Splunkbase publications remain.")
             break
+        if item.issue_number in selected_issue_numbers:
+            print(f"Queue selector returned issue #{item.issue_number} more than once; stopping.")
+            break
+        selected_issue_numbers.add(item.issue_number)
 
         print(
             f"\n{LOG_SEPARATOR}\n"
@@ -392,7 +419,21 @@ def drain_queue(_args) -> int:
 
 def main() -> int:
     configure_logging()
-    return drain_queue(SimpleNamespace())
+    try:
+        return drain_queue(SimpleNamespace())
+    except Exception as exc:
+        reason = (
+            f"The queue worker raised an unexpected {type(exc).__name__}; "
+            "inspect the worker run for details."
+        )
+        try:
+            send_worker_failure_notification(reason)
+        except Exception as notification_error:
+            logging.error(
+                "Worker failure notification failed with %s.",
+                type(notification_error).__name__,
+            )
+        raise
 
 
 if __name__ == "__main__":
