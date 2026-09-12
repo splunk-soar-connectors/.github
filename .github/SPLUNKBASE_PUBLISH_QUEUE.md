@@ -27,26 +27,28 @@ flowchart TB
     E --> F["Enqueue workflow creates or updates<br/>the GitHub queue issue"]
 
     F --> G["Central drain workflow<br/>• Runs on a schedule<br/>• Supports manual dispatch<br/>• Allows one active worker"]
-    G --> H["Select the oldest eligible queue issue"]
+    G --> H["Select queued or expired-active work first;<br/>then verification work"]
 
     P["Persistent per-user budget<br/>≤ 1 POST start every 3 minutes<br/>≤ 20 POSTs per rolling hour"] -.-> I
-    H --> I{"Upload slot available?"}
-    I -- "No" --> J["Leave the issue queued"] --> G
-    I -- "Yes" --> K["Persist the attempt and reserve<br/>the upload slot before the POST"]
-    K --> L["Send one multipart upload POST<br/>with User-Agent and trace metadata"]
+    H --> I{"Queue state?"}
+    I -- "Verifying" --> U
+    I -- "Queued or expired active" --> J{"Upload slot available?"}
+    J -- "No" --> K["Leave the issue queued"] --> G
+    J -- "Yes" --> L["Persist the attempt and reserve<br/>the upload slot before the POST"]
+    L --> M["Send one multipart upload POST<br/>with User-Agent and trace metadata"]
 
-    L --> M{"Splunkbase response"}
+    M --> N{"Splunkbase response"}
 
-    M -- "Accepted" --> N["Persist package ID and request ID"]
-    M -- "Ambiguous timeout / 5xx" --> O["Enter GET-only reconciliation<br/>No duplicate POST"]
-    M -- "429" --> Q["Requeue after Retry-After + 30 seconds"] --> G
-    M -- "401 / 403 / definitive rejection" --> R["Mark queue issue blocked"]
+    N -- "Accepted" --> O["Persist package ID and request ID"]
+    N -- "Ambiguous timeout / 5xx" --> P2["Enter GET-only reconciliation<br/>No duplicate POST"]
+    N -- "429" --> Q["Requeue after Retry-After + 30 seconds"] --> G
+    N -- "401 / 403 / definitive rejection" --> R["Mark queue issue blocked"]
 
     R --> S["Record the failure on the issue<br/>and warn internal Slack"]
     S --> T["Human review"]
 
-    N --> U["Check for the release immediately"]
-    O --> U
+    O --> U["Check for the release immediately"]
+    P2 --> U
     U --> V{"Release confirmed?"}
 
     V -- "Yes" --> W["Close queue issue as published"]
@@ -54,8 +56,10 @@ flowchart TB
     X --> Y["Send release announcement to Slack"]
 
     V -- "No, under 5 minutes" --> AA["Wait 10 seconds"] --> U
-    V -- "No, 5 minutes elapsed" --> AB["Keep issue in verification"]
-    AB --> AC["Next scheduled drain performs<br/>GET-only reconciliation"] --> U
+    V -- "No, 5 minutes elapsed" --> AB["Persist one scheduled recheck"]
+    AB --> AC{"Three unsuccessful rechecks?"}
+    AC -- "No" --> AD["Next scheduled drain performs<br/>GET-only reconciliation"] --> U
+    AC -- "Yes" --> R
 ```
 
 ## Queue model
@@ -68,8 +72,12 @@ Each publication is represented by:
 - A deduplication key composed of the publishing-user alias, repository, and connector
   version.
 
-The queue processes the oldest eligible issue. Publication credentials remain in
-GitHub Actions secrets and are not stored in issues or release assets.
+The queue selects eligible queued or expired-active work before verification work.
+Within each group it uses the oldest `enqueued_at` timestamp and then the issue number
+as a stable tie-breaker. A drain run excludes every issue it has already selected, so
+each eligible issue receives at most one processing attempt per run. Publication
+credentials remain in GitHub Actions secrets and are not stored in issues or release
+assets.
 
 ## Upload budget
 
@@ -77,12 +85,14 @@ Splunkbase permits 20 upload attempts per hour for each publishing user, and eve
 multipart upload attempt counts. The queue starts at most one upload every three
 minutes and no more than 20 during the preceding hour.
 
-Each worker run drains eligible work for at most one hour or 20 started upload attempts,
-whichever comes first. It records an upload slot before making the POST, so a restart
-cannot reset the budget. Read-only Splunkbase requests retain bounded retries, but
-multipart upload POSTs have no automatic retries. HTTP 429 responses schedule another
-queue attempt after `Retry-After` plus 30 seconds. Ambiguous transport results enter
-GET-only reconciliation and do not authorize another POST.
+Each worker run drains eligible work for at most 50 minutes or 20 started upload
+attempts, whichever comes first. The workflow has a separate 60-minute hard timeout;
+the internal deadline leaves margin for cleanup and notification. It records an upload
+slot before making the POST, so a restart cannot reset the budget. Read-only Splunkbase
+requests retain bounded retries, but multipart upload POSTs have no automatic retries.
+HTTP 429 responses schedule another queue attempt after `Retry-After` plus 30 seconds.
+Ambiguous transport results enter GET-only reconciliation and do not authorize another
+POST.
 
 Manual uploads must not use the same publishing identity while the queue is enabled
 because they are not represented in the persisted budget.
@@ -92,7 +102,10 @@ because they are not represented in the persisted budget.
 After Splunkbase accepts an upload, the queue persists the package and request IDs and
 checks for the release immediately. It checks every 10 seconds for up to five minutes.
 If publication is still not confirmed, the issue remains in verification and a later
-worker continues with GET requests only.
+worker continues with GET requests only. Each completed five-minute GET-only window
+increments the persisted `verification_rechecks` counter. The first two unsuccessful
+rechecks remain non-terminal; the third blocks the issue with a sanitized reason. The
+escalation never authorizes another multipart upload.
 
 Release metrics and the standard Slack release announcement are sent only after the
 connector version is confirmed on Splunkbase.
@@ -107,9 +120,12 @@ notifications are attempted independently so one failure does not suppress the o
 | --- | --- | --- |
 | HTTP 429 | Requeue after `Retry-After` plus 30 seconds | None |
 | Ambiguous timeout or server response | Continue GET-only reconciliation | None |
-| Validation still pending or response unreadable | Keep the issue in verification | None |
+| Validation still pending or response unreadable, before three rechecks | Keep the issue in verification | None |
+| Three unsuccessful five-minute verification rechecks | Block the issue for human review | Internal Slack warning |
 | HTTP 401 or 403 | Block the issue for human review | Internal Slack warning |
 | Definitive validation rejection | Block the issue for human review | Internal Slack warning |
+| Unexpected worker exception | Workflow fails | Internal Slack warning with the worker run |
+| Cancelled or timed-out drain workflow | No queue mutation | Internal Slack warning with the worker run |
 
 An active publication has a 15-minute lease. If the worker stops after recording an
 attempt, the next eligible worker treats its result as ambiguous and performs GET-only
@@ -119,6 +135,9 @@ The queue issue and internal blocked-publication warning include the connector, 
 specific failure reason, and worker-run link. Request and package IDs are included only
 when the failure occurred after Splunkbase received an upload. The warning is independent
 of `SEND_RELEASE_MESSAGE`, which controls standard release announcements.
+The worker sends no transient verification-retry warning. A separate `workflow_run`
+observer reports cancelled or timed-out drain runs because a cancelled worker may not
+get a chance to run its own exception handler.
 
 Blocked issues remain open until an operator resolves the cause and explicitly
 authorizes another queue attempt. An operator must not retry the multipart POST

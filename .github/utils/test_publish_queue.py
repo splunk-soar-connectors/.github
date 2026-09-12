@@ -96,6 +96,16 @@ def test_queue_body_round_trip_preserves_dedupe_fields():
     assert "Created and managed by Splunkbase queue automation." in _encode_body(item)
 
 
+def test_legacy_queue_body_defaults_verification_rechecks_to_zero():
+    data = make_item().as_dict()
+    data.pop("verification_rechecks")
+    body = f"{BODY_START}\n{json.dumps(data)}\n{BODY_END}"
+
+    decoded = _decode_body(body)
+
+    assert decoded.verification_rechecks == 0
+
+
 def test_duplicate_enqueue_reuses_one_issue():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
@@ -197,6 +207,67 @@ def test_verifying_item_is_selected_without_becoming_queued():
         {"name": "splunkbase-publish"},
         {"name": "splunkbase-verifying"},
     ]
+
+
+def test_oldest_eligible_prioritizes_queued_work_over_older_verification():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    verifying = queue.enqueue(
+        make_item(
+            repository="splunk-soar-connectors/verifying",
+            enqueued_at=format_datetime(now - timedelta(hours=2)),
+        )
+    )
+    queue.verify(
+        verifying,
+        {"status": "verifying", "package_id": "package-123"},
+        now,
+        "Waiting for package validation.",
+    )
+    queued = queue.enqueue(
+        make_item(
+            repository="splunk-soar-connectors/queued",
+            enqueued_at=format_datetime(now - timedelta(hours=1)),
+        )
+    )
+
+    selected = queue.oldest_eligible("soar-connectors-default", now)
+
+    assert selected.issue_number == queued.issue_number
+
+
+def test_verification_rechecks_survive_issue_reload():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    item = queue.enqueue(make_item())
+    item.verification_rechecks = 2
+
+    queue.verify(
+        item,
+        {"status": "verifying", "package_id": "package-123"},
+        now,
+        "Waiting for package validation.",
+    )
+
+    assert queue.get_item(item.issue_number).verification_rechecks == 2
+
+
+def test_oldest_eligible_honors_excluded_issue_numbers():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    first = queue.enqueue(make_item(repository="splunk-soar-connectors/first"))
+    second = queue.enqueue(make_item(repository="splunk-soar-connectors/second"))
+
+    selected = queue.oldest_eligible(
+        "soar-connectors-default",
+        now,
+        excluded_issue_numbers={first.issue_number},
+    )
+
+    assert selected.issue_number == second.issue_number
 
 
 def test_rate_ledger_never_reserves_more_than_twenty_in_a_rolling_hour():

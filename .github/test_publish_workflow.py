@@ -4,11 +4,15 @@ from pathlib import Path
 WORKFLOW = Path(__file__).parent / "workflows" / "publish.yml"
 PUSH_WORKFLOW = Path(__file__).parent / "workflows" / "push.yml"
 DRAIN_WORKFLOW = Path(__file__).parent / "workflows" / "drain-splunkbase-publish-queue.yml"
+WORKER_FAILURE_WORKFLOW = (
+    Path(__file__).parent / "workflows" / "notify-splunkbase-publish-queue-worker.yml"
+)
 ENQUEUE_WORKFLOW = Path(__file__).parent / "workflows" / "enqueue-splunkbase-publish.yml"
 ENQUEUE_ACTION = Path(__file__).parent / "actions" / "enqueue-publish" / "action.yml"
 NOTIFY_ACTION = Path(__file__).parent / "actions" / "notify-slack" / "action.yml"
 NOTIFY_SCRIPT = Path(__file__).parent / "actions" / "notify-slack" / "notify_slack.py"
 QUEUE_WORKER = Path(__file__).parent / "scripts" / "drain_splunkbase_publish_queue_worker.py"
+WORKER_FAILURE_NOTIFIER = Path(__file__).parent / "scripts" / "notify_splunkbase_publish_worker.py"
 
 
 def test_semantic_release_uses_compatible_conventional_commits_preset():
@@ -55,14 +59,39 @@ def test_drain_notifies_internal_slack_only_for_terminal_blocked_items():
     assert 'queue_status == "rate_limited"' not in worker
 
 
-def test_drain_is_bounded_to_one_hour_and_twenty_upload_attempts():
+def test_drain_is_bounded_before_workflow_timeout_and_to_twenty_upload_attempts():
     workflow = DRAIN_WORKFLOW.read_text()
     worker = QUEUE_WORKER.read_text()
 
     assert "timeout-minutes: 60" in workflow
-    assert "MAX_RUN_SECONDS = 60 * 60" in worker
+    assert "MAX_RUN_SECONDS = 50 * 60" in worker
     assert "MAX_UPLOAD_ATTEMPTS = 20" in worker
     assert "attempts_started < MAX_UPLOAD_ATTEMPTS" in worker
+
+
+def test_drain_fairness_and_worker_failure_alerts_are_wired():
+    queue = (Path(__file__).parent / "utils" / "publish_queue.py").read_text()
+    publisher = (
+        Path(__file__).parent / "scripts" / "drain_splunkbase_publish_queue.py"
+    ).read_text()
+    worker = QUEUE_WORKER.read_text()
+    workflow = WORKER_FAILURE_WORKFLOW.read_text()
+    notifier = WORKER_FAILURE_NOTIFIER.read_text()
+
+    assert "verification_rechecks: int = 0" in queue
+    assert "excluded_issue_numbers" in queue
+    assert "state_priority" in queue
+    assert "excluded_issue_numbers=selected_issue_numbers" in worker
+    assert "selected_issue_numbers.add(item.issue_number)" in worker
+    assert "MAX_VERIFICATION_RECHECKS = 3" in publisher
+    assert "send_worker_failure_notification" in worker
+    assert "workflow_run:" in workflow
+    assert "Drain Splunkbase publish queue" in workflow
+    assert "conclusion == 'cancelled'" in workflow
+    assert "conclusion == 'timed_out'" in workflow
+    assert 'python -m pip install "requests>=2.32.3,<3.0.0"' in workflow
+    assert "WORKER_RUN_URL" in notifier
+    assert "SLACK_INTERNAL_CHANNEL" in notifier
 
 
 def test_drain_runs_once_per_hour():

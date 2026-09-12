@@ -8,6 +8,14 @@ SPEC = importlib.util.spec_from_file_location("notify_splunkbase_publish_failure
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+WORKER_MODULE_PATH = Path(__file__).with_name("notify_splunkbase_publish_worker.py")
+WORKER_SPEC = importlib.util.spec_from_file_location(
+    "notify_splunkbase_publish_worker",
+    WORKER_MODULE_PATH,
+)
+WORKER_MODULE = importlib.util.module_from_spec(WORKER_SPEC)
+WORKER_SPEC.loader.exec_module(WORKER_MODULE)
+
 
 def environment(**overrides):
     values = {
@@ -58,6 +66,46 @@ def test_main_posts_one_internal_notification(monkeypatch):
         monkeypatch.setenv(key, value)
 
     MODULE.main()
+
+    post.assert_called_once()
+    assert post.call_args.kwargs["json"]["channel"] == "C123"
+    response.raise_for_status.assert_called_once()
+
+
+def worker_environment(**overrides):
+    values = {
+        "SLACK_INTERNAL_TOKEN": "token",
+        "SLACK_INTERNAL_CHANNEL": "C123",
+        "WORKER_RUN_URL": "https://github.com/splunk-soar-connectors/.github/actions/runs/12345",
+        "WORKER_CONCLUSION": "cancelled",
+        "WORKER_REASON": "The queue drain was cancelled or timed out before it completed.",
+    }
+    values.update(overrides)
+    return values
+
+
+def test_worker_message_contains_run_conclusion_and_reason():
+    message = WORKER_MODULE.build_message(worker_environment())
+
+    assert ":warning: Splunkbase publish queue worker did not complete" in message
+    assert "Conclusion: cancelled" in message
+    assert (
+        "Worker run: "
+        "<https://github.com/splunk-soar-connectors/.github/actions/runs/12345"
+        "|open worker run>"
+    ) in message
+    assert "The queue drain was cancelled or timed out before it completed." in message
+
+
+def test_worker_main_posts_one_internal_notification(monkeypatch):
+    response = Mock()
+    response.json.return_value = {"ok": True}
+    post = Mock(return_value=response)
+    monkeypatch.setattr(WORKER_MODULE.requests, "post", post)
+    for key, value in worker_environment().items():
+        monkeypatch.setenv(key, value)
+
+    WORKER_MODULE.main()
 
     post.assert_called_once()
     assert post.call_args.kwargs["json"]["channel"] == "C123"

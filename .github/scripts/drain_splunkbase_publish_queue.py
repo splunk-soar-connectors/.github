@@ -41,6 +41,7 @@ from utils.publish_queue import (
 
 VERIFICATION_POLL_INTERVAL_SECONDS = 10
 VERIFICATION_POLL_TIMEOUT_SECONDS = 5 * 60
+MAX_VERIFICATION_RECHECKS = 3
 
 
 def write_output(name: str, value: str | int | bool) -> None:
@@ -222,6 +223,24 @@ def finalize_publication(queue, client, item, args, result, now) -> int:
 
 
 def defer_verification(queue, item, result, now, reason) -> int:
+    try:
+        previous_rechecks = max(int(getattr(item, "verification_rechecks", 0) or 0), 0)
+    except (TypeError, ValueError):
+        previous_rechecks = 0
+    verification_rechecks = previous_rechecks + 1
+    item.verification_rechecks = verification_rechecks
+    write_output("verification_rechecks", verification_rechecks)
+
+    if verification_rechecks >= MAX_VERIFICATION_RECHECKS:
+        return block_publication(
+            queue,
+            item,
+            result,
+            "Splunkbase publication remained unconfirmed after three GET-only verification "
+            "rechecks; no further upload was attempted.",
+            return_code=13,
+        )
+
     queue.verify(
         item,
         result,
