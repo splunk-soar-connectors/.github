@@ -46,4 +46,4 @@ Additionally, our CI/CD pipeline runs these checks on every push, these can be v
   - Previous version
   - Cloud environment
   - RHEL environment
-- **Integration Tests**: Runs comprehensive integration test suite
+- **Integration Job Group**: Build, test setup, coverage, sanity, AWS sanity, result aggregation, and integration tests run by default. Add the `skip-integration` label before pushing the next commit to omit this group. Compilation and the faster pull-request checks always run.
