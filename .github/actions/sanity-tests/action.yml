@@ -57,8 +57,8 @@ runs:
           export AUTOMATION_BROKER="${{ inputs.automation_broker_next }}"
           echo "Tests will use automation broker $AUTOMATION_BROKER"
         fi
-        if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
-          echo "Failed to authenticate with Vault!"
+        if [[ -z "${CONJUR_AUTHN_LOGIN:-}" || -z "${CONJUR_AUTHN_API_KEY:-}" ]]; then
+          echo "::error::CONJUR_AUTHN_LOGIN and CONJUR_AUTHN_API_KEY must be configured for app tests"
           exit 1
         fi
         if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then
