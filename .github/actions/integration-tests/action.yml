@@ -35,8 +35,8 @@ runs:
           echo "Could not find app-tests branch $APP_TESTS_BRANCH, defaulting to main."
           git checkout main
         fi
-        if ! vault login -method=aws role=$VAULT_ROLE &> /dev/null; then
-          echo "Failed to authenticate with Vault!"
+        if [[ -z "${CONJUR_AUTHN_LOGIN:-}" || -z "${CONJUR_AUTHN_API_KEY:-}" ]]; then
+          echo "::error::CONJUR_AUTHN_LOGIN and CONJUR_AUTHN_API_KEY must be configured for app tests"
           exit 1
         fi
         if [[ ! -d suite/apps/"${{ inputs.app_repo }}" ]]; then
@@ -44,7 +44,3 @@ runs:
           exit 1
         fi
         pytest suite/apps/"${{ inputs.app_repo }}" --color=yes --reruns=$NUM_TEST_RETRIES --tb=native
-    - name: Clean Up
-      shell: bash
-      if: always()
-      run: vault token revoke -self || exit 0

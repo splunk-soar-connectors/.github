@@ -386,7 +386,6 @@ jobs:
             ip: ${{ vars.PHANTOM_INSTANCE_CLOUD_NEXT_HOST }}
     env:
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
-      VAULT_ROLE: ${{ vars.VAULT_ROLE }}
       PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
       PLAYBOOK_EXCLUDE_REGEX: ${{ vars.PLAYBOOK_EXCLUDE_REGEX }}
 
@@ -446,7 +445,6 @@ jobs:
       AWS_PHANTOM_USERNAME: ${{ vars.AWS_PHANTOM_USERNAME }}
       AWS_PHANTOM_PASSWORD: ${{ secrets.AWS_PHANTOM_PASSWORD }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
-      VAULT_ROLE: ${{ vars.VAULT_ROLE }}
 
     steps:
       - name: Resolve AWS Phantom IP
@@ -516,7 +514,6 @@ jobs:
       PHANTOM_INSTANCE_IP: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
       PHANTOM_INSTANCE_IP_FIPS: ${{ vars.PHANTOM_INSTANCE_CURRENT_FIPS_VERSION_IP }}
       NUM_TEST_RETRIES: ${{ vars.NUM_TEST_RETRIES }}
-      VAULT_ROLE: ${{ vars.VAULT_ROLE }}
     steps:
       - uses: actions/checkout@v4
 
