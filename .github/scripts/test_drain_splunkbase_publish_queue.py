@@ -29,6 +29,19 @@ def test_retry_after_supports_seconds_and_http_dates():
     )
 
 
+def test_newer_release_version_requires_strictly_newer_version():
+    client = Mock()
+    client.get_existing_releases.return_value = [
+        {"release_name": "0.9.0"},
+        {"release_name": "1.0.0"},
+        {"release_name": "1.5.0"},
+        {"release_name": "2.0.0"},
+    ]
+
+    assert MODULE.newer_release_version(client, "example-guid", "1.0.0") == "2.0.0"
+    assert MODULE.newer_release_version(client, "example-guid", "2.0.0") is None
+
+
 def test_worker_run_url_uses_current_actions_run(monkeypatch):
     monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.example.com/")
     monkeypatch.setenv("GITHUB_REPOSITORY", "splunk-soar-connectors/.github")

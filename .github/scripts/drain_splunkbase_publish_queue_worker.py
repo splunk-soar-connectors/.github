@@ -293,6 +293,45 @@ def send_blocked_notification(item, outputs: dict[str, str]) -> None:
     )
 
 
+def reconcile_superseded_blocked_items(queue, publisher_alias: str) -> int:
+    blocked_items = queue.blocked_items(publisher_alias)
+    if not blocked_items:
+        return 0
+
+    splunkbase = DRAIN.Splunkbase(
+        os.environ["SPLUNKBASE_USER"],
+        os.environ["SPLUNKBASE_PASSWORD"],
+        request_context={"repo": ".github"},
+    )
+    evicted = 0
+    for item in blocked_items:
+        try:
+            newer_version = DRAIN.newer_release_version(
+                splunkbase,
+                item.appid,
+                item.candidate_version,
+            )
+        except Exception as exc:
+            logging.warning(
+                "Could not reconcile blocked queue issue #%s (%s).",
+                item.issue_number,
+                type(exc).__name__,
+            )
+            continue
+        if newer_version is None:
+            continue
+
+        queue.delete_asset(item)
+        queue.supersede(item, newer_version)
+        evicted += 1
+        print(
+            f"Evicted blocked queue issue #{item.issue_number}: "
+            f"Splunkbase v{newer_version} supersedes "
+            f"{item.repository} v{item.candidate_version}."
+        )
+    return evicted
+
+
 def process_item(queue, item, wait_until) -> ItemOutcome:
     attempts_before = len(item.attempts)
     with tempfile.TemporaryDirectory(prefix="splunkbase-publish-") as directory:
@@ -372,11 +411,16 @@ def drain_queue(_args) -> int:
     items_processed = 0
     had_failures = False
     selected_issue_numbers = set()
+    publisher_alias = "soar-connectors-default"
+    queue = DRAIN.queue_from_environment()
+
+    evicted = reconcile_superseded_blocked_items(queue, publisher_alias)
+    if evicted:
+        print(f"Evicted {evicted} superseded blocked queue item(s).")
 
     while time.monotonic() - started < MAX_RUN_SECONDS and attempts_started < MAX_UPLOAD_ATTEMPTS:
-        queue = DRAIN.queue_from_environment()
         item = queue.oldest_eligible(
-            "soar-connectors-default",
+            publisher_alias,
             DRAIN.utc_now(),
             excluded_issue_numbers=selected_issue_numbers.copy(),
         )

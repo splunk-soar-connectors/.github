@@ -117,6 +117,16 @@ def version_exists(client: Splunkbase, appid: str, version: str) -> bool:
     )
 
 
+def newer_release_version(client: Splunkbase, appid: str, version: str) -> str | None:
+    candidate = parse(version)
+    newer_versions = [
+        str(release["release_name"])
+        for release in client.get_existing_releases(appid)
+        if parse(str(release["release_name"])) > candidate
+    ]
+    return max(newer_versions, key=parse, default=None)
+
+
 def append_outputs(source: Path) -> None:
     target = os.getenv("GITHUB_OUTPUT")
     if target and source.exists():

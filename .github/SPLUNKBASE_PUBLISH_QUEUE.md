@@ -124,6 +124,7 @@ notifications are attempted independently so one failure does not suppress the o
 | Three unsuccessful five-minute verification rechecks | Block the issue for human review | Internal Slack warning |
 | HTTP 401 or 403 | Block the issue for human review | Internal Slack warning |
 | Definitive validation rejection | Block the issue for human review | Internal Slack warning |
+| A newer connector version is already on Splunkbase | Delete the queued asset and close the blocked issue | None |
 | Unexpected worker exception | Workflow fails | Internal Slack warning with the worker run |
 | Cancelled or timed-out drain workflow | No queue mutation | Internal Slack warning with the worker run |
 
@@ -140,8 +141,9 @@ observer reports cancelled or timed-out drain runs because a cancelled worker ma
 get a chance to run its own exception handler.
 
 Blocked issues remain open until an operator resolves the cause and explicitly
-authorizes another queue attempt. An operator must not retry the multipart POST
-directly.
+authorizes another queue attempt, unless a later drain finds a newer connector version
+on Splunkbase and evicts the stale item automatically. An operator must not retry the
+multipart POST directly.
 
 ## Configuration
 
