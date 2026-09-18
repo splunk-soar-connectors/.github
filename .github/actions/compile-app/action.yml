@@ -22,6 +22,10 @@ inputs:
   uv_lock_directory:
     description: 'Directory containing uv.lock file (if SDKfied app)'
     required: false
+  insecure_sdk_install:
+    description: 'Whether to disable TLS verification when installing SDK apps'
+    required: false
+    default: 'false'
 runs:
   using: "composite"
   steps:
@@ -33,6 +37,7 @@ runs:
       if: inputs.is_sdkfied == 'true'
       env:
         PHANTOM_PASSWORD: ${{ inputs.phantom_password }}
+        SDK_INSTALL_INSECURE: ${{ inputs.insecure_sdk_install }}
       run: |
         cd "${{ inputs.uv_lock_directory }}"
         echo "Building SDKfied app using soarapps CLI"
@@ -47,8 +52,12 @@ runs:
         install_sdk_app() {
           local instance="$1"
           local attempt
+          local -a tls_args=()
+          if [[ "$SDK_INSTALL_INSECURE" == "true" ]]; then
+            tls_args+=(--insecure)
+          fi
           for attempt in 1 2 3; do
-            if uv run soarapps package install "$TARBALL_NAME" "$instance" --username soar_local_admin; then
+            if uv run soarapps package install "$TARBALL_NAME" "$instance" --username soar_local_admin "${tls_args[@]}"; then
               return 0
             fi
             if [ "$attempt" -eq 3 ]; then

@@ -220,6 +220,7 @@ jobs:
           phantom_password: password
           is_sdkfied: ${{ needs.detect-app-type.outputs.is_sdkfied }}
           uv_lock_directory: ${{ needs.detect-app-type.outputs.uv_lock_directory }}
+          insecure_sdk_install: true
 
   build:
     # connector-template intentionally uses a sentinel app ID and is not a publishable app.
