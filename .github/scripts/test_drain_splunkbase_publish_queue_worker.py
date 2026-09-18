@@ -22,6 +22,7 @@ SPEC.loader.exec_module(MODULE)
 
 def queue_with_items(count):
     queue = Mock()
+    queue.blocked_items.return_value = []
     items = [
         SimpleNamespace(
             attempts=[],
@@ -304,6 +305,37 @@ def test_worker_log_separates_repository_results(monkeypatch, capsys):
     ) in output
 
 
+def test_reconcile_evicts_blocked_item_when_newer_release_exists(monkeypatch):
+    item = published_item()
+    queue = Mock()
+    queue.blocked_items.return_value = [item]
+    splunkbase = Mock()
+    monkeypatch.setenv("SPLUNKBASE_USER", "user")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+    monkeypatch.setattr(MODULE.DRAIN, "Splunkbase", Mock(return_value=splunkbase))
+    monkeypatch.setattr(MODULE.DRAIN, "newer_release_version", Mock(return_value="2.0.0"))
+
+    assert MODULE.reconcile_superseded_blocked_items(queue, item.publisher_alias) == 1
+
+    queue.delete_asset.assert_called_once_with(item)
+    queue.supersede.assert_called_once_with(item, "2.0.0")
+
+
+def test_reconcile_preserves_blocked_item_without_newer_release(monkeypatch):
+    item = published_item()
+    queue = Mock()
+    queue.blocked_items.return_value = [item]
+    monkeypatch.setenv("SPLUNKBASE_USER", "user")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
+    monkeypatch.setattr(MODULE.DRAIN, "Splunkbase", Mock(return_value=Mock()))
+    monkeypatch.setattr(MODULE.DRAIN, "newer_release_version", Mock(return_value=None))
+
+    assert MODULE.reconcile_superseded_blocked_items(queue, item.publisher_alias) == 0
+
+    queue.delete_asset.assert_not_called()
+    queue.supersede.assert_not_called()
+
+
 def test_drain_stops_after_twenty_started_upload_attempts(monkeypatch):
     queue = queue_with_items(MODULE.MAX_UPLOAD_ATTEMPTS + 1)
     process_item = Mock(
@@ -361,6 +393,7 @@ def test_drain_stops_selecting_after_one_hour(monkeypatch):
 
 def test_drain_excludes_an_issue_after_it_is_selected(monkeypatch):
     queue = Mock()
+    queue.blocked_items.return_value = []
     item = SimpleNamespace(
         attempts=[],
         candidate_version="1.0.0",

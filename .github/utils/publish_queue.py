@@ -143,6 +143,10 @@ class PublishQueue(Protocol):
 
     def block(self, item: PublishQueueItem, result: dict[str, Any]) -> None: ...
 
+    def blocked_items(self, publisher_alias: str) -> list[PublishQueueItem]: ...
+
+    def supersede(self, item: PublishQueueItem, newer_version: str) -> None: ...
+
 
 class GitHubClient:
     def __init__(self, token: str, api_url: str = "https://api.github.com"):
@@ -373,6 +377,20 @@ class GitHubIssuePublishQueue:
         item.issue_number = issue_number
         return item
 
+    def blocked_items(self, publisher_alias: str) -> list[PublishQueueItem]:
+        items = []
+        labels = f"{QUEUE_MARKER},{QUEUE_STATES['blocked']}"
+        for issue in self._issues(state="open", labels=labels):
+            try:
+                item = _decode_body(issue.get("body") or "")
+            except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+                continue
+            if item.publisher_alias != publisher_alias:
+                continue
+            item.issue_number = issue["number"]
+            items.append(item)
+        return items
+
     def _update(
         self,
         item: PublishQueueItem,
@@ -468,6 +486,17 @@ class GitHubIssuePublishQueue:
             item,
             state="blocked",
             note=note,
+        )
+
+    def supersede(self, item: PublishQueueItem, newer_version: str) -> None:
+        self._update(
+            item,
+            state="blocked",
+            note=(
+                f"Closed automatically because Splunkbase version {newer_version} "
+                f"supersedes queued version {item.candidate_version}."
+            ),
+            close=True,
         )
 
     def _state_issue(self, publisher_alias: str):

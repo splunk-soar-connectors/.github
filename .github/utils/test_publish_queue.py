@@ -343,3 +343,39 @@ def test_blocked_issue_does_not_publish_raw_response_text():
         "[worker run](https://github.com/splunk-soar-connectors/.github/actions/runs/12345)"
     ) in body
     assert "internal Splunkbase response details" not in body
+
+
+def test_blocked_items_returns_only_open_items_for_publisher():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    expected = queue.enqueue(make_item(repository="splunk-soar-connectors/blocked"))
+    queue.block(expected, {"status": "failed"})
+    other = queue.enqueue(
+        make_item(
+            publisher_alias="another-publisher",
+            repository="splunk-soar-connectors/other",
+        )
+    )
+    queue.block(other, {"status": "failed"})
+    queue.enqueue(make_item(repository="splunk-soar-connectors/queued"))
+
+    items = queue.blocked_items("soar-connectors-default")
+
+    assert [item.issue_number for item in items] == [expected.issue_number]
+
+
+def test_supersede_closes_issue_and_preserves_blocked_state():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    item = queue.enqueue(make_item(candidate_version="1.0.0"))
+    queue.block(item, {"status": "failed"})
+
+    queue.supersede(item, "2.0.0")
+
+    issue = client.issues[0]
+    assert issue["state"] == "closed"
+    assert issue["labels"] == [
+        {"name": "splunkbase-publish"},
+        {"name": "splunkbase-blocked"},
+    ]
+    assert "Splunkbase version 2.0.0 supersedes queued version 1.0.0" in issue["body"]
