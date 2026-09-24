@@ -18,7 +18,7 @@
         [
             "@semantic-release/exec",
             {
-                "prepareCmd": "rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version} && uv_lock_path=$(find . -name uv.lock -type f -print -quit) && if [ -n \"$uv_lock_path\" ]; then uv lock --project \"$(dirname \"$uv_lock_path\")\"; fi",
+                "prepareCmd": "rm -f package.json package-lock.json .releaserc.json && python update_version.py ${nextRelease.version}",
                 "verifyReleaseCmd": "echo \"${nextRelease.version}\" > release_version.txt",
                 "generateNotesCmd": "cat >release_notes.txt <<'EOF${nextRelease.gitHead}EOF'\n${nextRelease.notes}\nEOF${nextRelease.gitHead}EOF"
             }
