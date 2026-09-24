@@ -3,6 +3,7 @@
 import os
 import json
 import argparse
+import subprocess
 from pathlib import Path
 import re
 from datetime import datetime, timezone
@@ -148,6 +149,15 @@ def find_uv_lock_file(connector_path: Path) -> Optional[Path]:
         return uv_lock_path
 
 
+def update_uv_lock(uv_lock_path: Path) -> None:
+    """Regenerate the lockfile after updating the project's version."""
+    print(f"Updating {uv_lock_path}")
+    subprocess.run(
+        ["uv", "lock", "--project", str(uv_lock_path.parent)],
+        check=True,
+    )
+
+
 def main(**kwargs):
     if not kwargs.get("new_version") or not re.match(r"^\d+\.\d+\.\d+$", kwargs.get("new_version")):
         print(
@@ -161,6 +171,7 @@ def main(**kwargs):
     if uv_lock_file := find_uv_lock_file(Path(os.getcwd())):
         pyproject_toml_path = uv_lock_file.parent / "pyproject.toml"
         update_app_version_in_toml(pyproject_toml_path, new_version)
+        update_uv_lock(uv_lock_file)
     else:
         app_json_name = find_app_json_name(
             [f for f in os.listdir(os.getcwd()) if f.endswith(".json")]
