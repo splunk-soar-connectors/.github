@@ -14,10 +14,9 @@ runs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       shell: bash
 
-    - name: Setup UV Environment
+    - name: Validate and setup locked UV environment
       run: |
         cd "${{ inputs.uv_lock_directory }}"
-        uv add splunk-soar-sdk
-        uv sync
+        uv sync --locked
         echo "UV environment setup completed successfully"
       shell: bash

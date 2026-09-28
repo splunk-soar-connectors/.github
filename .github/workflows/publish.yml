@@ -38,6 +38,13 @@ jobs:
           with:
             python-version: '3.9'
 
+        - name: Install uv for SDKfied release
+          if: hashFiles('**/uv.lock') != ''
+          run: |
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
         - name: Cache pip
           uses: actions/cache@v4
           with:

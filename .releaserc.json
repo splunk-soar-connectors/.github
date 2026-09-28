@@ -30,7 +30,9 @@
                     "README.md",
                     "*.json",
                     "release_notes/*",
-                    "pyproject.toml"
+                    "pyproject.toml",
+                    "uv.lock",
+                    "**/*/uv.lock"
                 ],
                 "message": "chore(release): update version to ${nextRelease.version} [skip ci]"
             }
