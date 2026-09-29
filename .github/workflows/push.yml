@@ -5,8 +5,89 @@ on:
     types:
       - opened
       - synchronize
+      - reopened
 
 jobs:
+  contract-diff:
+    if: github.repository_owner == 'splunk-soar-connectors' && github.repository != 'splunk-soar-connectors/.github'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out base connector
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Check out PR connector
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          persist-credentials: false
+
+      - name: Check out contract checker
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github
+          ref: main
+          path: tooling
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install SDK manifest runner
+        run: python -m pip install 'uv==0.12.0'
+
+      - name: Compare contracts
+        run: python tooling/.github/scripts/contract_diff.py base head contract-report/report.json
+
+      - name: Save contract report
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-report
+          path: contract-report/report.json
+          if-no-files-found: error
+
+  contract-report:
+    needs: contract-diff
+    runs-on: ubuntu-latest
+    concurrency:
+      group: contract-report-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Check out contract reporter
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/.github
+          ref: main
+          path: tooling
+          persist-credentials: false
+
+      - name: Download contract report
+        uses: actions/download-artifact@v4
+        with:
+          name: contract-report
+          path: contract-report
+
+      - name: Post contract summary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python tooling/.github/scripts/report_contract_changes.py contract-report/report.json
+
   pr-labeling:
     runs-on: ubuntu-latest
     if: github.repository != 'splunk-soar-connectors/.github' && github.event.action == 'opened'
