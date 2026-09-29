@@ -93,16 +93,19 @@ def outputs_by_path(action: dict) -> dict:
     return outputs
 
 
-def compare_outputs(before: dict, after: dict, context: str) -> list[str]:
+def output_name(path: str) -> str:
+    return path.removeprefix("action_result.data.*.")
+
+
+def compare_outputs(before: dict, after: dict) -> list[str]:
     changes = []
     for path in sorted(before.keys() | after.keys()):
         old, new = before.get(path, []), after.get(path, [])
         if len(old) <= 1 and len(new) <= 1:
             changes.extend(
                 describe_change(
-                    "Action output",
-                    path,
-                    context,
+                    "Output",
+                    output_name(path),
                     old[0] if old else None,
                     new[0] if new else None,
                 )
@@ -115,12 +118,12 @@ def compare_outputs(before: dict, after: dict, context: str) -> list[str]:
                 json.dumps(contract_fields(item), sort_keys=True) for item in new
             )
             if normalized_old != normalized_new:
-                changes.append(f"**Action output** `{escape(path)}`{context} changed")
+                changes.append(f"**Output** `{escape(output_name(path))}` changed")
     return changes
 
 
-def describe_change(kind: str, name: str, context: str, before, after) -> list[str]:
-    label = f"**{kind}** `{escape(name)}`{context}"
+def describe_change(kind: str, name: str, before, after) -> list[str]:
+    label = (f"**{kind}** " if kind else "") + f"`{escape(name)}`"
     if before is None:
         return [f"{label} added"]
     if after is None:
@@ -153,51 +156,54 @@ def escape(value: str) -> str:
     )
 
 
-def compare_fields(kind: str, before: dict, after: dict, context: str = "") -> list[str]:
+def compare_fields(kind: str, before: dict, after: dict) -> list[str]:
     changes = []
     for name in sorted(before.keys() | after.keys()):
-        changes.extend(describe_change(kind, name, context, before.get(name), after.get(name)))
+        changes.extend(describe_change(kind, name, before.get(name), after.get(name)))
     return changes
 
 
-def compare(before: dict, after: dict) -> list[str]:
-    changes = []
+def compare(before: dict, after: dict) -> list[dict]:
+    sections = []
     if before["appid"] != after["appid"]:
         return [
-            f"**Connector** `{escape(before.get('name', before['appid']))}` removed",
-            f"**Connector** `{escape(after.get('name', after['appid']))}` added",
+            {
+                "heading": "Changes to connector:",
+                "items": [
+                    f"`{escape(before.get('name', before['appid']))}` removed",
+                    f"`{escape(after.get('name', after['appid']))}` added",
+                ],
+            }
         ]
-    changes.extend(
-        compare_fields("Asset parameter", before["configuration"], after["configuration"])
-    )
+    asset_changes = compare_fields("", before["configuration"], after["configuration"])
+    if asset_changes:
+        sections.append({"heading": "Changes to asset parameters:", "items": asset_changes})
     old_actions, new_actions = actions_by_id(before), actions_by_id(after)
     for identifier in sorted(old_actions.keys() | new_actions.keys()):
         old_action, new_action = old_actions.get(identifier), new_actions.get(identifier)
+        action_name = escape((new_action or old_action).get("action", identifier))
+        action_changes = []
         if old_action is None or new_action is None:
             action = "added" if old_action is None else "removed"
-            changes.append(
-                f"**Action** `{escape((new_action or old_action).get('action', identifier))}` {action}"
+            action_changes.append(f"Action {action}")
+        else:
+            if old_action.get("action") != new_action.get("action"):
+                action_changes.append(
+                    f"Action renamed from `{escape(old_action.get('action', identifier))}`"
+                )
+            action_changes.extend(
+                compare_fields(
+                    "Input", old_action.get("parameters", {}), new_action.get("parameters", {})
+                )
             )
-            continue
-        if old_action.get("action") != new_action.get("action"):
-            changes.append(
-                f"**Action** `{escape(old_action.get('action', identifier))}` renamed to "
-                f"`{escape(new_action.get('action', identifier))}`"
+            action_changes.extend(
+                compare_outputs(outputs_by_path(old_action), outputs_by_path(new_action))
             )
-        action_name = escape(new_action.get("action", identifier))
-        context = f" for action `{action_name}`"
-        changes.extend(
-            compare_fields(
-                "Action input",
-                old_action.get("parameters", {}),
-                new_action.get("parameters", {}),
-                context,
+        if action_changes:
+            sections.append(
+                {"heading": f"Changes to action `{action_name}`:", "items": action_changes}
             )
-        )
-        changes.extend(
-            compare_outputs(outputs_by_path(old_action), outputs_by_path(new_action), context)
-        )
-    return changes
+    return sections
 
 
 def main() -> None:
@@ -212,7 +218,7 @@ def main() -> None:
     head = manifest(args.head.resolve(), output)
     changes = compare(base, head)
     args.report.write_text(json.dumps({"changes": changes}, indent=2) + "\n")
-    print(f"Found {len(changes)} contract changes")
+    print(f"Found {sum(len(section['items']) for section in changes)} contract changes")
 
 
 if __name__ == "__main__":

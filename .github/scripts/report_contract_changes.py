@@ -48,10 +48,11 @@ def pages(path: str) -> list[dict]:
         page += 1
 
 
-def summary(changes: list[str]) -> str:
+def summary(changes: list[dict]) -> str:
     if changes:
-        return f"{COMMENT_MARKER}\n## ⚠️ Contract changes\n\n" + "\n".join(
-            f"- {change}" for change in changes
+        return f"{COMMENT_MARKER}\n## ⚠️ Contract changes\n\n" + "\n\n".join(
+            f"## {section['heading']}\n\n" + "\n".join(f"- {item}" for item in section["items"])
+            for section in changes
         )
     return f"{COMMENT_MARKER}\n## \u2139\ufe0f No contract changes\n\nNo asset parameter, action input, or action output changes were found."
 
@@ -62,7 +63,7 @@ def is_ours(item: dict) -> bool:
     )
 
 
-def report(repo: str, number: int, head_sha: str, changes: list[str]) -> None:
+def report(repo: str, number: int, head_sha: str, changes: list[dict]) -> None:
     repo_path = "/repos/" + quote(repo, safe="/")
     pr = api("GET", f"{repo_path}/pulls/{number}")
     if pr["head"]["sha"] != head_sha:

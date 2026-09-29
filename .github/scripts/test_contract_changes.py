@@ -48,10 +48,25 @@ class ContractDiffTests(unittest.TestCase):
         self.assertEqual(
             diff.compare(before, after),
             [
-                "**Asset parameter** `new_setting` added",
-                "**Action input** `temporary password` for action `change password` changed from string to password type",
-                "**Action output** `action_result.data.*.transaction_id` for action `change password` removed",
+                {"heading": "Changes to asset parameters:", "items": ["`new_setting` added"]},
+                {
+                    "heading": "Changes to action `change password`:",
+                    "items": [
+                        "**Input** `temporary password` changed from string to password type",
+                        "**Output** `transaction_id` removed",
+                    ],
+                },
             ],
+        )
+        self.assertEqual(
+            reporter.summary(diff.compare(before, after)),
+            "<!-- soar-contract-summary -->\n"
+            "## ⚠️ Contract changes\n\n"
+            "## Changes to asset parameters:\n\n"
+            "- `new_setting` added\n\n"
+            "## Changes to action `change password`:\n\n"
+            "- **Input** `temporary password` changed from string to password type\n"
+            "- **Output** `transaction_id` removed",
         )
 
     def test_presentation_only_changes_do_not_flag(self):
@@ -67,7 +82,35 @@ class ContractDiffTests(unittest.TestCase):
         after["appid"] = "new-id"
         self.assertEqual(
             diff.compare(before, after),
-            ["**Connector** `Example` removed", "**Connector** `Example` added"],
+            [
+                {
+                    "heading": "Changes to connector:",
+                    "items": ["`Example` removed", "`Example` added"],
+                }
+            ],
+        )
+
+    def test_action_changes_have_their_own_sections(self):
+        before = app()
+        before["actions"].append(
+            {"identifier": "old_action", "action": "old action", "parameters": {}, "output": []}
+        )
+        after = json.loads(json.dumps(before))
+        after["actions"][0]["action"] = "reset password"
+        after["actions"].pop()
+        after["actions"].append(
+            {"identifier": "new_action", "action": "new action", "parameters": {}, "output": []}
+        )
+        self.assertEqual(
+            diff.compare(before, after),
+            [
+                {
+                    "heading": "Changes to action `reset password`:",
+                    "items": ["Action renamed from `change password`"],
+                },
+                {"heading": "Changes to action `new action`:", "items": ["Action added"]},
+                {"heading": "Changes to action `old action`:", "items": ["Action removed"]},
+            ],
         )
 
     def test_duplicate_output_paths_are_compared_without_failing(self):
@@ -79,7 +122,10 @@ class ContractDiffTests(unittest.TestCase):
         self.assertEqual(
             diff.compare(before, after),
             [
-                "**Action output** `action_result.data.*.transaction_id` for action `change password` changed"
+                {
+                    "heading": "Changes to action `change password`:",
+                    "items": ["**Output** `transaction_id` changed"],
+                }
             ],
         )
 
@@ -141,6 +187,7 @@ class ContractDiffTests(unittest.TestCase):
         changed["configuration"]["api_key"]["required"] = True
         changed["actions"][0]["parameters"]["username"]["required"] = True
         changed["actions"][0]["output"][0]["data_type"] = "numeric"
+        changed["actions"][1]["parameters"]["username"]["required"] = True
         reordered_changed = json.loads(json.dumps(changed))
         reordered_changed["configuration"] = dict(
             reversed(list(reordered_changed["configuration"].items()))
@@ -152,12 +199,13 @@ class ContractDiffTests(unittest.TestCase):
         reordered_changed["actions"][1]["output"].reverse()
         expected = diff.compare(before, changed)
         self.assertEqual(len(expected), 3)
+        self.assertEqual(sum(len(section["items"]) for section in expected), 4)
         self.assertEqual(diff.compare(before, reordered_changed), expected)
 
 
 class ContractReportTests(unittest.TestCase):
     def test_unchanged_summary_makes_no_write(self):
-        changes = ["**Asset parameter** `tls_verify` added"]
+        changes = [{"heading": "Changes to asset parameters:", "items": ["`tls_verify` added"]}]
         calls = []
 
         def fake_api(method, path, payload=None):
@@ -192,7 +240,12 @@ class ContractReportTests(unittest.TestCase):
             return {}
 
         with patch.object(reporter, "api", side_effect=fake_api):
-            reporter.report("owner/repo", 5, "abc", ["**Asset parameter** `tls_verify` added"])
+            reporter.report(
+                "owner/repo",
+                5,
+                "abc",
+                [{"heading": "Changes to asset parameters:", "items": ["`tls_verify` added"]}],
+            )
         self.assertEqual([method for method, _, _ in calls], ["GET", "GET", "DELETE", "POST"])
         self.assertEqual(calls[-1][2]["body"].splitlines()[1], "## ⚠️ Contract changes")
 
