@@ -46,7 +46,7 @@ class ContractDiffTests(unittest.TestCase):
         after["actions"][0]["parameters"]["temporary password"]["data_type"] = "password"
         after["actions"][0]["output"] = []
         self.assertEqual(
-            diff.compare({"example-id": before}, {"example-id": after}),
+            diff.compare(before, after),
             [
                 "**Asset parameter** `new_setting` added",
                 "**Action input** `temporary password` for action `change password` changed from string to password type",
@@ -59,7 +59,16 @@ class ContractDiffTests(unittest.TestCase):
         after = json.loads(json.dumps(before))
         after["configuration"]["tls_verify"].update({"description": "New help", "order": 1})
         after["actions"][0]["output"][0]["example_values"] = ["sample"]
-        self.assertEqual(diff.compare({"example-id": before}, {"example-id": after}), [])
+        self.assertEqual(diff.compare(before, after), [])
+
+    def test_appid_change_reports_connector_replacement(self):
+        before = app()
+        after = json.loads(json.dumps(before))
+        after["appid"] = "new-id"
+        self.assertEqual(
+            diff.compare(before, after),
+            ["**Connector** `Example` removed", "**Connector** `Example` added"],
+        )
 
     def test_duplicate_output_paths_are_compared_without_failing(self):
         before = app()
@@ -68,7 +77,7 @@ class ContractDiffTests(unittest.TestCase):
         after = json.loads(json.dumps(before))
         after["actions"][0]["output"][1]["data_type"] = "numeric"
         self.assertEqual(
-            diff.compare({"example-id": before}, {"example-id": after}),
+            diff.compare(before, after),
             [
                 "**Action output** `action_result.data.*.transaction_id` for action `change password` changed"
             ],
@@ -79,30 +88,29 @@ class ContractDiffTests(unittest.TestCase):
             root = Path(directory)
             (root / "app.json").write_text(json.dumps(app()))
             (root / "test_asset.json").write_text('{"api_key":"secret"}')
-            self.assertEqual(diff.manifests(root, root)["example-id"]["name"], "Example")
+            self.assertEqual(diff.manifest(root, root)["name"], "Example")
 
-    def test_manifest_discovery_requires_exactly_one_source(self):
+    def test_manifest_discovery_uses_first_source_or_fails_when_missing(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            with self.assertRaisesRegex(ValueError, "found 0"):
-                diff.manifests(root, root)
+            with self.assertRaisesRegex(ValueError, "No connector manifest"):
+                diff.manifest(root, root)
 
             (root / "first.json").write_text(json.dumps(app()))
-            (root / "second.json").write_text(json.dumps(app()))
-            with self.assertRaisesRegex(ValueError, "found 2"):
-                diff.manifests(root, root)
+            second = app()
+            second["appid"] = "second-id"
+            (root / "second.json").write_text(json.dumps(second))
+            self.assertEqual(diff.manifest(root, root)["appid"], "example-id")
 
-            (root / "second.json").unlink()
             (root / "sdk" / "first").mkdir(parents=True)
             (root / "sdk" / "first" / "uv.lock").touch()
-            with self.assertRaisesRegex(ValueError, "found 2"):
-                diff.manifests(root, root)
-
-            (root / "first.json").unlink()
             (root / "sdk" / "second").mkdir(parents=True)
             (root / "sdk" / "second" / "uv.lock").touch()
-            with self.assertRaisesRegex(ValueError, "found 2"):
-                diff.manifests(root, root)
+            with patch.object(diff.subprocess, "run") as run:
+                run.return_value.returncode = 0
+                (root / "sdk.json").write_text(json.dumps(second))
+                self.assertEqual(diff.manifest(root, root)["appid"], "second-id")
+                run.assert_called_once()
 
     def test_manifest_entry_order_does_not_change_summary(self):
         before = app()
@@ -127,7 +135,7 @@ class ContractDiffTests(unittest.TestCase):
         changed_action = reordered["actions"][1]
         changed_action["parameters"] = dict(reversed(list(changed_action["parameters"].items())))
         changed_action["output"].reverse()
-        self.assertEqual(diff.compare({"example-id": before}, {"example-id": reordered}), [])
+        self.assertEqual(diff.compare(before, reordered), [])
 
         changed = json.loads(json.dumps(before))
         changed["configuration"]["api_key"]["required"] = True
@@ -142,11 +150,9 @@ class ContractDiffTests(unittest.TestCase):
             reversed(list(reordered_changed["actions"][1]["parameters"].items()))
         )
         reordered_changed["actions"][1]["output"].reverse()
-        expected = diff.compare({"example-id": before}, {"example-id": changed})
+        expected = diff.compare(before, changed)
         self.assertEqual(len(expected), 3)
-        self.assertEqual(
-            diff.compare({"example-id": before}, {"example-id": reordered_changed}), expected
-        )
+        self.assertEqual(diff.compare(before, reordered_changed), expected)
 
 
 class ContractReportTests(unittest.TestCase):

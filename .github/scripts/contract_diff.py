@@ -16,36 +16,20 @@ PRESENTATION_FIELDS = {
 }
 
 
-def manifests(checkout: Path, output: Path) -> dict[str, dict]:
-    """Read BaseConnector JSON or generate the canonical SDK manifest."""
+def manifest(checkout: Path, output: Path) -> dict:
+    """Return the first SDK or BaseConnector manifest in a checkout."""
     if not checkout.is_dir():
         raise ValueError(f"Connector checkout does not exist: {checkout}")
 
-    result = {}
-    projects = sorted(
-        path.parent
-        for path in checkout.rglob("uv.lock")
-        if ".venv" not in path.parts and ".git" not in path.parts
+    project = next(
+        (
+            path.parent
+            for path in checkout.rglob("uv.lock")
+            if ".venv" not in path.parts and ".git" not in path.parts
+        ),
+        None,
     )
-    app_jsons = []
-    for path in sorted(checkout.glob("*.json")):
-        try:
-            data = json.loads(path.read_text())
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict) and "actions" in data and "configuration" in data:
-            app_jsons.append((path, data))
-
-    sources = [*projects, *(path for path, _ in app_jsons)]
-    if len(sources) != 1:
-        names = ", ".join(str(path.relative_to(checkout)) for path in sources)
-        raise ValueError(
-            f"Expected exactly one connector manifest or SDK project in {checkout}; "
-            f"found {len(sources)} ({names})"
-        )
-
-    if projects:
-        project = projects[0]
+    if project is not None:
         manifest_path = output / "sdk.json"
         command = [
             "uv",
@@ -63,22 +47,26 @@ def manifests(checkout: Path, output: Path) -> dict[str, dict]:
             raise RuntimeError(
                 f"Could not generate SDK manifest for {project}:\n{completed.stderr}"
             )
-        add_manifest(result, json.loads(manifest_path.read_text()), project)
-    else:
-        path, data = app_jsons[0]
-        add_manifest(result, data, path)
-    return result
+        return validate_manifest(json.loads(manifest_path.read_text()), project)
+
+    for path in sorted(checkout.glob("*.json")):
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict) and "actions" in data and "configuration" in data:
+            return validate_manifest(data, path)
+
+    raise ValueError(f"No connector manifest or SDK project found in {checkout}")
 
 
-def add_manifest(result: dict, data: dict, source: Path) -> None:
+def validate_manifest(data: dict, source: Path) -> dict:
     appid = data.get("appid")
     if not isinstance(appid, str) or not appid:
         raise ValueError(f"Manifest {source} has no appid")
-    if appid in result:
-        raise ValueError(f"Duplicate appid {appid} in {source}")
     if not isinstance(data.get("configuration"), dict) or not isinstance(data.get("actions"), list):
         raise ValueError(f"Invalid contract in {source}")
-    result[appid] = data
+    return data
 
 
 def contract_fields(fields: dict) -> dict:
@@ -172,46 +160,43 @@ def compare_fields(kind: str, before: dict, after: dict, context: str = "") -> l
     return changes
 
 
-def compare(before: dict[str, dict], after: dict[str, dict]) -> list[str]:
+def compare(before: dict, after: dict) -> list[str]:
     changes = []
-    for appid in sorted(before.keys() | after.keys()):
-        old_app, new_app = before.get(appid), after.get(appid)
-        if old_app is None or new_app is None:
-            action = "added" if old_app is None else "removed"
+    if before["appid"] != after["appid"]:
+        return [
+            f"**Connector** `{escape(before.get('name', before['appid']))}` removed",
+            f"**Connector** `{escape(after.get('name', after['appid']))}` added",
+        ]
+    changes.extend(
+        compare_fields("Asset parameter", before["configuration"], after["configuration"])
+    )
+    old_actions, new_actions = actions_by_id(before), actions_by_id(after)
+    for identifier in sorted(old_actions.keys() | new_actions.keys()):
+        old_action, new_action = old_actions.get(identifier), new_actions.get(identifier)
+        if old_action is None or new_action is None:
+            action = "added" if old_action is None else "removed"
             changes.append(
-                f"**Connector** `{escape((new_app or old_app).get('name', appid))}` {action}"
+                f"**Action** `{escape((new_action or old_action).get('action', identifier))}` {action}"
             )
             continue
+        if old_action.get("action") != new_action.get("action"):
+            changes.append(
+                f"**Action** `{escape(old_action.get('action', identifier))}` renamed to "
+                f"`{escape(new_action.get('action', identifier))}`"
+            )
+        action_name = escape(new_action.get("action", identifier))
+        context = f" for action `{action_name}`"
         changes.extend(
-            compare_fields("Asset parameter", old_app["configuration"], new_app["configuration"])
+            compare_fields(
+                "Action input",
+                old_action.get("parameters", {}),
+                new_action.get("parameters", {}),
+                context,
+            )
         )
-        old_actions, new_actions = actions_by_id(old_app), actions_by_id(new_app)
-        for identifier in sorted(old_actions.keys() | new_actions.keys()):
-            old_action, new_action = old_actions.get(identifier), new_actions.get(identifier)
-            if old_action is None or new_action is None:
-                action = "added" if old_action is None else "removed"
-                changes.append(
-                    f"**Action** `{escape((new_action or old_action).get('action', identifier))}` {action}"
-                )
-                continue
-            if old_action.get("action") != new_action.get("action"):
-                changes.append(
-                    f"**Action** `{escape(old_action.get('action', identifier))}` renamed to "
-                    f"`{escape(new_action.get('action', identifier))}`"
-                )
-            action_name = escape(new_action.get("action", identifier))
-            context = f" for action `{action_name}`"
-            changes.extend(
-                compare_fields(
-                    "Action input",
-                    old_action.get("parameters", {}),
-                    new_action.get("parameters", {}),
-                    context,
-                )
-            )
-            changes.extend(
-                compare_outputs(outputs_by_path(old_action), outputs_by_path(new_action), context)
-            )
+        changes.extend(
+            compare_outputs(outputs_by_path(old_action), outputs_by_path(new_action), context)
+        )
     return changes
 
 
@@ -223,8 +208,8 @@ def main() -> None:
     args = parser.parse_args()
     output = args.report.parent.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    base = manifests(args.base.resolve(), output)
-    head = manifests(args.head.resolve(), output)
+    base = manifest(args.base.resolve(), output)
+    head = manifest(args.head.resolve(), output)
     changes = compare(base, head)
     args.report.write_text(json.dumps({"changes": changes}, indent=2) + "\n")
     print(f"Found {len(changes)} contract changes")
