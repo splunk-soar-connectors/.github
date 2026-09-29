@@ -1,0 +1,20 @@
+name: Check Widget Template Guard
+
+on:
+  pull_request:
+    paths:
+      - .github/actions/pre-commit/**
+      - .github/workflows/check-widget-template.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python3 -B .github/actions/pre-commit/test_check_widget_template.py
