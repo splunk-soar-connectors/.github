@@ -81,6 +81,73 @@ class ContractDiffTests(unittest.TestCase):
             (root / "test_asset.json").write_text('{"api_key":"secret"}')
             self.assertEqual(diff.manifests(root, root)["example-id"]["name"], "Example")
 
+    def test_manifest_discovery_requires_exactly_one_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "found 0"):
+                diff.manifests(root, root)
+
+            (root / "first.json").write_text(json.dumps(app()))
+            (root / "second.json").write_text(json.dumps(app()))
+            with self.assertRaisesRegex(ValueError, "found 2"):
+                diff.manifests(root, root)
+
+            (root / "second.json").unlink()
+            (root / "sdk" / "first").mkdir(parents=True)
+            (root / "sdk" / "first" / "uv.lock").touch()
+            with self.assertRaisesRegex(ValueError, "found 2"):
+                diff.manifests(root, root)
+
+            (root / "first.json").unlink()
+            (root / "sdk" / "second").mkdir(parents=True)
+            (root / "sdk" / "second" / "uv.lock").touch()
+            with self.assertRaisesRegex(ValueError, "found 2"):
+                diff.manifests(root, root)
+
+    def test_manifest_entry_order_does_not_change_summary(self):
+        before = app()
+        before["configuration"]["api_key"] = {"data_type": "password"}
+        first_action = before["actions"][0]
+        first_action["parameters"]["username"] = {"data_type": "string"}
+        first_action["output"].append(
+            {"data_path": "action_result.data.*.status", "data_type": "string"}
+        )
+        before["actions"].append(
+            {
+                "identifier": "lock_account",
+                "action": "lock account",
+                "parameters": {"username": {"data_type": "string"}},
+                "output": [{"data_path": "action_result.data.*.locked", "data_type": "boolean"}],
+            }
+        )
+
+        reordered = json.loads(json.dumps(before))
+        reordered["configuration"] = dict(reversed(list(reordered["configuration"].items())))
+        reordered["actions"].reverse()
+        changed_action = reordered["actions"][1]
+        changed_action["parameters"] = dict(reversed(list(changed_action["parameters"].items())))
+        changed_action["output"].reverse()
+        self.assertEqual(diff.compare({"example-id": before}, {"example-id": reordered}), [])
+
+        changed = json.loads(json.dumps(before))
+        changed["configuration"]["api_key"]["required"] = True
+        changed["actions"][0]["parameters"]["username"]["required"] = True
+        changed["actions"][0]["output"][0]["data_type"] = "numeric"
+        reordered_changed = json.loads(json.dumps(changed))
+        reordered_changed["configuration"] = dict(
+            reversed(list(reordered_changed["configuration"].items()))
+        )
+        reordered_changed["actions"].reverse()
+        reordered_changed["actions"][1]["parameters"] = dict(
+            reversed(list(reordered_changed["actions"][1]["parameters"].items()))
+        )
+        reordered_changed["actions"][1]["output"].reverse()
+        expected = diff.compare({"example-id": before}, {"example-id": changed})
+        self.assertEqual(len(expected), 3)
+        self.assertEqual(
+            diff.compare({"example-id": before}, {"example-id": reordered_changed}), expected
+        )
+
 
 class ContractReportTests(unittest.TestCase):
     def test_unchanged_summary_makes_no_write(self):

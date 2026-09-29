@@ -18,41 +18,55 @@ PRESENTATION_FIELDS = {
 
 def manifests(checkout: Path, output: Path) -> dict[str, dict]:
     """Read BaseConnector JSON or generate the canonical SDK manifest."""
-    if not checkout.exists():
-        return {}
+    if not checkout.is_dir():
+        raise ValueError(f"Connector checkout does not exist: {checkout}")
 
     result = {}
     projects = sorted(
-        path.parent for path in checkout.rglob("uv.lock") if ".venv" not in path.parts
+        path.parent
+        for path in checkout.rglob("uv.lock")
+        if ".venv" not in path.parts and ".git" not in path.parts
     )
+    app_jsons = []
+    for path in sorted(checkout.glob("*.json")):
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict) and "actions" in data and "configuration" in data:
+            app_jsons.append((path, data))
+
+    sources = [*projects, *(path for path, _ in app_jsons)]
+    if len(sources) != 1:
+        names = ", ".join(str(path.relative_to(checkout)) for path in sources)
+        raise ValueError(
+            f"Expected exactly one connector manifest or SDK project in {checkout}; "
+            f"found {len(sources)} ({names})"
+        )
+
     if projects:
-        for index, project in enumerate(projects):
-            manifest_path = output / f"sdk-{index}.json"
-            command = [
-                "uv",
-                "run",
-                "--locked",
-                "--no-dev",
-                "soarapps",
-                "manifests",
-                "create",
-                str(manifest_path),
-                str(project),
-            ]
-            completed = subprocess.run(command, cwd=project, capture_output=True, text=True)
-            if completed.returncode:
-                raise RuntimeError(
-                    f"Could not generate SDK manifest for {project}:\n{completed.stderr}"
-                )
-            add_manifest(result, json.loads(manifest_path.read_text()), project)
+        project = projects[0]
+        manifest_path = output / "sdk.json"
+        command = [
+            "uv",
+            "run",
+            "--locked",
+            "--no-dev",
+            "soarapps",
+            "manifests",
+            "create",
+            str(manifest_path),
+            str(project),
+        ]
+        completed = subprocess.run(command, cwd=project, capture_output=True, text=True)
+        if completed.returncode:
+            raise RuntimeError(
+                f"Could not generate SDK manifest for {project}:\n{completed.stderr}"
+            )
+        add_manifest(result, json.loads(manifest_path.read_text()), project)
     else:
-        for path in sorted(checkout.glob("*.json")):
-            try:
-                data = json.loads(path.read_text())
-            except json.JSONDecodeError:
-                continue
-            if isinstance(data, dict) and "actions" in data and "configuration" in data:
-                add_manifest(result, data, path)
+        path, data = app_jsons[0]
+        add_manifest(result, data, path)
     return result
 
 
@@ -211,8 +225,6 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     base = manifests(args.base.resolve(), output)
     head = manifests(args.head.resolve(), output)
-    if not base and not head:
-        raise ValueError("No connector manifests found on either side of the PR")
     changes = compare(base, head)
     args.report.write_text(json.dumps({"changes": changes}, indent=2) + "\n")
     print(f"Found {len(changes)} contract changes")
