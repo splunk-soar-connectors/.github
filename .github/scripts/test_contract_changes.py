@@ -62,9 +62,9 @@ class ContractDiffTests(unittest.TestCase):
             reporter.summary(diff.compare(before, after)),
             "<!-- soar-contract-summary -->\n"
             "## ⚠️ Contract changes\n\n"
-            "## Changes to asset parameters:\n\n"
+            "### Changes to asset parameters:\n\n"
             "- `new_setting` added\n\n"
-            "## Changes to action `change password`:\n\n"
+            "### Changes to action `change password`:\n\n"
             "- **Input** `temporary password` changed from string to password type\n"
             "- **Output** `transaction_id` removed",
         )
