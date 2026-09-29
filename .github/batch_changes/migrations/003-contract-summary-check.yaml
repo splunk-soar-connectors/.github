@@ -1,0 +1,36 @@
+name: 003-contract-summary-check
+description: Install the contract summary PR check in every connector repository
+
+on:
+  - repositoriesMatchingQuery: repo:^github\.com/splunk-soar-connectors/ -repo:^github\.com/splunk-soar-connectors/\.github
+
+steps:
+  - container: alpine:3
+    run: |
+      apk add --no-cache curl jq
+      is_connector=false
+      if [ -n "$(find . -name uv.lock -not -path '*/.venv/*' -print -quit)" ]; then
+        is_connector=true
+      else
+        for manifest in ./*.json; do
+          if [ -f "$manifest" ] && jq -e '.appid and (.actions | type == "array") and (.configuration | type == "object")' "$manifest" >/dev/null 2>&1; then
+            is_connector=true
+            break
+          fi
+        done
+      fi
+      if [ "$is_connector" != true ]; then
+        exit 0
+      fi
+      mkdir -p .github/workflows
+      curl -LsSfo .github/workflows/call-contract.yml \
+        https://raw.githubusercontent.com/splunk-soar-connectors/.github/main/.github/workflow-templates/call-contract.yml
+
+changesetTemplate:
+  title: Add connector contract summary check
+  body: |
+    Summarize asset parameter, action input, and action output changes on every PR.
+    Contract changes appear as a normal PR comment for reviewers to assess.
+  branch: add-contract-summary-check
+  commit:
+    message: 'ci: add connector contract summary check'

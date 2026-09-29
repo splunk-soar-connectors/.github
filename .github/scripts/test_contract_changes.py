@@ -1,0 +1,179 @@
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+
+SCRIPT_DIR = Path(__file__).parent
+
+
+def load_script(name):
+    spec = importlib.util.spec_from_file_location(name, SCRIPT_DIR / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+diff = load_script("contract_diff")
+reporter = load_script("report_contract_changes")
+
+
+def app():
+    return {
+        "appid": "example-id",
+        "name": "Example",
+        "configuration": {"tls_verify": {"data_type": "boolean", "required": False}},
+        "actions": [
+            {
+                "identifier": "change_password",
+                "action": "change password",
+                "parameters": {"temporary password": {"data_type": "string", "required": True}},
+                "output": [
+                    {"data_path": "action_result.data.*.transaction_id", "data_type": "string"}
+                ],
+            }
+        ],
+    }
+
+
+class ContractDiffTests(unittest.TestCase):
+    def test_contract_changes_are_readable(self):
+        before = app()
+        after = json.loads(json.dumps(before))
+        after["configuration"]["new_setting"] = {"data_type": "numeric"}
+        after["actions"][0]["parameters"]["temporary password"]["data_type"] = "password"
+        after["actions"][0]["output"] = []
+        self.assertEqual(
+            diff.compare({"example-id": before}, {"example-id": after}),
+            [
+                "**Asset parameter** `new_setting` added",
+                "**Action input** `temporary password` for action `change password` changed from string to password type",
+                "**Action output** `action_result.data.*.transaction_id` for action `change password` removed",
+            ],
+        )
+
+    def test_presentation_only_changes_do_not_flag(self):
+        before = app()
+        after = json.loads(json.dumps(before))
+        after["configuration"]["tls_verify"].update({"description": "New help", "order": 1})
+        after["actions"][0]["output"][0]["example_values"] = ["sample"]
+        self.assertEqual(diff.compare({"example-id": before}, {"example-id": after}), [])
+
+    def test_duplicate_output_paths_are_compared_without_failing(self):
+        before = app()
+        duplicate = dict(before["actions"][0]["output"][0])
+        before["actions"][0]["output"].append(duplicate)
+        after = json.loads(json.dumps(before))
+        after["actions"][0]["output"][1]["data_type"] = "numeric"
+        self.assertEqual(
+            diff.compare({"example-id": before}, {"example-id": after}),
+            [
+                "**Action output** `action_result.data.*.transaction_id` for action `change password` changed"
+            ],
+        )
+
+    def test_legacy_manifest_discovery_ignores_other_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "app.json").write_text(json.dumps(app()))
+            (root / "test_asset.json").write_text('{"api_key":"secret"}')
+            self.assertEqual(diff.manifests(root, root)["example-id"]["name"], "Example")
+
+
+class ContractReportTests(unittest.TestCase):
+    def test_unchanged_summary_makes_no_write(self):
+        changes = ["**Asset parameter** `tls_verify` added"]
+        calls = []
+
+        def fake_api(method, path, payload=None):
+            calls.append((method, path))
+            if path.endswith("/pulls/5"):
+                return {"head": {"sha": "abc"}}
+            if "/comments?" in path:
+                return [
+                    {"id": 7, "user": {"login": reporter.BOT}, "body": reporter.summary(changes)}
+                ]
+            raise AssertionError((method, path, payload))
+
+        with patch.object(reporter, "api", side_effect=fake_api):
+            reporter.report("owner/repo", 5, "abc", changes)
+        self.assertEqual([method for method, _ in calls], ["GET", "GET"])
+
+    def test_changed_summary_deletes_and_replaces_comment(self):
+        calls = []
+
+        def fake_api(method, path, payload=None):
+            calls.append((method, path, payload))
+            if path.endswith("/pulls/5"):
+                return {"head": {"sha": "abc"}}
+            if "/comments?" in path:
+                return [
+                    {
+                        "id": 7,
+                        "user": {"login": reporter.BOT},
+                        "body": reporter.COMMENT_MARKER + "\nold",
+                    }
+                ]
+            return {}
+
+        with patch.object(reporter, "api", side_effect=fake_api):
+            reporter.report("owner/repo", 5, "abc", ["**Asset parameter** `tls_verify` added"])
+        self.assertEqual([method for method, _, _ in calls], ["GET", "GET", "DELETE", "POST"])
+        self.assertEqual(calls[-1][2]["body"].splitlines()[1], "## ⚠️ Contract changes")
+
+    def test_clean_summary_is_normal_comment(self):
+        calls = []
+
+        def fake_api(method, path, payload=None):
+            calls.append((method, path, payload))
+            if path.endswith("/pulls/5"):
+                return {"head": {"sha": "abc"}}
+            if "/comments?" in path:
+                return []
+            return {}
+
+        with patch.object(reporter, "api", side_effect=fake_api):
+            reporter.report("owner/repo", 5, "abc", [])
+        self.assertEqual([method for method, _, _ in calls], ["GET", "GET", "POST"])
+        self.assertIn("## \u2139\ufe0f No contract changes", calls[-1][2]["body"])
+
+    def test_duplicate_bot_summaries_are_replaced_with_one(self):
+        calls = []
+
+        def fake_api(method, path, payload=None):
+            calls.append((method, path))
+            if path.endswith("/pulls/5"):
+                return {"head": {"sha": "abc"}}
+            if "/comments?" in path:
+                return [
+                    {
+                        "id": identifier,
+                        "user": {"login": reporter.BOT},
+                        "body": reporter.summary([]),
+                    }
+                    for identifier in (7, 8)
+                ]
+            return {}
+
+        with patch.object(reporter, "api", side_effect=fake_api):
+            reporter.report("owner/repo", 5, "abc", [])
+        self.assertEqual(
+            [method for method, _ in calls], ["GET", "GET", "DELETE", "DELETE", "POST"]
+        )
+
+    def test_stale_run_does_not_post(self):
+        calls = []
+
+        def fake_api(method, path, payload=None):
+            calls.append((method, path))
+            return {"head": {"sha": "newer"}}
+
+        with patch.object(reporter, "api", side_effect=fake_api):
+            reporter.report("owner/repo", 5, "abc", [])
+        self.assertEqual(len(calls), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
