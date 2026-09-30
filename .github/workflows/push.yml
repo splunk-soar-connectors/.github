@@ -65,7 +65,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Check out contract reporter
         uses: actions/checkout@v4
