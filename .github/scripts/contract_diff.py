@@ -16,7 +16,7 @@ PRESENTATION_FIELDS = {
 }
 
 
-def manifest(checkout: Path, output: Path) -> dict:
+def manifest(checkout: Path, output: Path, refresh_lock: bool = False) -> dict:
     """Return the first SDK or BaseConnector manifest in a checkout."""
     if not checkout.is_dir():
         raise ValueError(f"Connector checkout does not exist: {checkout}")
@@ -31,6 +31,16 @@ def manifest(checkout: Path, output: Path) -> dict:
     )
     if project is not None:
         manifest_path = output / "sdk.json"
+        if refresh_lock:
+            # Release automation can bump pyproject.toml without refreshing uv.lock.
+            # The base checkout is temporary, so repair it before the locked run.
+            completed = subprocess.run(
+                ["uv", "lock"], cwd=project, capture_output=True, text=True
+            )
+            if completed.returncode:
+                raise RuntimeError(
+                    f"Could not refresh SDK lockfile for {project}:\n{completed.stderr}"
+                )
         command = [
             "uv",
             "run",
@@ -214,7 +224,7 @@ def main() -> None:
     args = parser.parse_args()
     output = args.report.parent.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    base = manifest(args.base.resolve(), output)
+    base = manifest(args.base.resolve(), output, refresh_lock=True)
     head = manifest(args.head.resolve(), output)
     changes = compare(base, head)
     args.report.write_text(json.dumps({"changes": changes}, indent=2) + "\n")

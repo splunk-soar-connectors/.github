@@ -158,6 +158,32 @@ class ContractDiffTests(unittest.TestCase):
                 self.assertEqual(diff.manifest(root, root)["appid"], "second-id")
                 run.assert_called_once()
 
+    def test_base_manifest_refreshes_lock_before_locked_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "uv.lock").touch()
+            (root / "sdk.json").write_text(json.dumps(app()))
+            with patch.object(diff.subprocess, "run") as run:
+                run.return_value.returncode = 0
+                self.assertEqual(
+                    diff.manifest(root, root, refresh_lock=True)["appid"], "example-id"
+                )
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual(run.call_args_list[0].args[0], ["uv", "lock"])
+                self.assertEqual(run.call_args_list[0].kwargs["cwd"], root)
+                self.assertEqual(run.call_args_list[1].args[0][:3], ["uv", "run", "--locked"])
+
+    def test_base_manifest_reports_lock_refresh_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "uv.lock").touch()
+            with patch.object(diff.subprocess, "run") as run:
+                run.return_value.returncode = 1
+                run.return_value.stderr = "resolution failed"
+                with self.assertRaisesRegex(RuntimeError, "resolution failed"):
+                    diff.manifest(root, root, refresh_lock=True)
+                run.assert_called_once()
+
     def test_manifest_entry_order_does_not_change_summary(self):
         before = app()
         before["configuration"]["api_key"] = {"data_type": "password"}
