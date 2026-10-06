@@ -25,8 +25,9 @@ class CompileActionTest(unittest.TestCase):
 
     def test_sdk_lab_installs_explicitly_allow_self_signed_certificates(self):
         self.assertIn("default: 'false'", self.action.split("insecure_sdk_install:", 1)[1])
+        self.assertIn("package install --help | sed -E", self.action)
+        self.assertIn("| grep -- '--insecure' >/dev/null; then", self.action)
         self.assertIn("tls_args+=(--insecure)", self.action)
-        self.assertIn("soarapps package install --help | grep -- '--insecure'", self.action)
         self.assertIn('"${tls_args[@]}"', self.action)
         self.assertIn("insecure_sdk_install: true", self.workflow)
 

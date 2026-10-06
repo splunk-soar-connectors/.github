@@ -53,7 +53,7 @@ runs:
           local instance="$1"
           local attempt
           local -a tls_args=()
-          if [[ "$SDK_INSTALL_INSECURE" == "true" ]] && uv run soarapps package install --help | grep -- '--insecure' >/dev/null; then
+          if [[ "$SDK_INSTALL_INSECURE" == "true" ]] && uv run soarapps package install --help | sed -E $'s/\033\\[[0-9;]*m//g' | grep -- '--insecure' >/dev/null; then
             tls_args+=(--insecure)
           fi
           for attempt in 1 2 3; do
