@@ -1,3 +1,7 @@
+import os
+import re
+import subprocess
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -25,11 +29,62 @@ class CompileActionTest(unittest.TestCase):
 
     def test_sdk_lab_installs_explicitly_allow_self_signed_certificates(self):
         self.assertIn("default: 'false'", self.action.split("insecure_sdk_install:", 1)[1])
-        self.assertIn("package install --help | sed -E", self.action)
-        self.assertIn("| grep -- '--insecure' >/dev/null; then", self.action)
         self.assertIn("tls_args+=(--insecure)", self.action)
         self.assertIn('"${tls_args[@]}"', self.action)
         self.assertIn("insecure_sdk_install: true", self.workflow)
+
+    def test_sdk_help_probe_detects_flags_without_changing_install_terminal(self):
+        helper = textwrap.dedent(
+            re.search(r"(?ms)^        install_sdk_app\(\) \{.*?^        \}", self.action).group()
+        )
+        # Model a CLI that emits ANSI styling unless asked for a dumb terminal.
+        fake_uv = r"""
+            uv() {
+              if [[ "${*: -1}" == "--help" ]]; then
+                if [[ "$HELP_SUPPORTS_INSECURE" == "true" ]]; then
+                  if [[ "$TERM" == "dumb" ]]; then
+                    printf '%s\n' '--insecure'
+                  else
+                    printf '\033[1m-\033[0m\033[1m-insecure\033[0m\n'
+                  fi
+                else
+                  printf '%s\n' '--username'
+                fi
+              else
+                printf '%s\n' "$TERM" "$@"
+              fi
+            }
+        """
+        for requested, supported, expected in [
+            ("true", "true", True),
+            ("true", "false", False),
+            ("false", "true", False),
+        ]:
+            with self.subTest(requested=requested, supported=supported):
+                result = subprocess.run(
+                    [
+                        "bash",
+                        "-e",
+                        "-o",
+                        "pipefail",
+                        "-c",
+                        fake_uv + helper + '\ninstall_sdk_app "lab"',
+                    ],
+                    env={
+                        **os.environ,
+                        "GITHUB_ACTIONS": "true",
+                        "TERM": "xterm-256color",
+                        "SDK_INSTALL_INSECURE": requested,
+                        "HELP_SUPPORTS_INSECURE": supported,
+                        "TARBALL_NAME": "app.tgz",
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                install = result.stdout.splitlines()
+                self.assertEqual(install[0], "xterm-256color")
+                self.assertEqual("--insecure" in install, expected)
 
 
 if __name__ == "__main__":
