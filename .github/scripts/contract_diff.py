@@ -117,7 +117,11 @@ def output_name(path: str) -> str:
     return path[len(prefix) :] if path.startswith(prefix) and len(path) > len(prefix) else path
 
 
-def compare_outputs(before: dict, after: dict) -> list[str]:
+def output_fields(output: dict) -> dict:
+    return {key: value for key, value in contract_fields(output).items() if key != "data_path"}
+
+
+def compare_outputs(before: dict, after: dict) -> list[dict]:
     changes = []
     for path in sorted(before.keys() | after.keys()):
         old, new = before.get(path, []), after.get(path, [])
@@ -131,23 +135,32 @@ def compare_outputs(before: dict, after: dict) -> list[str]:
                 )
             )
         else:
-            normalized_old = sorted(
-                json.dumps(contract_fields(item), sort_keys=True) for item in old
-            )
-            normalized_new = sorted(
-                json.dumps(contract_fields(item), sort_keys=True) for item in new
-            )
+            normalized_old = sorted(json.dumps(output_fields(item), sort_keys=True) for item in old)
+            normalized_new = sorted(json.dumps(output_fields(item), sort_keys=True) for item in new)
             if normalized_old != normalized_new:
-                changes.append(f"**Output** `{escape(output_name(path))}` changed")
+                changes.append(
+                    {
+                        "category": "changes",
+                        "text": (
+                            f"**Output** `{escape(output_name(path))}` changed "
+                            f"({format_value([json.loads(value) for value in normalized_old])} -> "
+                            f"{format_value([json.loads(value) for value in normalized_new])})"
+                        ),
+                    }
+                )
     return changes
 
 
-def describe_change(kind: str, name: str, before, after) -> list[str]:
+def format_value(value) -> str:
+    return f"`{escape(json.dumps(value, sort_keys=True, ensure_ascii=False))}`"
+
+
+def describe_change(kind: str, name: str, before, after) -> list[dict]:
     label = (f"**{kind}** " if kind else "") + f"`{escape(name)}`"
     if before is None:
-        return [f"{label} added"]
+        return [{"category": "additions", "text": f"{label} added"}]
     if after is None:
-        return [f"{label} removed"]
+        return [{"category": "removals", "text": f"{label} removed"}]
     # SDK parameters repeat their dict key in `name`; that does not change the
     # input's identity. Preserve a nonmatching name so it remains reviewable.
     parameter_name = name if kind != "Output" else None
@@ -158,14 +171,14 @@ def describe_change(kind: str, name: str, before, after) -> list[str]:
     for key in sorted(old.keys() | new.keys()):
         if old.get(key, missing) == new.get(key, missing):
             continue
-        if key == "data_type" and key in old and key in new:
-            changes.append(
-                f"{label} changed from {escape(str(old[key]))} to {escape(str(new[key]))} type"
-            )
-        elif key == "required" and key in old and key in new:
-            changes.append(f"{label} changed required from {old[key]} to {new[key]}")
-        else:
-            changes.append(f"{label} changed `{escape(key)}`")
+        old_value = format_value(old[key]) if key in old else "not set"
+        new_value = format_value(new[key]) if key in new else "not set"
+        changes.append(
+            {
+                "category": "changes",
+                "text": f"{label} changed `{escape(key)}` ({old_value} -> {new_value})",
+            }
+        )
     return changes
 
 
@@ -179,7 +192,7 @@ def escape(value: str) -> str:
     )
 
 
-def compare_fields(kind: str, before: dict, after: dict) -> list[str]:
+def compare_fields(kind: str, before: dict, after: dict) -> list[dict]:
     changes = []
     for name in sorted(before.keys() | after.keys()):
         changes.extend(describe_change(kind, name, before.get(name), after.get(name)))
@@ -193,8 +206,14 @@ def compare(before: dict, after: dict) -> list[dict]:
             {
                 "heading": "Changes to connector:",
                 "items": [
-                    f"`{escape(before.get('name', before['appid']))}` removed",
-                    f"`{escape(after.get('name', after['appid']))}` added",
+                    {
+                        "category": "removals",
+                        "text": f"`{escape(before.get('name', before['appid']))}` removed",
+                    },
+                    {
+                        "category": "additions",
+                        "text": f"`{escape(after.get('name', after['appid']))}` added",
+                    },
                 ],
             }
         ]
@@ -208,11 +227,18 @@ def compare(before: dict, after: dict) -> list[dict]:
         action_changes = []
         if old_action is None or new_action is None:
             action = "added" if old_action is None else "removed"
-            action_changes.append(f"Action {action}")
+            category = "additions" if old_action is None else "removals"
+            action_changes.append({"category": category, "text": f"Action {action}"})
         else:
             if old_action.get("action") != new_action.get("action"):
                 action_changes.append(
-                    f"Action renamed from `{escape(old_action.get('action', identifier))}`"
+                    {
+                        "category": "changes",
+                        "text": (
+                            f"Action renamed (`{escape(old_action.get('action', identifier))}`"
+                            f" -> `{action_name}`)"
+                        ),
+                    }
                 )
             action_changes.extend(
                 compare_fields(
