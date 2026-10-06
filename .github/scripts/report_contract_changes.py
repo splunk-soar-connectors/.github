@@ -48,12 +48,36 @@ def pages(path: str) -> list[dict]:
         page += 1
 
 
+def as_item(item: dict | str) -> dict:
+    if isinstance(item, dict):
+        return item
+    if item.endswith(" added"):
+        category = "additions"
+    elif item.endswith(" removed"):
+        category = "removals"
+    else:
+        category = "changes"
+    return {"category": category, "text": item}
+
+
 def summary(changes: list[dict]) -> str:
     if changes:
-        return f"{COMMENT_MARKER}\n## ⚠️ Contract changes\n\n" + "\n\n".join(
-            f"### {section['heading']}\n\n" + "\n".join(f"- {item}" for item in section["items"])
-            for section in changes
-        )
+        sections = []
+        for section in changes:
+            groups = []
+            section_items = [as_item(item) for item in section["items"]]
+            for category, heading in (
+                ("additions", "Additions"),
+                ("removals", "Removals"),
+                ("changes", "Changes"),
+            ):
+                items = [
+                    f"- {item['text']}" for item in section_items if item["category"] == category
+                ]
+                if items:
+                    groups.append(f"#### {heading}\n\n" + "\n".join(items))
+            sections.append(f"### {section['heading']}\n\n" + "\n\n".join(groups))
+        return f"{COMMENT_MARKER}\n## ⚠️ Contract changes\n\n" + "\n\n".join(sections)
     return f"{COMMENT_MARKER}\n## \u2139\ufe0f No contract changes\n\nNo asset parameter, action input, or action output changes were found."
 
 

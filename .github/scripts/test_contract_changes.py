@@ -38,22 +38,36 @@ def app():
     }
 
 
+def item(category, text):
+    return {"category": category, "text": text}
+
+
 class ContractDiffTests(unittest.TestCase):
     def test_contract_changes_are_readable(self):
         before = app()
         after = json.loads(json.dumps(before))
         after["configuration"]["new_setting"] = {"data_type": "numeric"}
+        after["configuration"]["tls_verify"]["default"] = True
         after["actions"][0]["parameters"]["temporary password"]["data_type"] = "password"
         after["actions"][0]["output"] = []
         self.assertEqual(
             diff.compare(before, after),
             [
-                {"heading": "Changes to asset parameters:", "items": ["`new_setting` added"]},
+                {
+                    "heading": "Changes to asset parameters:",
+                    "items": [
+                        item("additions", "`new_setting` added"),
+                        item("changes", "`tls_verify` changed `default` (not set -> `true`)"),
+                    ],
+                },
                 {
                     "heading": "Changes to action `change password`:",
                     "items": [
-                        "**Input** `temporary password` changed from string to password type",
-                        "**Output** `transaction_id` removed",
+                        item(
+                            "changes",
+                            '**Input** `temporary password` changed `data_type` (`"string"` -> `"password"`)',
+                        ),
+                        item("removals", "**Output** `transaction_id` removed"),
                     ],
                 },
             ],
@@ -63,10 +77,15 @@ class ContractDiffTests(unittest.TestCase):
             "<!-- soar-contract-summary -->\n"
             "## ⚠️ Contract changes\n\n"
             "### Changes to asset parameters:\n\n"
+            "#### Additions\n\n"
             "- `new_setting` added\n\n"
+            "#### Changes\n\n"
+            "- `tls_verify` changed `default` (not set -> `true`)\n\n"
             "### Changes to action `change password`:\n\n"
-            "- **Input** `temporary password` changed from string to password type\n"
-            "- **Output** `transaction_id` removed",
+            "#### Removals\n\n"
+            "- **Output** `transaction_id` removed\n\n"
+            "#### Changes\n\n"
+            '- **Input** `temporary password` changed `data_type` (`"string"` -> `"password"`)',
         )
 
     def test_presentation_only_changes_do_not_flag(self):
@@ -98,14 +117,21 @@ class ContractDiffTests(unittest.TestCase):
             [
                 {
                     "heading": "Changes to action `change password`:",
-                    "items": ["**Input** `temporary password` changed `required`"],
+                    "items": [
+                        item(
+                            "changes",
+                            "**Input** `temporary password` changed `required` (not set -> `true`)",
+                        )
+                    ],
                 }
             ],
         )
 
         after["actions"][0]["parameters"]["temporary password"]["name"] = "new name"
         self.assertIn(
-            "**Input** `temporary password` changed `name`",
+            item(
+                "changes", '**Input** `temporary password` changed `name` (not set -> `"new name"`)'
+            ),
             diff.compare(before, after)[0]["items"],
         )
 
@@ -118,7 +144,7 @@ class ContractDiffTests(unittest.TestCase):
         after["actions"][0]["output"] = []
         self.assertEqual(
             diff.compare(before, after)[0]["items"],
-            ["**Output** `action_result.data.*.` removed"],
+            [item("removals", "**Output** `action_result.data.*.` removed")],
         )
 
     def test_appid_change_reports_connector_replacement(self):
@@ -130,7 +156,10 @@ class ContractDiffTests(unittest.TestCase):
             [
                 {
                     "heading": "Changes to connector:",
-                    "items": ["`Example` removed", "`Example` added"],
+                    "items": [
+                        item("removals", "`Example` removed"),
+                        item("additions", "`Example` added"),
+                    ],
                 }
             ],
         )
@@ -151,10 +180,18 @@ class ContractDiffTests(unittest.TestCase):
             [
                 {
                     "heading": "Changes to action `reset password`:",
-                    "items": ["Action renamed from `change password`"],
+                    "items": [
+                        item("changes", "Action renamed (`change password` -> `reset password`)")
+                    ],
                 },
-                {"heading": "Changes to action `new action`:", "items": ["Action added"]},
-                {"heading": "Changes to action `old action`:", "items": ["Action removed"]},
+                {
+                    "heading": "Changes to action `new action`:",
+                    "items": [item("additions", "Action added")],
+                },
+                {
+                    "heading": "Changes to action `old action`:",
+                    "items": [item("removals", "Action removed")],
+                },
             ],
         )
 
@@ -169,7 +206,12 @@ class ContractDiffTests(unittest.TestCase):
             [
                 {
                     "heading": "Changes to action `change password`:",
-                    "items": ["**Output** `transaction_id` changed"],
+                    "items": [
+                        item(
+                            "changes",
+                            '**Output** `transaction_id` changed (`[{"data_type": "string"}, {"data_type": "string"}]` -> `[{"data_type": "numeric"}, {"data_type": "string"}]`)',
+                        )
+                    ],
                 }
             ],
         )
@@ -275,8 +317,30 @@ class ContractDiffTests(unittest.TestCase):
 
 
 class ContractReportTests(unittest.TestCase):
+    def test_previous_report_artifact_still_renders(self):
+        body = reporter.summary(
+            [
+                {
+                    "heading": "Changes to action `add comment`:",
+                    "items": [
+                        "**Output** `opened_by` added",
+                        "**Output** `closed_by` removed",
+                        "**Input** `filter` changed `default`",
+                    ],
+                }
+            ]
+        )
+        self.assertIn("#### Additions\n\n- **Output** `opened_by` added", body)
+        self.assertIn("#### Removals\n\n- **Output** `closed_by` removed", body)
+        self.assertIn("#### Changes\n\n- **Input** `filter` changed `default`", body)
+
     def test_unchanged_summary_makes_no_write(self):
-        changes = [{"heading": "Changes to asset parameters:", "items": ["`tls_verify` added"]}]
+        changes = [
+            {
+                "heading": "Changes to asset parameters:",
+                "items": [item("additions", "`tls_verify` added")],
+            }
+        ]
         calls = []
 
         def fake_api(method, path, payload=None):
@@ -315,7 +379,12 @@ class ContractReportTests(unittest.TestCase):
                 "owner/repo",
                 5,
                 "abc",
-                [{"heading": "Changes to asset parameters:", "items": ["`tls_verify` added"]}],
+                [
+                    {
+                        "heading": "Changes to asset parameters:",
+                        "items": [item("additions", "`tls_verify` added")],
+                    }
+                ],
             )
         self.assertEqual([method for method, _, _ in calls], ["GET", "GET", "DELETE", "POST"])
         self.assertEqual(calls[-1][2]["body"].splitlines()[1], "## ⚠️ Contract changes")
