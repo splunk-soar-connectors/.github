@@ -76,6 +76,51 @@ class ContractDiffTests(unittest.TestCase):
         after["actions"][0]["output"][0]["example_values"] = ["sample"]
         self.assertEqual(diff.compare(before, after), [])
 
+    def test_sdk_manifest_defaults_and_display_metadata_do_not_flag(self):
+        before = app()
+        before["configuration"]["tls_verify"].pop("required")
+        before["actions"][0]["parameters"]["temporary password"].pop("required")
+        after = json.loads(json.dumps(before))
+        after["configuration"]["tls_verify"].update({"required": False, "category": "connectivity"})
+        after["actions"][0]["parameters"]["temporary password"].update(
+            {
+                "required": False,
+                "primary": False,
+                "allow_list": False,
+                "name": "temporary password",
+            }
+        )
+        self.assertEqual(diff.compare(before, after), [])
+
+        after["actions"][0]["parameters"]["temporary password"]["required"] = True
+        self.assertEqual(
+            diff.compare(before, after),
+            [
+                {
+                    "heading": "Changes to action `change password`:",
+                    "items": ["**Input** `temporary password` changed `required`"],
+                }
+            ],
+        )
+
+        after["actions"][0]["parameters"]["temporary password"]["name"] = "new name"
+        self.assertIn(
+            "**Input** `temporary password` changed `name`",
+            diff.compare(before, after)[0]["items"],
+        )
+
+    def test_output_prefix_alone_is_not_rendered_as_empty_name(self):
+        before = app()
+        before["actions"][0]["output"] = [
+            {"data_path": "action_result.data.*.", "data_type": "string"}
+        ]
+        after = json.loads(json.dumps(before))
+        after["actions"][0]["output"] = []
+        self.assertEqual(
+            diff.compare(before, after)[0]["items"],
+            ["**Output** `action_result.data.*.` removed"],
+        )
+
     def test_appid_change_reports_connector_replacement(self):
         before = app()
         after = json.loads(json.dumps(before))

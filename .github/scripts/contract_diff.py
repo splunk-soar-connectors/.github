@@ -10,10 +10,15 @@ PRESENTATION_FIELDS = {
     "description",
     "example_values",
     "order",
+    "category",
     "column_name",
     "column_order",
     "verbose",
 }
+
+# The SDK writes these false defaults into its manifest. Legacy JSON usually
+# omits them, which has the same meaning to SOAR.
+FALSE_DEFAULT_FIELDS = {"required", "primary", "allow_list"}
 
 
 def manifest(checkout: Path, output: Path, refresh_lock: bool = False) -> dict:
@@ -34,9 +39,7 @@ def manifest(checkout: Path, output: Path, refresh_lock: bool = False) -> dict:
         if refresh_lock:
             # Release automation can bump pyproject.toml without refreshing uv.lock.
             # The base checkout is temporary, so repair it before the locked run.
-            completed = subprocess.run(
-                ["uv", "lock"], cwd=project, capture_output=True, text=True
-            )
+            completed = subprocess.run(["uv", "lock"], cwd=project, capture_output=True, text=True)
             if completed.returncode:
                 raise RuntimeError(
                     f"Could not refresh SDK lockfile for {project}:\n{completed.stderr}"
@@ -79,8 +82,14 @@ def validate_manifest(data: dict, source: Path) -> dict:
     return data
 
 
-def contract_fields(fields: dict) -> dict:
-    return {key: value for key, value in fields.items() if key not in PRESENTATION_FIELDS}
+def contract_fields(fields: dict, name: str | None = None) -> dict:
+    return {
+        key: value
+        for key, value in fields.items()
+        if key not in PRESENTATION_FIELDS
+        and not (key == "name" and value == name)
+        and not (key in FALSE_DEFAULT_FIELDS and value is False)
+    }
 
 
 def actions_by_id(manifest: dict) -> dict:
@@ -104,7 +113,8 @@ def outputs_by_path(action: dict) -> dict:
 
 
 def output_name(path: str) -> str:
-    return path.removeprefix("action_result.data.*.")
+    prefix = "action_result.data.*."
+    return path[len(prefix) :] if path.startswith(prefix) and len(path) > len(prefix) else path
 
 
 def compare_outputs(before: dict, after: dict) -> list[str]:
@@ -138,8 +148,11 @@ def describe_change(kind: str, name: str, before, after) -> list[str]:
         return [f"{label} added"]
     if after is None:
         return [f"{label} removed"]
-    old = contract_fields(before)
-    new = contract_fields(after)
+    # SDK parameters repeat their dict key in `name`; that does not change the
+    # input's identity. Preserve a nonmatching name so it remains reviewable.
+    parameter_name = name if kind != "Output" else None
+    old = contract_fields(before, parameter_name)
+    new = contract_fields(after, parameter_name)
     changes = []
     missing = object()
     for key in sorted(old.keys() | new.keys()):
