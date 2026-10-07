@@ -26,6 +26,14 @@ inputs:
     description: 'Whether to disable TLS verification when installing SDK apps'
     required: false
     default: 'false'
+  sdk_source:
+    description: 'Optional uv source for the soarapps CLI, such as a Git URL pinned to a commit'
+    required: false
+    default: ''
+  sdk_install_read_timeout:
+    description: 'Optional HTTP read timeout in seconds for SDK app installs'
+    required: false
+    default: ''
 runs:
   using: "composite"
   steps:
@@ -38,10 +46,20 @@ runs:
       env:
         PHANTOM_PASSWORD: ${{ inputs.phantom_password }}
         SDK_INSTALL_INSECURE: ${{ inputs.insecure_sdk_install }}
+        SDK_SOURCE: ${{ inputs.sdk_source }}
+        SDK_INSTALL_READ_TIMEOUT: ${{ inputs.sdk_install_read_timeout }}
       run: |
         cd "${{ inputs.uv_lock_directory }}"
+        run_soarapps() {
+          if [[ -n "$SDK_SOURCE" ]]; then
+            uvx --from "$SDK_SOURCE" soarapps "$@"
+          else
+            uv run soarapps "$@"
+          fi
+        }
+
         echo "Building SDKfied app using soarapps CLI"
-        uv run soarapps package build .
+        run_soarapps package build .
         echo "SDKfied app build completed successfully"
 
         TARBALL=$(find . -name "*.tgz" | head -1)
@@ -53,11 +71,15 @@ runs:
           local instance="$1"
           local attempt
           local -a tls_args=()
-          if [[ "$SDK_INSTALL_INSECURE" == "true" ]] && TERM=dumb uv run soarapps package install --help | grep -F -- '--insecure' >/dev/null; then
+          local -a timeout_args=()
+          if [[ -n "$SDK_INSTALL_READ_TIMEOUT" ]]; then
+            timeout_args+=(--read-timeout "$SDK_INSTALL_READ_TIMEOUT")
+          fi
+          if [[ "$SDK_INSTALL_INSECURE" == "true" ]] && TERM=dumb run_soarapps package install --help | grep -F -- '--insecure' >/dev/null; then
             tls_args+=(--insecure)
           fi
           for attempt in 1 2 3; do
-            if uv run soarapps package install "$TARBALL_NAME" "$instance" --username soar_local_admin "${tls_args[@]}"; then
+            if run_soarapps package install "$TARBALL_NAME" "$instance" --username soar_local_admin "${tls_args[@]}" "${timeout_args[@]}"; then
               return 0
             fi
             if [ "$attempt" -eq 3 ]; then
