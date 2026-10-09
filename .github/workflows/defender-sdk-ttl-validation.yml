@@ -38,14 +38,18 @@ jobs:
         run: uv sync --locked
         shell: bash
 
-      - name: Use SDK TTL branch for validation
-        run: >-
-          uv add
-          "splunk-soar-sdk @ git+https://github.com/phantomcyber/splunk-soar-sdk.git@36890877c281c960f4206ec969499074ada8c4b4"
-        shell: bash
-
       - name: Run connector tests
         run: uv run python -m pytest
+        shell: bash
+
+      - name: Build connector package with locked SDK
+        run: uv run soarapps package build .
+        shell: bash
+
+      - name: Install SDK TTL branch into the temporary environment
+        run: >-
+          uv pip install --python .venv/bin/python
+          "splunk-soar-sdk @ git+https://github.com/phantomcyber/splunk-soar-sdk.git@36890877c281c960f4206ec969499074ada8c4b4"
         shell: bash
 
       - name: Build package and compile on SOAR instances with SDK TTL
@@ -60,3 +64,4 @@ jobs:
           uv_lock_directory: .
           insecure_sdk_install: 'true'
           sdk_install_read_timeout: '600'
+          build_sdk_package: 'false'
