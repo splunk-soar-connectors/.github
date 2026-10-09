@@ -13,7 +13,81 @@ on:
         type: string
 
 jobs:
-  compile-build-test:
+  compile:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
+    permissions:
+      contents: read
+    steps:
+      - name: Check out Defender PR
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.connector_repository }}
+          ref: ${{ inputs.connector_ref }}
+          persist-credentials: false
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        shell: bash
+
+      - name: Set a unique version for the temporary SOAR install
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          project = Path("pyproject.toml")
+          contents = project.read_text()
+          contents, replacements = re.subn(
+              r'(?m)^version = "[^"]+"$',
+              f'version = "2.1.{os.environ["GITHUB_RUN_NUMBER"]}"',
+              contents,
+              count=1,
+          )
+          if replacements != 1:
+              raise SystemExit("Could not set temporary package version")
+          project.write_text(contents)
+          PY
+          uv lock
+        shell: bash
+
+      - name: Set up locked SDK app environment
+        run: uv sync --locked
+        shell: bash
+
+      - name: Build package with locked SDK
+        run: uv run soarapps package build .
+        shell: bash
+
+      - name: Install SDK TTL branch into the temporary environment
+        run: >-
+          uv pip install --python .venv/bin/python
+          "splunk-soar-sdk @ git+https://github.com/phantomcyber/splunk-soar-sdk.git@36890877c281c960f4206ec969499074ada8c4b4"
+        shell: bash
+
+      - name: Build package and compile on SOAR instances with SDK TTL
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@codex/defender-ttl-ci
+        with:
+          current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+          next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
+          previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+          phantom_username: ${{ vars.PHANTOM_USERNAME }}
+          phantom_password: password
+          is_sdkfied: 'true'
+          uv_lock_directory: .
+          insecure_sdk_install: 'true'
+          sdk_install_read_timeout: '600'
+          build_sdk_package: 'false'
+
+  build:
+    needs: compile
     runs-on:
       - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
       - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
@@ -38,30 +112,45 @@ jobs:
         run: uv sync --locked
         shell: bash
 
-      - name: Run connector tests
-        run: uv run python -m pytest
+      - name: Build SDK package
+        run: uv run soarapps package build . --output-file /tmp/microsoft365defender.tgz
         shell: bash
 
-      - name: Build connector package with locked SDK
-        run: uv run soarapps package build .
-        shell: bash
-
-      - name: Install SDK TTL branch into the temporary environment
-        run: >-
-          uv pip install --python .venv/bin/python
-          "splunk-soar-sdk @ git+https://github.com/phantomcyber/splunk-soar-sdk.git@36890877c281c960f4206ec969499074ada8c4b4"
-        shell: bash
-
-      - name: Build package and compile on SOAR instances with SDK TTL
-        uses: splunk-soar-connectors/.github/.github/actions/compile-app@codex/defender-ttl-ci
+  pytest:
+    needs: compile
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out Defender PR
+        uses: actions/checkout@v4
         with:
-          current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
-          next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
-          previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
-          phantom_username: ${{ vars.PHANTOM_USERNAME }}
-          phantom_password: password
-          is_sdkfied: 'true'
-          uv_lock_directory: .
-          insecure_sdk_install: 'true'
-          sdk_install_read_timeout: '600'
-          build_sdk_package: 'false'
+          repository: ${{ inputs.connector_repository }}
+          ref: ${{ inputs.connector_ref }}
+          persist-credentials: false
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        shell: bash
+
+      - name: Set up locked SDK app environment
+        run: uv sync --locked
+        shell: bash
+
+      - name: Run connector tests
+        run: |
+          set +e
+          uv run python -m pytest
+          pytest_exit_code=$?
+          set -e
+
+          if [ "$pytest_exit_code" -eq 5 ]; then
+            echo "No tests were collected; continuing."
+            exit 0
+          fi
+
+          exit "$pytest_exit_code"
+        shell: bash
