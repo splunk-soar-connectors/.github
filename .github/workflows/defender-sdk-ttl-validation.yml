@@ -85,6 +85,7 @@ jobs:
           insecure_sdk_install: 'true'
           sdk_install_read_timeout: '600'
           build_sdk_package: 'false'
+          force_sdk_install: 'true'
 
   build:
     needs: compile

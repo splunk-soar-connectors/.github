@@ -34,6 +34,10 @@ inputs:
     description: 'Whether to build the SDK package before installing it'
     required: false
     default: 'true'
+  force_sdk_install:
+    description: 'Whether to force installation when the app is already installed'
+    required: false
+    default: 'false'
 runs:
   using: "composite"
   steps:
@@ -48,6 +52,7 @@ runs:
         SDK_INSTALL_INSECURE: ${{ inputs.insecure_sdk_install }}
         SDK_INSTALL_READ_TIMEOUT: ${{ inputs.sdk_install_read_timeout }}
         SDK_BUILD_PACKAGE: ${{ inputs.build_sdk_package }}
+        SDK_INSTALL_FORCE: ${{ inputs.force_sdk_install }}
       run: |
         cd "${{ inputs.uv_lock_directory }}"
         if [[ "$SDK_BUILD_PACKAGE" == "true" ]]; then
@@ -65,6 +70,7 @@ runs:
           local instance="$1"
           local attempt
           local -a tls_args=()
+          local -a install_args=()
           local -a timeout_args=()
           local -a sdk_cli=(uv run)
           if [[ -n "$SDK_INSTALL_READ_TIMEOUT" ]]; then
@@ -76,8 +82,11 @@ runs:
           if [[ -n "$SDK_INSTALL_READ_TIMEOUT" ]]; then
             timeout_args+=(--read-timeout "$SDK_INSTALL_READ_TIMEOUT")
           fi
+          if [[ "$SDK_INSTALL_FORCE" == "true" ]]; then
+            install_args+=(--force)
+          fi
           for attempt in 1 2 3; do
-            if "${sdk_cli[@]}" soarapps package install "$TARBALL_NAME" "$instance" --username soar_local_admin "${tls_args[@]}" "${timeout_args[@]}"; then
+            if "${sdk_cli[@]}" soarapps package install "$TARBALL_NAME" "$instance" --username soar_local_admin "${tls_args[@]}" "${install_args[@]}" "${timeout_args[@]}"; then
               return 0
             fi
             if [ "$attempt" -eq 3 ]; then
