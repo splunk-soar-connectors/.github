@@ -1,0 +1,62 @@
+name: Defender SDK TTL Validation
+
+on:
+  workflow_call:
+    inputs:
+      connector_repository:
+        description: Connector repository to validate
+        required: true
+        type: string
+      connector_ref:
+        description: Connector commit or branch to validate
+        required: true
+        type: string
+
+jobs:
+  compile-build-test:
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
+    permissions:
+      contents: read
+    steps:
+      - name: Check out Defender PR
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.connector_repository }}
+          ref: ${{ inputs.connector_ref }}
+          persist-credentials: false
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        shell: bash
+
+      - name: Set up locked SDK app environment
+        run: uv sync --locked
+        shell: bash
+
+      - name: Use SDK TTL branch for validation
+        run: >-
+          uv add
+          "splunk-soar-sdk @ git+https://github.com/phantomcyber/splunk-soar-sdk.git@36890877c281c960f4206ec969499074ada8c4b4"
+        shell: bash
+
+      - name: Run connector tests
+        run: uv run python -m pytest
+        shell: bash
+
+      - name: Build package and compile on SOAR instances with SDK TTL
+        uses: splunk-soar-connectors/.github/.github/actions/compile-app@codex/defender-ttl-ci
+        with:
+          current_phantom_ip: ${{ vars.PHANTOM_INSTANCE_CURRENT_VERSION_IP }}
+          next_phantom_ip: ${{ vars.PHANTOM_INSTANCE_NEXT_OL8_VERSION_IP }}
+          previous_phantom_ip: ${{ vars.PHANTOM_INSTANCE_PREVIOUS_VERSION_IP }}
+          phantom_username: ${{ vars.PHANTOM_USERNAME }}
+          phantom_password: password
+          is_sdkfied: 'true'
+          uv_lock_directory: .
+          insecure_sdk_install: 'true'
+          sdk_install_read_timeout: '600'
