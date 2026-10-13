@@ -147,6 +147,107 @@ multipart POST directly.
 
 ## Configuration
 
+### Splunkbase v2 draft migration (PAPP-38509)
+
+The central worker selects the new flow for repositories named in
+`SPLUNKBASE_DRAFT_FLOW_REPOSITORIES`, a comma-separated Actions variable containing
+full names such as `splunk-soar-connectors/example`. An empty value selects the
+existing publishing flow. Enable the publishing queue for each selected repository
+before adding it to this list; direct publishing still uses the existing flow.
+
+The new flow logs in with a form-encoded POST, caches the JWT until its expiry,
+and refreshes once after an explicit authentication rejection. It creates a draft
+for a new listing, obtains a presigned S3 POST, uploads the package without
+Splunkbase credentials, registers its filename and S3 key, and polls validation.
+For existing listings, it reuses the numeric app ID.
+
+After validation passes, the worker updates app metadata and release notes. New
+drafts must have no missing `/required_fields/` before `/submit/`. Existing apps
+publish the validated release with a release PATCH. Both paths require the exact
+connector GUID and version to appear in unauthenticated public app search before
+closing the queue item, deleting the artifact, or sending metrics and announcements.
+Private validation success alone does not establish public availability.
+
+#### Listing content
+
+All documentation is read from the immutable package as Markdown. Only regular
+files at the package root are read; the worker does not extract links or paths.
+
+| Splunkbase field | Package source, in priority order |
+| --- | --- |
+| `description` | Connector manifest description |
+| `documentation_source` | `details.md`; `## Details`; `manual_readme_content.md`; `README.md` |
+| `installation_source` | `installation.md`; `## Installation` |
+| `troubleshooting_source` | `troubleshooting.md`; `## Troubleshooting` |
+| `contact_notes_source` | `contact.md`; `## Contact` |
+| `contact_email` | Explicit manifest `contact_email`, when available |
+| `support` | Explicit manifest support; otherwise `splunk` for a Splunk publisher |
+
+Section headings are matched without regard to case. Sections come from
+`manual_readme_content.md` when present, or `README.md` otherwise. Empty or absent
+values are omitted, preserving curated listing content. Existing contact email and
+support are preserved when already set on the listing. A tab body longer than
+20,000 characters blocks publication with a request for a dedicated tab file.
+Connector category strings are not converted to Splunkbase numeric category IDs.
+Missing categories, compatibility, contact information, or other required listing
+metadata are reported for the listing owner to complete before resuming.
+
+#### Durable recovery
+
+The queue stores `publication_flow=draft_v2`, the pending operation, app/package/
+release IDs, the uploaded S3 object key, and whether publication was requested.
+It checkpoints before each mutation and after accepting its result. S3 policy,
+signature, session token, presigned URL, and JWT are never stored in the queue.
+
+| Interrupted operation | Recovery |
+| --- | --- |
+| Draft creation, app ID not persisted | Hold for App Hosting to identify the created draft; do not repeat creation |
+| S3 upload before package registration | Obtain a fresh presigned grant and upload an unregistered object |
+| Package registration, package ID not persisted | Hold for App Hosting to identify the package; do not register again |
+| Accepted package validation | Resume polling the saved package ID |
+| Metadata or release PATCH | Repeat the same values from the immutable package |
+| Draft submission | Read draft state; resume if submitted, or hold while its outcome remains unknown |
+| Public visibility | Read public search without repeating uploads or submission |
+
+HTTP 429 retains identifiers and schedules a retry after `Retry-After` plus
+30 seconds. A rejected registration can reuse the uploaded object. A rejected
+or expired S3 grant never triggers registration. HTTP 409, permanent permission
+denial, validation failure, and incomplete metadata block the item for review.
+The existing upload budget is reserved before each S3 attempt; the API's monthly
+byte quota is also respected through HTTP 429. Confirm production quota accounting
+with App Hosting before expanding the rollout.
+
+To resume a held item, reconcile its IDs with App Hosting, update the queue issue's
+`verification` checkpoint with the confirmed app or package ID, and clear the
+resolved `pending_operation`. Preserve the immutable artifact and flow marker.
+Return the item to verification only after confirming the failed operation's outcome.
+Do not delete a draft or retry a registration to bypass an uncertain result.
+
+Removing a repository from the canary list stops new work from selecting this flow.
+Items with a saved `draft_v2` checkpoint continue through it. Existing legacy
+verification items and interrupted legacy uploads finish through their original path.
+
+#### Validation and rollout
+
+The [Publishing tests workflow](workflows/publishing-tests.yml) runs repository
+hooks and publisher/queue tests on the PR revision using a read-only token.
+Its tests cover request formats, authentication refresh, S3 credential isolation,
+validation versus publication, durable checkpoints, quota handling, and recovery.
+
+Before enabling the first production repository, App Hosting and the connector team
+must provide a staging publishing identity and test listings for a new app and an
+existing release. The API client supports `SPLUNKBASE_ENVIRONMENT=STAGE` with matching
+staging API and login hosts; use an isolated staging queue. Verify legacy and SDK
+packages, all available listing tabs, restart recovery, and the final public version.
+Attach that evidence and confirm quota behavior on PAPP-38509, then enable one
+production repository and inspect its first publication before expanding the list.
+Keep `draft: "true"` until App Hosting confirms that the flag can be retired.
+
+Contract references: [migration guide](https://cisco-my.sharepoint.com/:w:/p/jramatow/IQBsArEQiaYvTY9ZkeDc_26RAZtnZyX7zQ_krNuKjGM73Dk?e=e8rxGb),
+[v2 API documentation](https://stage.splunkbase.splunk.com/api-docs-v2/),
+[OpenAPI schema](https://stage.splunkbase.splunk.com/schema/), and
+[MP-510 metadata mapping](https://splunk.atlassian.net/browse/MP-510?focusedCommentId=20905715).
+
 The queue path is selected when `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=true` is available to
 both the connector repository and `splunk-soar-connectors/.github`. If the variable is
 unset or `false`, the connector uses direct publication. Direct publication and queued
