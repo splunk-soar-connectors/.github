@@ -1,0 +1,48 @@
+name: Publishing tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/utils/**'
+      - '.github/actions/publish/**'
+      - '.github/scripts/**'
+      - '.github/test_publish_workflow.py'
+      - '.github/workflows/*splunkbase*.yml'
+      - '.github/workflows/publishing-tests.yml'
+      - '.pre-commit-config.yaml'
+      - '.ruff.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publishing-tests:
+    if: github.repository == 'splunk-soar-connectors/.github'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install publishing test dependencies
+        run: python -m pip install 'pytest>=8,<10' 'requests>=2.32.3,<3' 'backoff>=2.2.1,<3' 'packaging>=24.2,<26' 'pre-commit==4.3.0'
+      - name: Check repository hooks
+        run: pre-commit run --all-files
+      - name: Check publishing and queue recovery
+        env:
+          PYTHONPATH: .github
+        run: >-
+          python -m pytest -q
+          .github/utils/api/test_splunkbase.py
+          .github/utils/api/test_splunkbase_draft.py
+          .github/utils/test_draft_publish.py
+          .github/utils/test_publish_queue.py
+          .github/actions/publish/test_upload_to_splunkbase.py
+          .github/scripts/test_drain_splunkbase_publish_queue.py
+          .github/scripts/test_drain_splunkbase_publish_queue_worker.py
+          .github/scripts/test_enqueue_splunkbase_publish.py
+          .github/scripts/test_notify_splunkbase_publish_failure.py
+          .github/test_publish_workflow.py

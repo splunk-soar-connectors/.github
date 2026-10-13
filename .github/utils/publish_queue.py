@@ -41,6 +41,12 @@ LABELS = {
     STATE_LABEL: ("c5def5", "Rate ledger for the Splunkbase queue."),
 }
 PUBLIC_RESULT_FIELDS = {
+    "publication_flow",
+    "pending_operation",
+    "publication_requested",
+    "release_id",
+    "s3_key",
+    "previous_release_version",
     "app_existed_before_upload",
     "status",
     "status_code",
@@ -454,7 +460,7 @@ class GitHubIssuePublishQueue:
         item.not_before = format_datetime(not_before)
         if item.attempts:
             item.attempts[-1].update(public_result)
-        else:
+        elif public_result.get("publication_flow") != "draft_v2":
             item.attempts.append(public_result)
         self._update(item, state="verifying", note=reason)
 

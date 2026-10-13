@@ -106,6 +106,30 @@ def test_legacy_queue_body_defaults_verification_rechecks_to_zero():
     assert decoded.verification_rechecks == 0
 
 
+def test_draft_checkpoint_survives_reload_without_counting_an_upload_or_storing_signatures():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    item = queue.enqueue(make_item())
+    result = {
+        "publication_flow": "draft_v2",
+        "pending_operation": "register_package",
+        "splunkbase_app_id": 11,
+        "s3_key": "media/uploaded/object.tgz",
+        "release_id": 33,
+        "publication_requested": False,
+        "previous_release_version": "1.0.0",
+        "policy": "private signing policy",
+        "signature": "private signing signature",
+        "url": "private signed URL",
+    }
+    queue.verify(item, result, datetime.now(timezone.utc), "checkpoint")
+    reloaded = queue.get_item(item.issue_number)
+    assert reloaded.attempts == []
+    assert reloaded.verification == {
+        key: value for key, value in result.items() if key not in ("policy", "signature", "url")
+    }
+
+
 def test_duplicate_enqueue_reuses_one_issue():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
