@@ -10,11 +10,6 @@ runs:
         ref: ${{ github.event.pull_request.head.ref }}
         allow-unsafe-pr-checkout: true
 
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9'
-
     - name: Set up Python 3.13
       uses: actions/setup-python@v5
       with:
