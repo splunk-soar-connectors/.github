@@ -36,7 +36,7 @@ jobs:
         - name: Set up Python
           uses: actions/setup-python@v5
           with:
-            python-version: '3.9'
+            python-version: '3.13'
 
         - name: Install uv for SDKfied release
           if: hashFiles('**/uv.lock') != ''
@@ -150,7 +150,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.13'
 
       - name: Cache pip
         if: env.IS_SDKFIED == 'false'

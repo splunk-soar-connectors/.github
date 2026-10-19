@@ -15,12 +15,10 @@ steps:
       yum install -y \
         curl \
         git \
-        python39 \
-        python39-pip \
         jq
 
-      # Set Python 3.9 as default
-      alternatives --set python3 /usr/bin/python3.9
+      # Use the Python 3.13 interpreter bundled in the manylinux image.
+      export PATH="/opt/python/cp313-cp313/bin:$PATH"
 
       python3 -m pip install --upgrade pip
       python3 -m pip install --upgrade "pre-commit>=4.1.0"
