@@ -27,7 +27,16 @@ from packaging.version import parse
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(REPO_ROOT))
 
-from utils.api.splunkbase import Splunkbase
+from utils.api.splunkbase import (
+    Splunkbase,
+    SplunkbaseAmbiguousUpload,
+    SplunkbasePermissionDenied,
+    SplunkbaseRateLimited,
+    SplunkbaseResponseError,
+    SplunkbaseValidationFailed,
+)
+from utils.api.splunkbase_draft import DraftSplunkbase
+from utils.draft_publish import FLOW, advance_publication, package_metadata, release_for_version
 from utils.publish_queue import (
     MAX_ATTEMPTS_PER_HOUR,
     MIN_ATTEMPT_INTERVAL,
@@ -368,10 +377,158 @@ def reconcile_verification(queue, client, item, args, _now) -> int:
         time.sleep(min(VERIFICATION_POLL_INTERVAL_SECONDS, remaining))
 
 
+def uses_draft_flow(item):
+    if item.verification:
+        return item.verification.get("publication_flow") == FLOW
+    # Finish any counted legacy upload through its original reconciliation path.
+    if interrupted_attempt(item):
+        return False
+    repositories = {
+        name.strip()
+        for name in os.getenv("SPLUNKBASE_DRAFT_FLOW_REPOSITORIES", "").split(",")
+        if name.strip()
+    }
+    return item.repository in repositories
+
+
+def publish_draft_item(queue, item, args):
+    publisher = load_publisher_module()
+    state = dict(item.verification or {})
+    state.update({"publication_flow": FLOW, "status": "verifying"})
+    now = utc_now()
+
+    def checkpoint(result):
+        queue.verify(
+            item, result, utc_now() + timedelta(minutes=15), "Draft publication checkpoint saved."
+        )
+
+    try:
+        client = DraftSplunkbase(
+            os.environ["SPLUNKBASE_USER"],
+            os.environ["SPLUNKBASE_PASSWORD"],
+            request_context={
+                "repo": item.repository.split("/")[-1],
+                "version": item.candidate_version,
+                "run_id": item.run_id,
+                "run_attempt": item.run_attempt,
+            },
+            environment=os.getenv("SPLUNKBASE_ENVIRONMENT", "PROD"),
+        )
+        manifest = publisher.get_app_json(args.artifact)
+        if manifest["appid"] != item.appid or manifest["app_version"] != item.candidate_version:
+            raise SplunkbaseValidationFailed(
+                "Queued artifact does not match the appid and candidate version"
+            )
+        release_notes = publisher.get_release_notes_from_tarball(
+            args.artifact, item.candidate_version
+        )
+        if not release_notes:
+            raise SplunkbaseValidationFailed("Queued package is missing candidate release notes")
+        metadata = package_metadata(
+            args.artifact, manifest, item.repository, *publisher.get_license_info(manifest)
+        )
+        if not item.verification:
+            # Public search excludes draft/private listings. Resolve editor
+            # metadata by GUID before deciding that creation is necessary.
+            app = client.find_app(item.appid)
+            public_app = client.public_app_by_guid(item.appid)
+            releases = public_app.get("releases", []) if public_app else []
+            newer = [
+                release["release_name"]
+                for release in releases
+                if parse(release["release_name"]) > parse(item.candidate_version)
+            ]
+            if newer:
+                raise SplunkbaseValidationFailed("A newer connector version is already published")
+            state.update(
+                {
+                    "app_existed_before_upload": bool(app) and app.get("draft") is False,
+                    "previous_release_version": publisher.get_previous_release_version(
+                        releases, item.candidate_version
+                    ),
+                    "release_version": item.candidate_version,
+                }
+            )
+            if app:
+                state["splunkbase_app_id"] = app["id"]
+                if public_app and release_for_version(public_app, item.candidate_version):
+                    # The PATCH contract accepts a SemVer name; editor release
+                    # lists do not expose numeric release IDs in the v2 schema.
+                    state["release_id"] = item.candidate_version
+                elif release_for_version(app, item.candidate_version):
+                    raise SplunkbaseValidationFailed(
+                        "A private candidate release already exists; reconcile its package ID before uploading"
+                    )
+            checkpoint(state)
+
+        if (
+            not state.get("package_id")
+            and not state.get("release_id")
+            and not state.get("s3_key")
+            and state.get("pending_operation") not in {"create_draft", "register_package"}
+        ):
+            now, retry_at = wait_for_upload_budget(
+                queue, item, now, getattr(args, "wait_for_budget_until", None)
+            )
+            if retry_at:
+                queue.verify(item, state, retry_at, "Waiting for a draft upload slot.")
+                write_output("queue_status", "deferred")
+                return 0
+            queue.record_attempt(
+                item,
+                PublishAttempt(
+                    started_at=format_datetime(now),
+                    outcome="started",
+                    app_existed_before_upload=state["app_existed_before_upload"],
+                ),
+            )
+            checkpoint(state)
+
+        deadline = time.monotonic() + VERIFICATION_POLL_TIMEOUT_SECONDS
+        while True:
+            if advance_publication(
+                client, args.artifact, manifest, metadata, release_notes, state, checkpoint
+            ):
+                return finalize_publication(queue, client, item, args, state, utc_now())
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return defer_verification(
+                    queue,
+                    item,
+                    state,
+                    utc_now(),
+                    "Draft publication is awaiting validation or public visibility; no package was resubmitted.",
+                )
+            time.sleep(min(VERIFICATION_POLL_INTERVAL_SECONDS, remaining))
+    except SplunkbaseRateLimited as exc:
+        state["pending_operation"] = ""
+        state["retry_after"] = exc.retry_after
+        queue.verify(
+            item,
+            state,
+            retry_after_datetime(exc.retry_after, utc_now()) + timedelta(seconds=30),
+            "Splunkbase returned HTTP 429; draft state retained.",
+        )
+        write_output("queue_status", "rate_limited")
+        return 0
+    except (SplunkbaseAmbiguousUpload, SplunkbaseResponseError):
+        return defer_verification(
+            queue,
+            item,
+            state,
+            utc_now(),
+            "Draft API result is unknown; persisted identifiers will be reconciled before another mutation.",
+        )
+    except (SplunkbasePermissionDenied, SplunkbaseValidationFailed) as exc:
+        return block_publication(queue, item, state, str(exc), return_code=13)
+
+
 def publish_item(args) -> int:
     queue = queue_from_environment()
     item = queue.get_item(args.issue_number)
     now = utc_now()
+    if uses_draft_flow(item):
+        return publish_draft_item(queue, item, args)
     splunkbase = Splunkbase(
         os.environ["SPLUNKBASE_USER"],
         os.environ["SPLUNKBASE_PASSWORD"],
