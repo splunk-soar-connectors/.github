@@ -2,7 +2,8 @@ import ast
 import json
 import os
 import re
-from distutils.version import LooseVersion
+
+from packaging.version import Version
 
 from utils import clear_memorization, find_app_json_name, memoize
 from utils.command_utils import get_command_output
@@ -65,7 +66,7 @@ class AppParser:
     @property
     @memoize
     def min_phantom_version(self):
-        return LooseVersion(self._get_from_json("min_phantom_version"))
+        return Version(self._get_from_json("min_phantom_version"))
 
     @property
     @memoize
