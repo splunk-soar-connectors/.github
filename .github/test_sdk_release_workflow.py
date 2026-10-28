@@ -11,6 +11,7 @@ import yaml
 
 WORKFLOW = Path(__file__).parent / "workflows" / "publish.yml"
 JOBS = yaml.safe_load(WORKFLOW.read_text())["jobs"]
+RELEASE_ACTION = Path(__file__).parent / "actions" / "publish-release-assets" / "action.yml"
 ARCHIVE_NAME = "example.tgz"
 REPOSITORY = "splunk-soar-connectors/example"
 VERSION = "1.2.3"
@@ -106,13 +107,13 @@ def release_job(tmp_path):
         f"{hashlib.sha256(contents[ARCHIVE_NAME]).hexdigest()}  {ARCHIVE_NAME}\n".encode()
     )
     (tmp_path / ARCHIVE_NAME).write_bytes(contents[ARCHIVE_NAME])
-    step = next(step for step in JOBS["publish-sdk-release"]["steps"] if step.get("run"))
+    step = yaml.safe_load(RELEASE_ACTION.read_text())["runs"]["steps"][0]
     environment = {
         "PATH": f"{tools}:{os.environ['PATH']}",
         "TEST_RELEASE_STATE": str(state),
-        "ARCHIVE_NAME": ARCHIVE_NAME,
-        "RELEASE_VERSION": VERSION,
-        "GITHUB_REPOSITORY": REPOSITORY,
+        "ARTIFACT_PATH": str(tmp_path / ARCHIVE_NAME),
+        "RELEASE_TAG": VERSION,
+        "RELEASE_REPOSITORY": REPOSITORY,
     }
     return tmp_path, published, state, contents, step["run"], environment
 

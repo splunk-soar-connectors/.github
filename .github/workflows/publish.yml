@@ -221,31 +221,12 @@ jobs:
           path: artifacts
 
       - name: Publish SDK release assets
-        working-directory: artifacts
-        env:
-          GH_TOKEN: ${{ steps.release-token.outputs.token }}
-          RELEASE_VERSION: ${{ needs.semantic-version.outputs.release_version }}
-          ARCHIVE_NAME: ${{ github.event.repository.name }}.tgz
-        run: |
-          set -euo pipefail
-          test -s "$ARCHIVE_NAME"
-          sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
-          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_VERSION")
-          uploads=()
-          for asset in "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256"; do
-            expected="sha256:$(sha256sum "$asset" | cut -d' ' -f1)"
-            existing=$(jq -r --arg name "$asset" \
-              '.assets[] | select(.name == $name) | .digest' <<< "$release")
-            if [[ -z "$existing" ]]; then
-              uploads+=("$asset")
-            elif [[ "$existing" != "$expected" ]]; then
-              echo "Refusing to replace release asset $asset: SHA-256 differs or is unavailable." >&2
-              exit 1
-            fi
-          done
-          if (( ${#uploads[@]} )); then
-            gh release upload "$RELEASE_VERSION" "${uploads[@]}" --repo "$GITHUB_REPOSITORY"
-          fi
+        uses: splunk-soar-connectors/.github/.github/actions/publish-release-assets@main
+        with:
+          repository: ${{ github.repository }}
+          release_tag: ${{ needs.semantic-version.outputs.release_version }}
+          artifact_path: ${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz
+          github_token: ${{ steps.release-token.outputs.token }}
 
   publish:
     if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED != 'true'
