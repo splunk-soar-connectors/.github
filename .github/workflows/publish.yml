@@ -194,17 +194,15 @@ jobs:
           name: app-tar
           path: /tmp/${{ github.event.repository.name }}.tgz
 
-  publish-sdk-release:
-    if: >-
-      needs.detect-app-type.outputs.is_sdkfied == 'true' &&
-      needs.semantic-version.outputs.release_version != ''
-    needs: [semantic-version, detect-app-type, build]
+  publish-release-assets:
+    if: needs.semantic-version.outputs.release_version != ''
+    needs: [semantic-version, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
     concurrency:
-      group: sdk-release-${{ github.repository }}-${{ needs.semantic-version.outputs.release_version }}
+      group: connector-release-${{ github.repository }}-${{ needs.semantic-version.outputs.release_version }}
       cancel-in-progress: false
     steps:
       - name: Create release token
@@ -214,13 +212,13 @@ jobs:
           app-id: ${{ vars.SEMANTIC_RELEASE_APP_ID }}
           private-key: ${{ secrets.semantic_release_pk }}
 
-      - name: Download built SDK connector
+      - name: Download built connector
         uses: actions/download-artifact@v4
         with:
           name: app-tar
           path: artifacts
 
-      - name: Publish SDK release assets
+      - name: Publish connector release assets
         uses: splunk-soar-connectors/.github/.github/actions/publish-release-assets@main
         with:
           repository: ${{ github.repository }}

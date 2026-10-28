@@ -8,13 +8,14 @@ Please see the ```.github``` folder for the following docs.
  - [PR template](https://github.com/splunk-soar-connectors/.github/blob/main/.github/pull_request_template.md)
  - [Issue templates](https://github.com/splunk-soar-connectors/.github/tree/main/.github/ISSUE_TEMPLATE)
 
-## SDK connector release downloads
+## Connector release downloads
 
-For each new SDK connector version, the shared publish workflow attaches the built
-`<repository>.tgz` and `<repository>.tgz.sha256` to that connector's versioned GitHub
-release. These are the package produced by `soarapps package build` and its SHA-256
-checksum, so consumers can download the built connector directly from its release
-page. This applies to both direct and queued Splunkbase publishing.
+For each new BaseConnector or SDK version, the shared publish workflow attaches
+the built `<repository>.tgz` and `<repository>.tgz.sha256` to that connector's GitHub
+release. These are the package produced by the BaseConnector builder or
+`soarapps package build` and its SHA-256 checksum, so consumers can download the
+built connector directly from its release page. This applies to both direct and
+queued Splunkbase publishing.
 
 The package build uses the commit created by semantic-release. Runs that do not
 create a new version skip release-asset publication. Retrying the asset job reuses
