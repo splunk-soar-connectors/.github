@@ -1,0 +1,48 @@
+name: Publish connector release assets
+description: Attach a built connector and its checksum to an existing GitHub release.
+inputs:
+  repository:
+    description: Owner and name of the connector repository.
+    required: true
+  release_tag:
+    description: Existing GitHub release tag.
+    required: true
+  artifact_path:
+    description: Path to the built connector tarball.
+    required: true
+  github_token:
+    description: Token with contents:write on the connector repository.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Publish release assets
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        RELEASE_REPOSITORY: ${{ inputs.repository }}
+        RELEASE_TAG: ${{ inputs.release_tag }}
+        ARTIFACT_PATH: ${{ inputs.artifact_path }}
+      run: |
+        set -euo pipefail
+        cd "$(dirname "$ARTIFACT_PATH")"
+        ARCHIVE_NAME=$(basename "$ARTIFACT_PATH")
+        test -s "$ARCHIVE_NAME"
+        sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
+        encoded_tag=$(jq -rn --arg tag "$RELEASE_TAG" '$tag | @uri')
+        release=$(gh api "repos/$RELEASE_REPOSITORY/releases/tags/$encoded_tag")
+        uploads=()
+        for asset in "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256"; do
+          expected="sha256:$(sha256sum "$asset" | cut -d' ' -f1)"
+          existing=$(jq -r --arg name "$asset" \
+            '.assets[] | select(.name == $name) | .digest' <<< "$release")
+          if [[ -z "$existing" ]]; then
+            uploads+=("$asset")
+          elif [[ "$existing" != "$expected" ]]; then
+            echo "Refusing to replace release asset $asset: SHA-256 differs or is unavailable." >&2
+            exit 1
+          fi
+        done
+        if (( ${#uploads[@]} )); then
+          gh release upload "$RELEASE_TAG" "${uploads[@]}" --repo "$RELEASE_REPOSITORY"
+        fi

@@ -1,0 +1,148 @@
+name: Publish existing connector release
+run-name: Publish ${{ inputs.connector }} ${{ inputs.release_tag }} release assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      connector:
+        description: Repository name in splunk-soar-connectors (for example, slack)
+        required: true
+        type: string
+      release_tag:
+        description: Existing version tag (for example, 2.12.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CONNECTOR: ${{ inputs.connector }}
+  RELEASE_TAG: ${{ inputs.release_tag }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate existing connector release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$CONNECTOR" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ || "$CONNECTOR" == connector-template ]]; then
+            echo "Provide a publishable connector repository name in splunk-soar-connectors." >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_TAG" == -* ]]; then
+            echo "Provide an existing version tag, not an option." >&2
+            exit 1
+          fi
+          git check-ref-format "refs/tags/$RELEASE_TAG"
+          gh release view --repo "splunk-soar-connectors/$CONNECTOR" -- "$RELEASE_TAG"
+
+      - name: Check out build tools
+        uses: actions/checkout@v4
+        with:
+          path: .release-tools
+          persist-credentials: false
+
+      - name: Check out the existing version
+        uses: actions/checkout@v4
+        with:
+          repository: splunk-soar-connectors/${{ inputs.connector }}
+          ref: refs/tags/${{ inputs.release_tag }}
+          path: ${{ inputs.connector }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: python -m pip install "uv==0.12.0"
+
+      - name: Build the selected connector version
+        env:
+          BUILD_SCRIPT: ${{ github.workspace }}/.release-tools/.github/actions/build-app/build_app.py
+          ARTIFACT_PATH: ${{ runner.temp }}/${{ inputs.connector }}.tgz
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          source_dir="$GITHUB_WORKSPACE/$CONNECTOR"
+          uv_lock=$(find "$source_dir" -name uv.lock -not -path '*/.git/*' -print -quit)
+          if [[ -n "$uv_lock" ]]; then
+            cd "$(dirname "$uv_lock")"
+            uv sync --locked
+            uv run --locked soarapps package build . --output-file "$ARTIFACT_PATH"
+          else
+            python -m pip install -r "$(dirname "$BUILD_SCRIPT")/requirements.txt"
+            GITHUB_WORKSPACE="$source_dir" python "$BUILD_SCRIPT" "$CONNECTOR" "$RELEASE_TAG"
+            mv "/tmp/$CONNECTOR.tgz" "$ARTIFACT_PATH"
+          fi
+
+      - name: Verify the packaged version
+        env:
+          ARTIFACT_PATH: ${{ runner.temp }}/${{ inputs.connector }}.tgz
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import tarfile
+
+          with tarfile.open(os.environ['ARTIFACT_PATH']) as archive:
+              manifests = []
+              for member in archive.getmembers():
+                  if member.isfile() and member.name.endswith('.json') and member.name.count('/') == 1:
+                      document = json.load(archive.extractfile(member))
+                      if isinstance(document, dict) and 'app_version' in document and 'appid' in document:
+                          manifests.append(document)
+          if len(manifests) != 1:
+              raise SystemExit('Expected one connector manifest in the built package.')
+          if manifests[0]['app_version'] != os.environ['RELEASE_TAG'].removeprefix('v'):
+              raise SystemExit('Packaged connector version does not match the selected release tag.')
+          PY
+
+      - name: Save the built connector
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-tar
+          path: ${{ runner.temp }}/${{ inputs.connector }}.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: connector-release-splunk-soar-connectors/${{ inputs.connector }}-${{ inputs.release_tag }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out release publisher
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download the built connector
+        uses: actions/download-artifact@v4
+        with:
+          name: app-tar
+          path: artifacts
+
+      - name: Create connector release token
+        uses: actions/create-github-app-token@v1
+        id: release-token
+        with:
+          app-id: ${{ vars.SEMANTIC_RELEASE_APP_ID }}
+          private-key: ${{ secrets.semantic_release_pk }}
+          owner: splunk-soar-connectors
+          repositories: ${{ inputs.connector }}
+
+      - name: Publish release assets
+        uses: ./.github/actions/publish-release-assets
+        with:
+          repository: splunk-soar-connectors/${{ inputs.connector }}
+          release_tag: ${{ inputs.release_tag }}
+          artifact_path: ${{ github.workspace }}/artifacts/${{ inputs.connector }}.tgz
+          github_token: ${{ steps.release-token.outputs.token }}
