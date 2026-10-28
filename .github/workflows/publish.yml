@@ -17,6 +17,9 @@ on:
 jobs:
   semantic-version:
       runs-on: ubuntu-latest
+      outputs:
+        release_version: ${{ steps.release.outputs.release_version }}
+        release_commit: ${{ steps.release.outputs.release_commit }}
       permissions:
         contents: write
         pull-requests: write
@@ -74,10 +77,16 @@ jobs:
             pip install tomlkit
 
         - name: Run semantic-release and update version numbers
+          id: release
           env:
             GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           run: |
+            rm -f release_version.txt
             npx semantic-release -e $(pwd)/.releaserc.json --tag-format "\${version}"
+            if [[ -s release_version.txt ]]; then
+              echo "release_version=$(<release_version.txt)" >> "$GITHUB_OUTPUT"
+              echo "release_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            fi
 
           # Semantic-release will "pass" even if we don't increase the version
           # We need to clear unreleased release notes in this case
@@ -141,7 +150,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: main
+          # Keep the package source aligned with the versioned release.
+          ref: ${{ needs.semantic-version.outputs.release_commit || 'main' }}
 
       - name: Record immutable build source
         id: source
@@ -183,6 +193,59 @@ jobs:
         with:
           name: app-tar
           path: /tmp/${{ github.event.repository.name }}.tgz
+
+  publish-sdk-release:
+    if: >-
+      needs.detect-app-type.outputs.is_sdkfied == 'true' &&
+      needs.semantic-version.outputs.release_version != ''
+    needs: [semantic-version, detect-app-type, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    concurrency:
+      group: sdk-release-${{ github.repository }}-${{ needs.semantic-version.outputs.release_version }}
+      cancel-in-progress: false
+    steps:
+      - name: Create release token
+        uses: actions/create-github-app-token@v1
+        id: release-token
+        with:
+          app-id: ${{ vars.SEMANTIC_RELEASE_APP_ID }}
+          private-key: ${{ secrets.semantic_release_pk }}
+
+      - name: Download built SDK connector
+        uses: actions/download-artifact@v4
+        with:
+          name: app-tar
+          path: artifacts
+
+      - name: Publish SDK release assets
+        working-directory: artifacts
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          RELEASE_VERSION: ${{ needs.semantic-version.outputs.release_version }}
+          ARCHIVE_NAME: ${{ github.event.repository.name }}.tgz
+        run: |
+          set -euo pipefail
+          test -s "$ARCHIVE_NAME"
+          sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_VERSION")
+          uploads=()
+          for asset in "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256"; do
+            expected="sha256:$(sha256sum "$asset" | cut -d' ' -f1)"
+            existing=$(jq -r --arg name "$asset" \
+              '.assets[] | select(.name == $name) | .digest' <<< "$release")
+            if [[ -z "$existing" ]]; then
+              uploads+=("$asset")
+            elif [[ "$existing" != "$expected" ]]; then
+              echo "Refusing to replace release asset $asset: SHA-256 differs or is unavailable." >&2
+              exit 1
+            fi
+          done
+          if (( ${#uploads[@]} )); then
+            gh release upload "$RELEASE_VERSION" "${uploads[@]}" --repo "$GITHUB_REPOSITORY"
+          fi
 
   publish:
     if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED != 'true'
