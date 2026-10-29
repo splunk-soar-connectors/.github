@@ -146,3 +146,41 @@ jobs:
           release_tag: ${{ inputs.release_tag }}
           artifact_path: ${{ github.workspace }}/artifacts/${{ inputs.connector }}.tgz
           github_token: ${{ steps.release-token.outputs.token }}
+
+  distribute-playground:
+    needs: publish
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
+    timeout-minutes: 30
+    steps:
+      - name: Check out distribution action
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Trigger connector distribution
+        uses: ./.github/actions/trigger-connector-distribution
+        with:
+          repository: splunk-soar-connectors/${{ inputs.connector }}
+          release_tag: ${{ inputs.release_tag }}
+          environment: playground
+
+  distribute-staging:
+    needs: distribute-playground
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
+    timeout-minutes: 30
+    steps:
+      - name: Check out distribution action
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Trigger connector distribution
+        uses: ./.github/actions/trigger-connector-distribution
+        with:
+          repository: splunk-soar-connectors/${{ inputs.connector }}
+          release_tag: ${{ inputs.release_tag }}
+          environment: staging

@@ -1,0 +1,74 @@
+name: Trigger connector distribution
+description: Start soar-services CI and wait for connector distribution to succeed.
+inputs:
+  repository:
+    description: Owner and name of the connector repository.
+    required: true
+  release_tag:
+    description: Existing release containing the published connector package.
+    required: true
+  environment:
+    description: Target environment (playground or staging).
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Trigger and monitor soar-services pipeline
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        RELEASE_REPOSITORY: ${{ inputs.repository }}
+        RELEASE_TAG: ${{ inputs.release_tag }}
+        CONNECTOR_ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        : "${GITLAB_API_TOKEN:?GITLAB_API_TOKEN must be available on the CodeBuild runner}"
+        case "$CONNECTOR_ENVIRONMENT" in
+          playground|staging) ;;
+          *) echo "Unsupported connector environment" >&2; exit 1 ;;
+        esac
+        encoded_tag=$(jq -rn --arg tag "$RELEASE_TAG" '$tag | @uri')
+        release=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 60 \
+          --header "Authorization: Bearer $GITHUB_TOKEN" \
+          "https://api.github.com/repos/$RELEASE_REPOSITORY/releases/tags/$encoded_tag")
+        archive_name="${RELEASE_REPOSITORY##*/}.tgz"
+        archive=$(jq -er --arg name "$archive_name" \
+          '[.assets[] | select(.name == $name)] | select(length == 1) | .[0]' <<< "$release")
+        archive_url=$(jq -er '.browser_download_url | select(startswith("https://github.com/"))' <<< "$archive")
+        sha256=$(jq -er '.digest | select(type == "string") | select(test("^sha256:[0-9a-f]{64}$")) | ltrimstr("sha256:")' <<< "$archive")
+        payload=$(jq -n --arg url "$archive_url" --arg sha256 "$sha256" --arg environment "$CONNECTOR_ENVIRONMENT" \
+          '{ref: "main", inputs: {"connector-archive-url": $url, "connector-sha256": $sha256, "connector-environment": $environment}}')
+        response=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 60 \
+          --request POST --header "PRIVATE-TOKEN: $GITLAB_API_TOKEN" \
+          --header "Content-Type: application/json" --data-binary "$payload" \
+          "https://cd.splunkdev.com/api/v4/projects/265010/pipeline")
+        pipeline_url=$(jq -er 'select(.id | type == "number") | .web_url | select(startswith("https://cd.splunkdev.com/"))' <<< "$response")
+        pipeline_id=$(jq -er '.id | select(type == "number")' <<< "$response")
+        echo "Started $CONNECTOR_ENVIRONMENT connector publication: $pipeline_url"
+        echo "### $CONNECTOR_ENVIRONMENT connector distribution" >> "$GITHUB_STEP_SUMMARY"
+        echo "[GitLab pipeline]($pipeline_url)" >> "$GITHUB_STEP_SUMMARY"
+        deadline=$(( $(date +%s) + 1500 ))
+        while (( $(date +%s) < deadline )); do
+          pipeline=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 60 \
+            --retry 3 --retry-delay 5 --retry-max-time 45 \
+            --header "PRIVATE-TOKEN: $GITLAB_API_TOKEN" \
+            "https://cd.splunkdev.com/api/v4/projects/265010/pipelines/$pipeline_id")
+          status=$(jq -er '.status | select(type == "string")' <<< "$pipeline")
+          echo "$CONNECTOR_ENVIRONMENT pipeline status: $status"
+          case "$status" in
+            success)
+              echo "Result: success" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+              ;;
+            created|waiting_for_resource|preparing|pending|running|scheduled) ;;
+            *)
+              echo "Result: $status" >> "$GITHUB_STEP_SUMMARY"
+              echo "Distribution did not succeed: $pipeline_url ($status)" >&2
+              exit 1
+              ;;
+          esac
+          sleep 15
+        done
+        echo "Result: monitoring timed out" >> "$GITHUB_STEP_SUMMARY"
+        echo "Timed out after 25 minutes; inspect $pipeline_url before retrying." >&2
+        exit 1

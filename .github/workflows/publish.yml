@@ -226,6 +226,38 @@ jobs:
           artifact_path: ${{ github.workspace }}/artifacts/${{ github.event.repository.name }}.tgz
           github_token: ${{ steps.release-token.outputs.token }}
 
+  distribute-playground:
+    needs: [semantic-version, publish-release-assets]
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Trigger connector distribution
+        uses: splunk-soar-connectors/.github/.github/actions/trigger-connector-distribution@main
+        with:
+          repository: ${{ github.repository }}
+          release_tag: ${{ needs.semantic-version.outputs.release_version }}
+          environment: playground
+
+  distribute-staging:
+    needs: [semantic-version, distribute-playground]
+    runs-on:
+      - codebuild-integration-tests-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:6abbbe275a28d5b8bf18d3384a19aa68e9c242d0
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Trigger connector distribution
+        uses: splunk-soar-connectors/.github/.github/actions/trigger-connector-distribution@main
+        with:
+          repository: ${{ github.repository }}
+          release_tag: ${{ needs.semantic-version.outputs.release_version }}
+          environment: staging
+
   publish:
     if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED != 'true'
     runs-on:
