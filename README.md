@@ -43,6 +43,21 @@ to be available. Rebuilding a version may produce different archive bytes; exist
 assets are never replaced. To retry a failed upload, rerun only the failed publish
 job so it reuses the original build artifact.
 
+## Connector distribution pipelines
+
+After release assets are published, both the automatic and existing-version
+workflows start a soar-services pipeline on `main` for each supported environment:
+`playground` and `staging`. The trigger job runs on the existing CodeBuild runner
+and uses its `GITLAB_API_TOKEN` environment variable. It sends the public release
+archive URL, the SHA-256 digest reported by GitHub for that asset, and the target
+environment as pipeline inputs. No additional per-connector secret is required.
+
+Each job prints the created pipeline's URL. A successful trigger means GitLab
+accepted the pipeline; inspect that pipeline for the distribution result. Failed
+trigger requests fail the GitHub job and are not automatically retried. After an
+uncertain network failure, check GitLab before retrying to avoid duplicate runs.
+The trigger job can be rerun without rebuilding or republishing release assets.
+
 ## Connector contract summaries
 
 The organization-wide [PR workflow](.github/workflows/push.yml) compares the base
