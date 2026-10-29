@@ -1,5 +1,5 @@
 name: Trigger connector distribution
-description: Start soar-services CI for a published connector release asset.
+description: Start soar-services CI and wait for connector distribution to succeed.
 inputs:
   repository:
     description: Owner and name of the connector repository.
@@ -13,7 +13,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Trigger soar-services pipeline
+    - name: Trigger and monitor soar-services pipeline
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
@@ -43,4 +43,32 @@ runs:
           --header "Content-Type: application/json" --data-binary "$payload" \
           "https://cd.splunkdev.com/api/v4/projects/265010/pipeline")
         pipeline_url=$(jq -er 'select(.id | type == "number") | .web_url | select(startswith("https://cd.splunkdev.com/"))' <<< "$response")
+        pipeline_id=$(jq -er '.id | select(type == "number")' <<< "$response")
         echo "Started $CONNECTOR_ENVIRONMENT connector publication: $pipeline_url"
+        echo "### $CONNECTOR_ENVIRONMENT connector distribution" >> "$GITHUB_STEP_SUMMARY"
+        echo "[GitLab pipeline]($pipeline_url)" >> "$GITHUB_STEP_SUMMARY"
+        deadline=$(( $(date +%s) + 1500 ))
+        while (( $(date +%s) < deadline )); do
+          pipeline=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 60 \
+            --retry 3 --retry-delay 5 --retry-max-time 45 \
+            --header "PRIVATE-TOKEN: $GITLAB_API_TOKEN" \
+            "https://cd.splunkdev.com/api/v4/projects/265010/pipelines/$pipeline_id")
+          status=$(jq -er '.status | select(type == "string")' <<< "$pipeline")
+          echo "$CONNECTOR_ENVIRONMENT pipeline status: $status"
+          case "$status" in
+            success)
+              echo "Result: success" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+              ;;
+            created|waiting_for_resource|preparing|pending|running|scheduled) ;;
+            *)
+              echo "Result: $status" >> "$GITHUB_STEP_SUMMARY"
+              echo "Distribution did not succeed: $pipeline_url ($status)" >&2
+              exit 1
+              ;;
+          esac
+          sleep 15
+        done
+        echo "Result: monitoring timed out" >> "$GITHUB_STEP_SUMMARY"
+        echo "Timed out after 25 minutes; inspect $pipeline_url before retrying." >&2
+        exit 1

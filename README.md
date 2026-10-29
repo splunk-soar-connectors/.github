@@ -46,15 +46,18 @@ job so it reuses the original build artifact.
 ## Connector distribution pipelines
 
 After release assets are published, both the automatic and existing-version
-workflows start a soar-services pipeline on `main` for each supported environment:
-`playground` and `staging`. The trigger job runs on the existing CodeBuild runner
+workflows start a soar-services pipeline on `main` for `playground`, wait for it
+to succeed, then start and monitor `staging`. A failed, canceled, blocked, or
+timed-out playground run prevents staging from starting.
+The trigger job runs on the existing CodeBuild runner
 and uses its `GITLAB_API_TOKEN` environment variable. It sends the public release
 archive URL, the SHA-256 digest reported by GitHub for that asset, and the target
 environment as pipeline inputs. No additional per-connector secret is required.
 
-Each job prints the created pipeline's URL. A successful trigger means GitLab
-accepted the pipeline; inspect that pipeline for the distribution result. Failed
-trigger requests fail the GitHub job and are not automatically retried. After an
+Each job prints pipeline statuses and adds a pipeline link and result to the
+GitHub job summary. It waits up to 25 minutes and succeeds only when GitLab
+reports pipeline success. Failed trigger requests fail the GitHub job and are
+not automatically retried; only status reads use bounded retries. After an
 uncertain network failure, check GitLab before retrying to avoid duplicate runs.
 The trigger job can be rerun without rebuilding or republishing release assets.
 

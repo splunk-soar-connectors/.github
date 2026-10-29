@@ -37,6 +37,17 @@ def trigger(tmp_path):
     response = tmp_path / "pipeline.json"
     response.write_text(json.dumps({"id": 123, "web_url": PIPELINE_URL}))
     calls = tmp_path / "calls.jsonl"
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps(["success"]))
+    clock = tmp_path / "clock"
+    clock.write_text("0")
+    for name, code in {
+        "date": 'print(pathlib.Path(os.environ["TEST_CLOCK"]).read_text())',
+        "sleep": 'p=pathlib.Path(os.environ["TEST_CLOCK"]); p.write_text(str(int(p.read_text()) + int(os.environ.get("TEST_SLEEP_ADVANCE", "15"))))',
+    }.items():
+        executable = tmp_path / name
+        executable.write_text(f"#!{sys.executable}\nimport os, pathlib\n{code}\n")
+        executable.chmod(0o755)
     curl = tmp_path / "curl"
     curl.write_text(
         f"#!{sys.executable}\n"
@@ -46,11 +57,19 @@ def trigger(tmp_path):
         '    output.write(json.dumps(args) + "\\n")\n'
         'if args[-1].startswith("https://api.github.com/"):\n'
         '    print(pathlib.Path(os.environ["TEST_RELEASE"]).read_text())\n'
-        "else:\n"
-        '    assert args[-1] == "https://cd.splunkdev.com/api/v4/projects/265010/pipeline"\n'
+        'elif args[-1] == "https://cd.splunkdev.com/api/v4/projects/265010/pipeline":\n'
         '    if os.environ.get("TEST_POST_FAIL"):\n'
         "        sys.exit(22)\n"
         '    print(pathlib.Path(os.environ["TEST_RESPONSE"]).read_text())\n'
+        "else:\n"
+        '    assert args[-1] == "https://cd.splunkdev.com/api/v4/projects/265010/pipelines/123"\n'
+        '    if os.environ.get("TEST_GET_FAIL"):\n'
+        "        sys.exit(22)\n"
+        '    path = pathlib.Path(os.environ["TEST_STATUSES"])\n'
+        "    states = json.loads(path.read_text())\n"
+        "    status = states.pop(0) if len(states) > 1 else states[0]\n"
+        "    path.write_text(json.dumps(states))\n"
+        '    print(json.dumps({"status": status}))\n'
     )
     curl.chmod(0o755)
     environment = {
@@ -59,6 +78,9 @@ def trigger(tmp_path):
         "TEST_CALLS": str(calls),
         "TEST_RELEASE": str(release),
         "TEST_RESPONSE": str(response),
+        "TEST_STATUSES": str(statuses),
+        "TEST_CLOCK": str(clock),
+        "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"),
         "RELEASE_REPOSITORY": "splunk-soar-connectors/example",
         "RELEASE_TAG": "1.2.3",
         "CONNECTOR_ENVIRONMENT": "playground",
@@ -88,8 +110,8 @@ def test_release_asset_triggers_protected_main_with_exact_inputs(trigger, target
     result, calls = run(CONNECTOR_ENVIRONMENT=target)
 
     assert result.returncode == 0, result.stderr
-    assert len(calls) == 2
-    github, gitlab = calls
+    assert len(calls) == 3
+    github, gitlab, poll = calls
     assert (
         github[-1]
         == "https://api.github.com/repos/splunk-soar-connectors/example/releases/tags/1.2.3"
@@ -107,6 +129,9 @@ def test_release_asset_triggers_protected_main_with_exact_inputs(trigger, target
         },
     }
     assert PIPELINE_URL in result.stdout
+    assert "pipeline status: success" in result.stdout
+    assert "PRIVATE-TOKEN: test-gitlab-token" in poll
+    assert "test-github-token" not in " ".join(poll)
     assert "test-gitlab-token" not in result.stdout + result.stderr
 
 
@@ -151,12 +176,55 @@ def test_missing_pipeline_link_is_not_reported_as_success(trigger):
     "filename,publication",
     [("publish.yml", "publish-release-assets"), ("publish-existing-release.yml", "publish")],
 )
-def test_distribution_waits_for_publication_and_targets_both_environments(filename, publication):
-    job = yaml.safe_load((ROOT / "workflows" / filename).read_text())["jobs"][
-        "distribute-connector"
-    ]
-    needs = job["needs"] if isinstance(job["needs"], list) else [job["needs"]]
+def test_staging_depends_on_successful_playground_after_publication(filename, publication):
+    jobs = yaml.safe_load((ROOT / "workflows" / filename).read_text())["jobs"]
+    playground = jobs["distribute-playground"]
+    staging = jobs["distribute-staging"]
+    needs = playground["needs"] if isinstance(playground["needs"], list) else [playground["needs"]]
     assert publication in needs
-    assert job["strategy"]["matrix"]["environment"] == ["playground", "staging"]
-    assert job["strategy"]["fail-fast"] is False
-    assert job["runs-on"][0].startswith("codebuild-integration-tests-")
+    staging_needs = staging["needs"] if isinstance(staging["needs"], list) else [staging["needs"]]
+    assert "distribute-playground" in staging_needs
+    for job, environment in [(playground, "playground"), (staging, "staging")]:
+        assert "if" not in job  # GitHub's default needs condition requires success.
+        assert not job.get("continue-on-error", False)
+        assert job["runs-on"][0].startswith("codebuild-integration-tests-")
+        action = job["steps"][-1]
+        assert action["with"]["environment"] == environment
+        assert not action.get("continue-on-error", False)
+
+
+def test_monitoring_waits_for_pipeline_success_without_recreating_it(trigger):
+    run, _, response = trigger
+    (response.parent / "statuses.json").write_text(json.dumps(["pending", "running", "success"]))
+    result, calls = run()
+    assert result.returncode == 0, result.stderr
+    assert sum("--request" in call for call in calls) == 1
+    assert sum(call[-1].endswith("pipelines/123") for call in calls) == 3
+    assert "Result: success" in (response.parent / "summary.md").read_text()
+
+
+@pytest.mark.parametrize("status", ["failed", "canceled", "skipped", "manual", "unknown"])
+def test_unsuccessful_pipeline_fails_the_github_job(trigger, status):
+    run, _, response = trigger
+    (response.parent / "statuses.json").write_text(json.dumps([status]))
+    result, calls = run()
+    assert result.returncode != 0
+    assert "Distribution did not succeed" in result.stderr
+    assert len(calls) == 3
+    assert f"Result: {status}" in (response.parent / "summary.md").read_text()
+
+
+def test_monitoring_timeout_fails_without_starting_another_pipeline(trigger):
+    run, _, response = trigger
+    (response.parent / "statuses.json").write_text(json.dumps(["pending"]))
+    result, calls = run(TEST_SLEEP_ADVANCE="1501")
+    assert result.returncode != 0
+    assert "Timed out after 25 minutes" in result.stderr
+    assert len(calls) == 3
+
+
+def test_unreadable_pipeline_status_fails_closed(trigger):
+    run, _, _ = trigger
+    result, calls = run(TEST_GET_FAIL="true")
+    assert result.returncode != 0
+    assert len(calls) == 3
