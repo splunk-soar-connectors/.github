@@ -49,6 +49,14 @@ After release assets are published, both the automatic and existing-version
 workflows start a soar-services pipeline on `main` for `playground`, wait for it
 to succeed, then start and monitor `staging`. A failed, canceled, blocked, or
 timed-out playground run prevents staging from starting.
+
+Distribution requires the packaged connector manifest's publisher to be exactly
+`Splunk`. The action downloads the release archive, verifies GitHub's SHA-256,
+and checks its manifest before calling GitLab. `Splunk Community`, other
+publishers, and missing publisher values are reported as skipped; they create
+no distribution pipeline. Invalid or ambiguous archives fail the check. Normal
+release-asset and Splunkbase publishing continue for other publishers.
+
 The trigger job runs on the existing CodeBuild runner
 and uses its `GITLAB_API_TOKEN` environment variable. It sends the public release
 archive URL, the SHA-256 digest reported by GitHub for that asset, and the target

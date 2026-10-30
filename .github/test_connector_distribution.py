@@ -72,6 +72,17 @@ def trigger(tmp_path):
         '    print(json.dumps({"status": status}))\n'
     )
     curl.chmod(0o755)
+    checker = tmp_path / "python3"
+    checker.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, sys\n"
+        'assert pathlib.Path(sys.argv[1]).name == "check_publisher.py"\n'
+        f'assert sys.argv[2:] == ["--archive-url", {ARCHIVE_URL!r}, "--sha256", {DIGEST!r}]\n'
+        'if os.environ.get("TEST_PUBLISHER_ERROR"):\n'
+        "    sys.exit(1)\n"
+        'print(os.environ.get("TEST_ELIGIBLE", "true"))\n'
+    )
+    checker.chmod(0o755)
     environment = {
         **os.environ,
         "PATH": f"{tmp_path}:{os.environ['PATH']}",
@@ -86,6 +97,7 @@ def trigger(tmp_path):
         "CONNECTOR_ENVIRONMENT": "playground",
         "GITHUB_TOKEN": "test-github-token",
         "GITLAB_API_TOKEN": "test-gitlab-token",
+        "DISTRIBUTION_ACTION_PATH": str(ROOT / "actions/trigger-connector-distribution"),
     }
 
     def run(**overrides):
@@ -135,14 +147,39 @@ def test_release_asset_triggers_protected_main_with_exact_inputs(trigger, target
     assert "test-gitlab-token" not in result.stdout + result.stderr
 
 
+def test_invalid_environment_never_makes_a_request(trigger):
+    run, _, _ = trigger
+    result, calls = run(CONNECTOR_ENVIRONMENT="production")
+    assert result.returncode != 0
+    assert calls == []
+
+
+def test_missing_gitlab_token_fails_only_for_an_eligible_archive(trigger):
+    run, _, _ = trigger
+    result, calls = run(GITLAB_API_TOKEN="")
+    assert result.returncode != 0
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("target", ["playground", "staging"])
+def test_other_publishers_skip_distribution_without_a_gitlab_credential(trigger, target):
+    run, _, response = trigger
+    result, calls = run(TEST_ELIGIBLE="false", GITLAB_API_TOKEN="", CONNECTOR_ENVIRONMENT=target)
+    assert result.returncode == 0, result.stderr
+    assert len(calls) == 1
+    assert "Distribution skipped" in result.stdout
+    assert "Distribution skipped" in (response.parent / "summary.md").read_text()
+    assert PIPELINE_URL not in result.stdout
+
+
 @pytest.mark.parametrize(
-    "overrides", [{"GITLAB_API_TOKEN": ""}, {"CONNECTOR_ENVIRONMENT": "production"}]
+    "overrides", [{"TEST_PUBLISHER_ERROR": "true"}, {"TEST_ELIGIBLE": "unknown"}]
 )
-def test_invalid_configuration_never_makes_a_request(trigger, overrides):
+def test_unverified_publishers_never_create_a_pipeline(trigger, overrides):
     run, _, _ = trigger
     result, calls = run(**overrides)
     assert result.returncode != 0
-    assert calls == []
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize(
