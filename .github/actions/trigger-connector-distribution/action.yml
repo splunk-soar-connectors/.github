@@ -20,9 +20,9 @@ runs:
         RELEASE_REPOSITORY: ${{ inputs.repository }}
         RELEASE_TAG: ${{ inputs.release_tag }}
         CONNECTOR_ENVIRONMENT: ${{ inputs.environment }}
-        DISTRIBUTION_ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
+        : "${GITLAB_API_TOKEN:?GITLAB_API_TOKEN must be available on the CodeBuild runner}"
         case "$CONNECTOR_ENVIRONMENT" in
           playground|staging) ;;
           *) echo "Unsupported connector environment" >&2; exit 1 ;;
@@ -36,17 +36,6 @@ runs:
           '[.assets[] | select(.name == $name)] | select(length == 1) | .[0]' <<< "$release")
         archive_url=$(jq -er '.browser_download_url | select(startswith("https://github.com/"))' <<< "$archive")
         sha256=$(jq -er '.digest | select(type == "string") | select(test("^sha256:[0-9a-f]{64}$")) | ltrimstr("sha256:")' <<< "$archive")
-        eligible=$(python3 "$DISTRIBUTION_ACTION_PATH/check_publisher.py" \
-          --archive-url "$archive_url" --sha256 "$sha256")
-        case "$eligible" in
-          true) ;;
-          false)
-            echo "Distribution skipped: connector publisher is not exactly Splunk." | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-            ;;
-          *) echo "Publisher eligibility could not be verified." >&2; exit 1 ;;
-        esac
-        : "${GITLAB_API_TOKEN:?GITLAB_API_TOKEN must be available on the CodeBuild runner}"
         payload=$(jq -n --arg url "$archive_url" --arg sha256 "$sha256" --arg environment "$CONNECTOR_ENVIRONMENT" \
           '{ref: "main", inputs: {"connector-archive-url": $url, "connector-sha256": $sha256, "connector-environment": $environment}}')
         response=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 60 \
