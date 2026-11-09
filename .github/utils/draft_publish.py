@@ -79,10 +79,8 @@ def package_metadata(artifact, manifest, repository, license_name, license_url):
     if contact:
         metadata["contact_email"] = contact
     support = manifest.get("support")
-    if support in ("premium", "splunk", "cisco", "developer", "not_supported"):
+    if support in ("developer", "not_supported"):
         metadata["support"] = support
-    elif manifest.get("publisher") == "Splunk":
-        metadata["support"] = "splunk"
     return {key: value for key, value in metadata.items() if value not in (None, "")}
 
 

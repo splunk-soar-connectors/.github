@@ -181,12 +181,14 @@ files at the package root are read; the worker does not extract links or paths.
 | `troubleshooting_source` | `troubleshooting.md`; `## Troubleshooting` |
 | `contact_notes_source` | `contact.md`; `## Contact` |
 | `contact_email` | Explicit manifest `contact_email`, when available |
-| `support` | Explicit manifest support; otherwise `splunk` for a Splunk publisher |
+| `support` | Explicit manifest `developer` or `not_supported`; all other values are omitted |
 
 Section headings are matched without regard to case. Sections come from
 `manual_readme_content.md` when present, or `README.md` otherwise. Empty or absent
 values are omitted, preserving curated listing content. Existing contact email and
-support are preserved when already set on the listing. A tab body longer than
+support are preserved when already set on the listing. Splunkbase manages
+`splunk`, `cisco`, and `premium` support; publishing never infers support from the
+connector's publisher name. A tab body longer than
 20,000 characters blocks publication with a request for a dedicated tab file.
 Connector category strings are not converted to Splunkbase numeric category IDs.
 Missing categories, compatibility, contact information, or other required listing

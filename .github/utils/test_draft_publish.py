@@ -45,7 +45,35 @@ def test_tab_sources_and_omitted_metadata(tmp_path):
     assert metadata["contact_notes_source"] == "Contact text"
     assert "troubleshooting_source" not in metadata
     assert "contact_email" not in metadata
-    assert metadata["support"] == "splunk"
+    assert "support" not in metadata
+
+
+@pytest.mark.parametrize("support", ["developer", "not_supported"])
+def test_package_metadata_includes_self_service_support(tmp_path, support):
+    path = artifact(tmp_path, {})
+    metadata = package_metadata(
+        path,
+        {**MANIFEST, "support": support},
+        "splunk-soar-connectors/example",
+        "license",
+        "url",
+    )
+
+    assert metadata["support"] == support
+
+
+@pytest.mark.parametrize("support", [None, "splunk", "cisco", "premium"])
+def test_package_metadata_omits_managed_support_even_for_splunk_publishers(tmp_path, support):
+    path = artifact(tmp_path, {})
+    metadata = package_metadata(
+        path,
+        {**MANIFEST, "support": support},
+        "splunk-soar-connectors/example",
+        "license",
+        "url",
+    )
+
+    assert "support" not in metadata
 
 
 def test_sdk_readme_is_markdown_and_missing_content_is_omitted(tmp_path):
@@ -261,13 +289,14 @@ def test_editor_release_shape_from_openapi_does_not_require_numeric_id():
     assert client.calls == ["metadata", "publish_release"]
 
 
-def test_existing_contact_and_support_are_preserved():
+@pytest.mark.parametrize("support", ["developer", "not_supported", "splunk", "cisco", "premium"])
+def test_existing_contact_and_support_are_preserved(support):
     client = Client(draft=False)
     client.get_app = lambda app_id: {
         "id": 11,
         "app_id": "guid",
         "draft": False,
-        "support": "developer",
+        "support": support,
         "contact_email": "owner@example.test",
         "releases": [{"release_name": "1.2.3"}],
     }
@@ -276,7 +305,11 @@ def test_existing_contact_and_support_are_preserved():
         client,
         "example.tgz",
         MANIFEST,
-        {"support": "splunk", "contact_email": "new@example.test", "documentation_source": "Docs"},
+        {
+            "support": "developer",
+            "contact_email": "new@example.test",
+            "documentation_source": "Docs",
+        },
         "* Fix",
         {"splunkbase_app_id": 11, "release_id": 33},
         lambda value: None,
