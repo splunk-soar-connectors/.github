@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from email.utils import parsedate_to_datetime
 import importlib.util
 import json
@@ -103,7 +103,7 @@ def retry_after_datetime(value: str | None, now: datetime) -> datetime:
         return now + timedelta(seconds=max(int(value), 0))
     except ValueError:
         try:
-            return parsedate_to_datetime(value).astimezone(timezone.utc)
+            return parsedate_to_datetime(value).astimezone(UTC)
         except (TypeError, ValueError):
             return now + MIN_ATTEMPT_INTERVAL
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 import json
 from unittest.mock import Mock, patch
 
@@ -33,7 +33,7 @@ def client():
 
 def test_staging_login_posts_form_credentials_and_caches_expiry():
     session = Mock(headers={})
-    expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    expiry = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
     session.post.return_value = response(data={"data": {"token": "test-token", "expires": expiry}})
     with patch("utils.api.splunkbase_draft._single_attempt_session", return_value=session):
         value = DraftSplunkbase("test-user", "test-password", environment="STAGE")
@@ -61,7 +61,7 @@ def test_auth_refresh_is_bounded_and_persistent_denial_has_safe_message(client):
 
 
 def test_expiring_token_refreshes_before_request(client):
-    client.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    client.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     client._get_bearer_auth = Mock(return_value={"Authorization": "Bearer refreshed"})
     session = Mock(headers={})
     session.request.return_value = response()

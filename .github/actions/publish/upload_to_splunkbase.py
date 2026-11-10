@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 import tarfile
 from packaging.version import parse
-from typing import Any, Optional, Union
+from typing import Any
 
 # Add utils to the import path
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
@@ -86,7 +86,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_release_notes(version: str, workspace_path: Optional[Path] = None) -> Optional[str]:
+def get_release_notes(version: str, workspace_path: Path | None = None) -> str | None:
     # Use GITHUB_WORKSPACE if provided, otherwise fallback to cwd
     search_root = workspace_path or Path.cwd()
 
@@ -113,7 +113,7 @@ def get_release_notes(version: str, workspace_path: Optional[Path] = None) -> Op
         return "\n".join(release_notes)
 
 
-def get_release_notes_from_tarball(tarball: Union[str, Path], version: str) -> Optional[str]:
+def get_release_notes_from_tarball(tarball: str | Path, version: str) -> str | None:
     with tarfile.open(tarball, "r") as tar:
         expected_suffix = f"/release_notes/{version}.md"
         matches = [
@@ -136,7 +136,7 @@ def get_release_notes_from_tarball(tarball: Union[str, Path], version: str) -> O
         )
 
 
-def get_app_json(tarball: Union[str, Path]) -> dict[str, Any]:
+def get_app_json(tarball: str | Path) -> dict[str, Any]:
     with tarfile.open(tarball, "r") as tar:
         names = tar.getnames()
 
@@ -168,7 +168,7 @@ def _write_github_outputs(
     new_app: bool,
     sb_appid: str,
     support_tag: str,
-    previous_release_version: Optional[str],
+    previous_release_version: str | None,
 ) -> None:
     github_output = os.getenv("GITHUB_OUTPUT")
     if not github_output:

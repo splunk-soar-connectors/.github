@@ -2,7 +2,6 @@ import json
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional
 import logging
 
 import backoff
@@ -35,7 +34,7 @@ def get_actions_from_json(json_object):
 @backoff.on_predicate(backoff.constant, interval=10, max_time=1200, jitter=None)
 def _poll_pipeline_completion(
     gitlab_client: GitLabApi, repo_name: str, pipeline_id: int
-) -> Optional[dict]:
+) -> dict | None:
     run_details = gitlab_client.get_pipeline_run(repo_name, pipeline_id)
     status = run_details["status"]
 

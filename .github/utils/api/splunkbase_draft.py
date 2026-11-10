@@ -3,7 +3,7 @@
 Contract: https://stage.splunkbase.splunk.com/api-docs-v2/
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 import re
 from urllib.parse import quote, urlsplit
@@ -74,7 +74,7 @@ class DraftSplunkbase(Splunkbase):
             try:
                 self.expires_at = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
                 if self.expires_at.tzinfo is None:
-                    self.expires_at = self.expires_at.replace(tzinfo=timezone.utc)
+                    self.expires_at = self.expires_at.replace(tzinfo=UTC)
             except (TypeError, ValueError, AttributeError):
                 raise SplunkbaseResponseError(
                     "Splunkbase returned an invalid token expiry"
@@ -85,7 +85,7 @@ class DraftSplunkbase(Splunkbase):
         if (
             authenticated
             and self.expires_at
-            and (self.expires_at <= datetime.now(timezone.utc) + timedelta(seconds=30))
+            and (self.expires_at <= datetime.now(UTC) + timedelta(seconds=30))
         ):
             self.auth = self._get_bearer_auth()
         session = _retrying_session() if method == "GET" else _single_attempt_session()

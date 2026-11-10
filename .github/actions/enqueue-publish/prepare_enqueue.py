@@ -5,7 +5,7 @@
 """Prepare immutable Splunkbase queue metadata from a connector package."""
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 import json
 import os
 from pathlib import Path
@@ -70,7 +70,7 @@ def main() -> int:
         f"{safe_asset_part(version)}--"
         f"{safe_asset_part(args.commit_sha[:12])}.tgz"
     )
-    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     queue_item = {
         "schema_version": 1,
         "publisher_alias": args.publisher_alias,
