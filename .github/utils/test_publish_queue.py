@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 import json
 
 from .publish_queue import (
@@ -106,6 +106,30 @@ def test_legacy_queue_body_defaults_verification_rechecks_to_zero():
     assert decoded.verification_rechecks == 0
 
 
+def test_draft_checkpoint_survives_reload_without_counting_an_upload_or_storing_signatures():
+    client = FakeGitHubClient()
+    queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
+    item = queue.enqueue(make_item())
+    result = {
+        "publication_flow": "draft_v2",
+        "pending_operation": "register_package",
+        "splunkbase_app_id": 11,
+        "s3_key": "media/uploaded/object.tgz",
+        "release_id": 33,
+        "publication_requested": False,
+        "previous_release_version": "1.0.0",
+        "policy": "private signing policy",
+        "signature": "private signing signature",
+        "url": "private signed URL",
+    }
+    queue.verify(item, result, datetime.now(UTC), "checkpoint")
+    reloaded = queue.get_item(item.issue_number)
+    assert reloaded.attempts == []
+    assert reloaded.verification == {
+        key: value for key, value in result.items() if key not in ("policy", "signature", "url")
+    }
+
+
 def test_duplicate_enqueue_reuses_one_issue():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
@@ -142,7 +166,7 @@ def test_label_creation_tolerates_another_enqueue_winning_the_race():
 def test_oldest_eligible_skips_future_item():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
-    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
     queue.enqueue(
         make_item(
             repository="splunk-soar-connectors/future",
@@ -165,7 +189,7 @@ def test_oldest_eligible_skips_future_item():
 def test_active_item_is_recovered_only_after_its_lease_expires():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
-    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
     item = queue.enqueue(make_item())
     queue.activate(item, now + timedelta(minutes=15))
 
@@ -182,7 +206,7 @@ def test_active_item_is_recovered_only_after_its_lease_expires():
 def test_verifying_item_is_selected_without_becoming_queued():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
-    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
     item = queue.enqueue(make_item())
     queue.verify(
         item,
@@ -212,7 +236,7 @@ def test_verifying_item_is_selected_without_becoming_queued():
 def test_oldest_eligible_prioritizes_queued_work_over_older_verification():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
-    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
     verifying = queue.enqueue(
         make_item(
             repository="splunk-soar-connectors/verifying",
@@ -240,7 +264,7 @@ def test_oldest_eligible_prioritizes_queued_work_over_older_verification():
 def test_verification_rechecks_survive_issue_reload():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
-    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
     item = queue.enqueue(make_item())
     item.verification_rechecks = 2
 
@@ -257,7 +281,7 @@ def test_verification_rechecks_survive_issue_reload():
 def test_oldest_eligible_honors_excluded_issue_numbers():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
-    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
     first = queue.enqueue(make_item(repository="splunk-soar-connectors/first"))
     second = queue.enqueue(make_item(repository="splunk-soar-connectors/second"))
 
@@ -274,7 +298,7 @@ def test_rate_ledger_never_reserves_more_than_twenty_in_a_rolling_hour():
     client = FakeGitHubClient()
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
     item = queue.enqueue(make_item())
-    start = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
 
     for index in range(MAX_ATTEMPTS_PER_HOUR):
         assert (
@@ -302,7 +326,7 @@ def test_state_issue_contains_only_public_operational_metadata():
     queue.reserve_attempt(
         item.publisher_alias,
         item,
-        datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc),
+        datetime(2026, 7, 29, 12, 0, tzinfo=UTC),
     )
     state_issue = next(issue for issue in client.issues if "queue state" in issue["title"])
     start = state_issue["body"].index(BODY_START) + len(BODY_START)

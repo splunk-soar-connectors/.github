@@ -6,8 +6,7 @@ import argparse
 import subprocess
 from pathlib import Path
 import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime, UTC
 import tomlkit
 
 
@@ -55,9 +54,7 @@ def update_app_version_in_app_json(app_json_name: str, new_version: str) -> None
 
     # Update values
     json_content["app_version"] = new_version
-    json_content["utctime_updated"] = datetime.now(tz=timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%S.%fZ"
-    )
+    json_content["utctime_updated"] = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     print(f"Updating app json with new version: {new_version}")
     # Write json back to file
@@ -139,7 +136,7 @@ def create_cmdline_parser() -> argparse.ArgumentParser:
     return argparser
 
 
-def find_uv_lock_file(connector_path: Path) -> Optional[Path]:
+def find_uv_lock_file(connector_path: Path) -> Path | None:
     """
     Find uv.lock file in the connector_path or its subdirectories.
     Returns the path to the uv.lock file if found, None otherwise.

@@ -13,7 +13,6 @@ import subprocess
 import tarfile
 from contextlib import contextmanager
 import sys
-from typing import Union
 from collections.abc import Iterator
 
 import boto3
@@ -276,7 +275,7 @@ def run_command(cmd, console=False, suppress=False):
 
 
 @contextmanager
-def change_current_directory(to_directory: Union[Path, str]) -> Iterator[str]:
+def change_current_directory(to_directory: Path | str) -> Iterator[str]:
     """
     Safer chdir method that takes you back to where you were when it's done
     """

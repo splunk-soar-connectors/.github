@@ -9,7 +9,7 @@ import os
 import re
 import glob
 import json
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 # Constants
 LOG_FILE_CLEAN = "pytest-output.log"
@@ -56,7 +56,7 @@ class FailedTest(NamedTuple):
     error_message: str  # Concise error summary for display
 
 
-def _find_log_file(log_file_path: str) -> Optional[str]:
+def _find_log_file(log_file_path: str) -> str | None:
     """Find the log file, preferring clean logs over raw logs."""
     if os.path.exists(log_file_path):
         return log_file_path
@@ -106,7 +106,7 @@ def _is_summary_line(line: str) -> bool:
     return stripped.startswith("=") and has_keyword and has_timing
 
 
-def _extract_test_parameter(line: str) -> Optional[str]:
+def _extract_test_parameter(line: str) -> str | None:
     """Extract test parameter from test name line.
 
     Example: test_action[pytest/snowflake-disable_user_1_000] -> pytest/snowflake-disable_user_1_000

@@ -1,9 +1,16 @@
 import importlib.util
 import json
 from pathlib import Path
+from dataclasses import asdict
+from copy import deepcopy
+import io
+import tarfile
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+
+from utils.test_draft_publish import Client as DraftClient, MANIFEST
 
 
 MODULE_PATH = Path(__file__).with_name("drain_splunkbase_publish_queue.py")
@@ -146,6 +153,99 @@ def verifying_item():
             "verification_rechecks": 0,
         },
     )()
+
+
+@pytest.mark.parametrize(
+    ("verification", "attempts", "enabled", "expected"),
+    [
+        (None, [], "splunk-soar-connectors/example", True),
+        (None, [], "splunk-soar-connectors/other", False),
+        ({"publication_flow": "draft_v2"}, [], "", True),
+        ({"package_id": 22}, [], "splunk-soar-connectors/example", False),
+        (None, [{"outcome": "started"}], "splunk-soar-connectors/example", False),
+    ],
+)
+def test_canary_selection_preserves_the_flow_of_existing_queue_work(
+    monkeypatch, verification, attempts, enabled, expected
+):
+    monkeypatch.setenv("SPLUNKBASE_DRAFT_FLOW_REPOSITORIES", enabled)
+    item = verifying_item()
+    item.verification = verification
+    item.attempts = attempts
+    assert MODULE.uses_draft_flow(item) is expected
+
+
+def draft_queue_setup(tmp_path, monkeypatch):
+    item = verifying_item()
+    item.appid = "guid"
+    item.verification = None
+    item.attempts = []
+    path = tmp_path / "example.tgz"
+    with tarfile.open(path, "w:gz") as archive:
+        for name, data in {
+            "example.json": json.dumps({**MANIFEST, "logo": "logo.svg"}),
+            "details.md": "Details",
+            "release_notes/1.2.3.md": "* Fix",
+        }.items():
+            member = tarfile.TarInfo("example/" + name)
+            content = data.encode()
+            member.size = len(content)
+            archive.addfile(member, io.BytesIO(content))
+    queue = Mock()
+    queue.reserve_attempt.return_value = None
+
+    def verify(item, result, when, reason):
+        item.verification = deepcopy(result)
+
+    queue.verify.side_effect = verify
+    queue.record_attempt.side_effect = lambda item, attempt: item.attempts.append(asdict(attempt))
+    client = DraftClient()
+    client.find_app = lambda guid: None
+    client.public_app_by_guid = lambda guid: None
+    client.get_apps = lambda filters: [{"id": 11, "support": "splunk"}]
+    client.get_existing_releases = lambda guid: []
+    client.ensure_app_editors = Mock()
+    monkeypatch.setattr(MODULE, "DraftSplunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setenv("SPLUNKBASE_USER", "test-user")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "test-password")
+    args = SimpleNamespace(artifact=str(path), connector_workspace=str(tmp_path))
+    return queue, item, args, client
+
+
+def test_draft_queue_stays_open_until_the_release_is_public(tmp_path, monkeypatch):
+    queue, item, args, client = draft_queue_setup(tmp_path, monkeypatch)
+    assert MODULE.publish_draft_item(queue, item, args) == 0
+    queue.complete.assert_not_called()
+    assert item.verification["publication_requested"] is True
+    assert item.verification["release_id"] == 33
+    assert len(item.attempts) == 1
+    client.visible = True
+    assert MODULE.publish_draft_item(queue, item, args) == 0
+    queue.complete.assert_called_once()
+    queue.reserve_attempt.assert_called_once()
+    assert (
+        client.calls.count("s3")
+        == client.calls.count("register")
+        == client.calls.count("submit")
+        == 1
+    )
+
+
+def test_draft_queue_rate_limit_retains_app_identity_for_safe_retry(tmp_path, monkeypatch):
+    queue, item, args, client = draft_queue_setup(tmp_path, monkeypatch)
+    original_upload = client.upload_package
+    client.upload_package = Mock(
+        side_effect=MODULE.SplunkbaseRateLimited("quota", retry_after="300")
+    )
+    assert MODULE.publish_draft_item(queue, item, args) == 0
+    assert item.verification["splunkbase_app_id"] == 11
+    assert item.verification["pending_operation"] == ""
+    queue.complete.assert_not_called()
+    client.upload_package = original_upload
+    client.visible = True
+    assert MODULE.publish_draft_item(queue, item, args) == 0
+    assert client.calls.count("create") == 1
+    queue.complete.assert_called_once()
 
 
 def interrupted_item():

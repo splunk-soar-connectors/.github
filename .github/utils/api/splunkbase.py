@@ -1,6 +1,5 @@
 import logging
 import os
-from typing import Optional, Union
 import backoff
 import requests
 
@@ -187,9 +186,9 @@ def _response_json(response, required_keys=None):
 def _post_request(
     headers: dict[str, str],
     url: str,
-    data: Union[str, bytes, bool, list, dict],
+    data: str | bytes | bool | list | dict,
     check_response: bool = True,
-) -> Union[list, dict, str, bool]:
+) -> list | dict | str | bool:
     session = _single_attempt_session(headers=headers)
     response = session.post(url, data, timeout=REQUEST_TIMEOUT)
     if check_response:
@@ -275,7 +274,7 @@ class Splunkbase:
         self.user_agent = build_user_agent(**(request_context or {}))
         self.auth = self._get_bearer_auth()
 
-    def _get_bearer_auth(self) -> Optional[dict[str, str]]:
+    def _get_bearer_auth(self) -> dict[str, str] | None:
         user = self.splunkbase_user
         password = self.splunkbase_password
         if not user or not password:

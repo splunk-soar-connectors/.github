@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 import json
 from typing import Any, Protocol
 from urllib.parse import quote
@@ -41,6 +41,12 @@ LABELS = {
     STATE_LABEL: ("c5def5", "Rate ledger for the Splunkbase queue."),
 }
 PUBLIC_RESULT_FIELDS = {
+    "publication_flow",
+    "pending_operation",
+    "publication_requested",
+    "release_id",
+    "s3_key",
+    "previous_release_version",
     "app_existed_before_upload",
     "status",
     "status_code",
@@ -55,15 +61,15 @@ PUBLIC_RESULT_FIELDS = {
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def parse_datetime(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def format_datetime(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 @dataclass
@@ -454,7 +460,7 @@ class GitHubIssuePublishQueue:
         item.not_before = format_datetime(not_before)
         if item.attempts:
             item.attempts[-1].update(public_result)
-        else:
+        elif public_result.get("publication_flow") != "draft_v2":
             item.attempts.append(public_result)
         self._update(item, state="verifying", note=reason)
 

@@ -1,16 +1,12 @@
 import os
 import shutil
 from contextlib import contextmanager
-from enum import Enum
+from enum import StrEnum
 from collections.abc import Iterator
 
 import git
 from utils.api import ApiSession
 from utils.phantom_constants import GITHUB_APP_REPO_BRANCH
-
-
-class StrEnum(str, Enum):
-    pass
 
 
 class GitHubOrganization(StrEnum):

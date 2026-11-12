@@ -5,7 +5,6 @@ import socket
 from contextlib import contextmanager
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Union
 import shlex
 
 import backoff
@@ -64,7 +63,7 @@ def compile_app(
     phantom_version: str,
     phantom_client: paramiko.SSHClient,
     test_directory: Path,
-) -> dict[str, Union[bool, str]]:
+) -> dict[str, bool | str]:
     logging.info(f"running {phantom_version} test")
     compile_command = f"cd {test_directory}; pwd; ls; phenv compile_app -i"
     logging.info(compile_command)
@@ -149,7 +148,7 @@ def delete_folder(phantom_client: paramiko.SSHClient, test_directory: Path) -> N
 def upload_app_files(
     phantom_version: str,
     phantom_client: paramiko.SSHClient,
-    local_app_path: Union[Path, str],
+    local_app_path: Path | str,
     _app_name: str,
 ) -> Iterator[Path]:
     local_app_path = Path(local_app_path)
@@ -194,7 +193,7 @@ def run_compile(
     ssh_username: str,
     rest_username: str,
     phantom_password: str,
-) -> dict[str, dict[str, Union[bool, str]]]:
+) -> dict[str, dict[str, bool | str]]:
     results = {}
     hosts = {
         "current_phantom_version": current_phantom_ip,
