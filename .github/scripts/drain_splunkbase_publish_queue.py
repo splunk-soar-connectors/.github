@@ -383,12 +383,7 @@ def uses_draft_flow(item):
     # Finish any counted legacy upload through its original reconciliation path.
     if interrupted_attempt(item):
         return False
-    repositories = {
-        name.strip()
-        for name in os.getenv("SPLUNKBASE_DRAFT_FLOW_REPOSITORIES", "").split(",")
-        if name.strip()
-    }
-    return item.repository in repositories
+    return os.getenv("SPLUNKBASE_DRAFT_FLOW_ENABLED", "false") == "true"
 
 
 def publish_draft_item(queue, item, args):

@@ -158,18 +158,28 @@ def verifying_item():
 @pytest.mark.parametrize(
     ("verification", "attempts", "enabled", "expected"),
     [
-        (None, [], "splunk-soar-connectors/example", True),
-        (None, [], "splunk-soar-connectors/other", False),
-        ({"publication_flow": "draft_v2"}, [], "", True),
-        ({"package_id": 22}, [], "splunk-soar-connectors/example", False),
-        (None, [{"outcome": "started"}], "splunk-soar-connectors/example", False),
+        (None, [], None, False),
+        (None, [], "", False),
+        (None, [], "false", False),
+        (None, [], "true", True),
+        (None, [], "invalid", False),
+        ({"publication_flow": "draft_v2"}, [], "false", True),
+        ({"package_id": 22}, [], "true", False),
+        (None, [{"outcome": "started"}], "true", False),
     ],
 )
-def test_canary_selection_preserves_the_flow_of_existing_queue_work(
-    monkeypatch, verification, attempts, enabled, expected
+@pytest.mark.parametrize(
+    "repository", ["splunk-soar-connectors/example", "splunk-soar-connectors/other"]
+)
+def test_global_switch_preserves_the_flow_of_existing_queue_work(
+    monkeypatch, verification, attempts, enabled, expected, repository
 ):
-    monkeypatch.setenv("SPLUNKBASE_DRAFT_FLOW_REPOSITORIES", enabled)
+    if enabled is None:
+        monkeypatch.delenv("SPLUNKBASE_DRAFT_FLOW_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("SPLUNKBASE_DRAFT_FLOW_ENABLED", enabled)
     item = verifying_item()
+    item.repository = repository
     item.verification = verification
     item.attempts = attempts
     assert MODULE.uses_draft_flow(item) is expected
