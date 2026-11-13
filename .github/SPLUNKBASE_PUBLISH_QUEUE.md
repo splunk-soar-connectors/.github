@@ -149,11 +149,11 @@ multipart POST directly.
 
 ### Splunkbase v2 draft migration (PAPP-38509)
 
-The central worker selects the new flow for repositories named in
-`SPLUNKBASE_DRAFT_FLOW_REPOSITORIES`, a comma-separated Actions variable containing
-full names such as `splunk-soar-connectors/example`. An empty value selects the
-existing publishing flow. Enable the publishing queue for each selected repository
-before adding it to this list; direct publishing still uses the existing flow.
+The central worker uses the `SPLUNKBASE_DRAFT_FLOW_ENABLED` Actions variable in
+`splunk-soar-connectors/.github` as a global switch for new queued publications.
+Set it to `true` to use the draft flow and POST login for every connector in the
+queue. Set it to `false`, or leave it unset, to use the existing publishing flow.
+Direct publishing still uses the existing flow.
 
 The new flow logs in with a form-encoded POST, caches the JWT until its expiry,
 and refreshes once after an explicit authentication rejection. It creates a draft
@@ -225,7 +225,7 @@ resolved `pending_operation`. Preserve the immutable artifact and flow marker.
 Return the item to verification only after confirming the failed operation's outcome.
 Do not delete a draft or retry a registration to bypass an uncertain result.
 
-Removing a repository from the canary list stops new work from selecting this flow.
+Setting the global switch to `false` stops new work from selecting this flow.
 Items with a saved `draft_v2` checkpoint continue through it. Existing legacy
 verification items and interrupted legacy uploads finish through their original path.
 
@@ -236,13 +236,14 @@ hooks and publisher/queue tests on the PR revision using a read-only token.
 Its tests cover request formats, authentication refresh, S3 credential isolation,
 validation versus publication, durable checkpoints, quota handling, and recovery.
 
-Before enabling the first production repository, App Hosting and the connector team
+Before enabling the global switch, App Hosting and the connector team
 must provide a staging publishing identity and test listings for a new app and an
 existing release. The API client supports `SPLUNKBASE_ENVIRONMENT=STAGE` with matching
 staging API and login hosts; use an isolated staging queue. Verify legacy and SDK
 packages, all available listing tabs, restart recovery, and the final public version.
-Attach that evidence and confirm quota behavior on PAPP-38509, then enable one
-production repository and inspect its first publication before expanding the list.
+Attach that evidence and confirm quota behavior on PAPP-38509, then set
+`SPLUNKBASE_DRAFT_FLOW_ENABLED=true` and inspect the first publications. Set it back
+to `false` to return new queued publications to the existing flow.
 Keep `draft: "true"` until App Hosting confirms that the flag can be retired.
 
 Contract references: [migration guide](https://cisco-my.sharepoint.com/:w:/p/jramatow/IQBsArEQiaYvTY9ZkeDc_26RAZtnZyX7zQ_krNuKjGM73Dk?e=e8rxGb),
