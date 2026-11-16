@@ -155,7 +155,7 @@ Set it to `true` to use the draft flow and POST login for every connector in the
 queue. Set it to `false`, or leave it unset, to use the existing publishing flow.
 Direct publishing still uses the existing flow.
 
-The new flow logs in with a form-encoded POST, caches the JWT until its expiry,
+The new flow logs in with a JSON-encoded POST, caches the JWT until its expiry,
 and refreshes once after an explicit authentication rejection. It creates a draft
 for a new listing, obtains a presigned S3 POST, uploads the package without
 Splunkbase credentials, registers its filename and S3 key, and polls validation.
