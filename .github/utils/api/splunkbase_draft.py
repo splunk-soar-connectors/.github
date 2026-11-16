@@ -55,11 +55,17 @@ class DraftSplunkbase(Splunkbase):
         try:
             response = session.post(
                 self.login_url,
-                data={"username": self.splunkbase_user, "password": self.splunkbase_password},
+                json={"username": self.splunkbase_user, "password": self.splunkbase_password},
                 timeout=REQUEST_TIMEOUT,
                 allow_redirects=False,
             )
-            data = response.json().get("data", {}) if response.status_code == 200 else {}
+            if response.status_code != 200:
+                raise SplunkbasePermissionDenied(
+                    f"Splunkbase login returned HTTP {response.status_code}",
+                    status_code=response.status_code,
+                    request_id=_request_id(response),
+                )
+            data = response.json().get("data", {})
         except (requests.RequestException, ValueError, AttributeError):
             raise SplunkbasePermissionDenied("Splunkbase login failed") from None
         if (

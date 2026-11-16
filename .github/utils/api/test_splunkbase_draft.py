@@ -31,21 +31,50 @@ def client():
     return value
 
 
-def test_staging_login_posts_form_credentials_and_caches_expiry():
-    session = Mock(headers={})
+@pytest.mark.parametrize(
+    ("environment", "api_host", "login_host"),
+    [
+        ("PROD", "splunkbase.splunk.com", "api.splunk.com"),
+        ("STAGE", "stage.splunkbase.splunk.com", "api.staging.splunk.com"),
+    ],
+)
+def test_login_serializes_json_credentials_and_caches_expiry(environment, api_host, login_host):
+    session = requests.Session()
     expiry = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
-    session.post.return_value = response(data={"data": {"token": "test-token", "expires": expiry}})
+    session.send = Mock(
+        return_value=response(data={"data": {"token": "test-token", "expires": expiry}})
+    )
+    credentials = {"username": "test+user@example.test", "password": "test&password=with+symbols"}
     with patch("utils.api.splunkbase_draft._single_attempt_session", return_value=session):
-        value = DraftSplunkbase("test-user", "test-password", environment="STAGE")
-    assert value.api_url == "https://stage.splunkbase.splunk.com/api/v2"
+        value = DraftSplunkbase(
+            credentials["username"], credentials["password"], environment=environment
+        )
+    assert value.api_url == f"https://{api_host}/api/v2"
     assert value.expires_at == datetime.fromisoformat(expiry)
     assert value.auth == {"Authorization": "Bearer test-token"}
-    session.post.assert_called_once_with(
-        "https://api.staging.splunk.com/2.0/rest/login/splunk",
-        data={"username": "test-user", "password": "test-password"},
-        timeout=(10, 60),
-        allow_redirects=False,
-    )
+    session.send.assert_called_once()
+    prepared_request = session.send.call_args.args[0]
+    assert prepared_request.method == "POST"
+    assert prepared_request.url == f"https://{login_host}/2.0/rest/login/splunk"
+    assert prepared_request.headers["Content-Type"] == "application/json"
+    assert json.loads(prepared_request.body) == credentials
+    assert session.send.call_args.kwargs["timeout"] == (10, 60)
+    assert session.send.call_args.kwargs["allow_redirects"] is False
+
+
+def test_login_http_failure_reports_status_without_response_body():
+    session = Mock()
+    session.post.return_value = response(400, {"errors": "sensitive server text"})
+    session.post.return_value.headers["X-Request-ID"] = "login-request-123"
+    with patch("utils.api.splunkbase_draft._single_attempt_session", return_value=session):
+        with pytest.raises(SplunkbasePermissionDenied, match="login returned HTTP 400") as error:
+            DraftSplunkbase("test-user", "test-password")
+    assert error.value.status_code == 400
+    assert error.value.request_id == "login-request-123"
+    assert "sensitive" not in str(error.value)
+    assert "test-user" not in str(error.value)
+    assert "test-password" not in str(error.value)
+    session.post.assert_called_once()
 
 
 def test_auth_refresh_is_bounded_and_persistent_denial_has_safe_message(client):
