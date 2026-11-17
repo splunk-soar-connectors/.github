@@ -221,6 +221,7 @@ def test_public_visibility_check_requests_releases_without_bearer_credentials(cl
         assert app["id"] == 11
     assert session.request.call_args.kwargs["headers"] == {}
     assert session.request.call_args.kwargs["params"]["include"] == "releases"
+    assert session.request.call_args.kwargs["params"]["product"] == "soar"
 
 
 def test_editor_lookup_reuses_a_private_listing(client):

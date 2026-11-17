@@ -181,7 +181,12 @@ class DraftSplunkbase(Splunkbase):
             "GET",
             "apps/",
             authenticated=False,
-            params={"ids": str(app_id), "include": "releases", "skip_cache": "true"},
+            params={
+                "ids": str(app_id),
+                "product": "soar",
+                "include": "releases",
+                "skip_cache": "true",
+            },
         )
         apps = response.get("results")
         if not isinstance(apps, list):
