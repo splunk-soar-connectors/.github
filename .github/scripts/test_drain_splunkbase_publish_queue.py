@@ -223,14 +223,17 @@ def draft_queue_setup(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("releases", [None, []])
-def test_diagnostics_only_read_queue_and_app_metadata(monkeypatch, capsys, releases):
+@pytest.mark.parametrize("package_id", [None, 69438])
+def test_diagnostics_only_read_queue_and_app_metadata(monkeypatch, capsys, releases, package_id):
     queue = Mock()
     item = verifying_item()
+    item.verification = {"package_id": package_id, "splunkbase_app_id": 5758}
     queue.get_item.return_value = item
     app = {"app_id": item.appid, "releases": releases}
-    client = Mock(spec=["find_app", "public_app_by_guid"])
+    client = Mock(spec=["find_app", "public_app_by_guid", "get_upload_status"])
     client.find_app.return_value = app
     client.public_app_by_guid.return_value = app
+    client.get_upload_status.return_value = {"result": "Pass", "details": {"id": 5758}}
     monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
     monkeypatch.setattr(MODULE, "DraftSplunkbase", lambda *args, **kwargs: client)
     monkeypatch.setenv("SPLUNKBASE_USER", "test-user")
@@ -239,8 +242,16 @@ def test_diagnostics_only_read_queue_and_app_metadata(monkeypatch, capsys, relea
     assert MODULE.diagnose_item(SimpleNamespace(issue_number=916)) == (1 if releases is None else 0)
 
     assert queue.method_calls == [call.get_item(916)]
-    assert client.method_calls == [call.find_app(item.appid), call.public_app_by_guid(item.appid)]
+    expected_calls = [call.find_app(item.appid), call.public_app_by_guid(item.appid)]
+    if package_id:
+        expected_calls.append(call.get_upload_status(package_id))
+    assert client.method_calls == expected_calls
     output = capsys.readouterr()
+    if package_id:
+        assert '"lookup": "validation"' in output.out
+        assert '"app_id_matches": true' in output.out
+        assert '"app_guid_matches": false' in output.out
+        assert '"release_type": "NoneType"' in output.out
     if releases is None:
         assert "Splunkbase app detail is missing releases" in output.out
         assert "release_for_version" in output.err

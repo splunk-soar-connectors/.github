@@ -18,7 +18,8 @@ allows only one worker to drain the queue at a time.
 
 For read-only troubleshooting, dispatch the same workflow with
 `diagnose_issue_number` set to the queue issue number. This mode authenticates,
-reads the queue item and app metadata, and checks the release response shape. It
+reads the queue item, app metadata, and any saved package validation result, and
+checks the release response shape. It
 skips the worker, package uploads, queue updates, and notifications. Logs contain
 the endpoint, HTTP status, request ID when available, response field names, and
 publisher exception details. Credentials and response bodies are excluded.

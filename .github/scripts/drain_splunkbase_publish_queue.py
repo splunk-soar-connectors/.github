@@ -428,6 +428,34 @@ def diagnose_item(args):
                 ),
                 flush=True,
             )
+        package_id = (item.verification or {}).get("package_id")
+        if package_id:
+            validation = client.get_upload_status(package_id)
+            details = validation.get("details")
+            release = details.get("release") if isinstance(details, dict) else None
+            print(
+                json.dumps(
+                    {
+                        "lookup": "validation",
+                        "package_id": package_id,
+                        "fields": sorted(validation),
+                        "result": validation.get("result"),
+                        "details_type": type(details).__name__,
+                        "details_fields": sorted(details) if isinstance(details, dict) else [],
+                        "app_id_matches": isinstance(details, dict)
+                        and str(details.get("id"))
+                        == str((item.verification or {}).get("splunkbase_app_id")),
+                        "app_guid_matches": isinstance(details, dict)
+                        and details.get("app_id") == item.appid,
+                        "release_type": type(release).__name__,
+                        "release_fields": sorted(release) if isinstance(release, dict) else [],
+                        "release_name_matches": isinstance(release, dict)
+                        and release.get("name") == item.candidate_version,
+                        "release_id_present": isinstance(release, dict) and bool(release.get("id")),
+                    }
+                ),
+                flush=True,
+            )
         # Match the pre-upload checks; no artifact or mutation is needed.
         if public_app and release_for_version(public_app, item.candidate_version):
             print("Candidate is already public.")
