@@ -6,7 +6,7 @@ from copy import deepcopy
 import io
 import tarfile
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -220,6 +220,49 @@ def draft_queue_setup(tmp_path, monkeypatch):
     monkeypatch.setenv("SPLUNKBASE_PASSWORD", "test-password")
     args = SimpleNamespace(artifact=str(path), connector_workspace=str(tmp_path))
     return queue, item, args, client
+
+
+@pytest.mark.parametrize("releases", [None, []])
+def test_diagnostics_only_read_queue_and_app_metadata(monkeypatch, capsys, releases):
+    queue = Mock()
+    item = verifying_item()
+    queue.get_item.return_value = item
+    app = {"app_id": item.appid, "releases": releases}
+    client = Mock(spec=["find_app", "public_app_by_guid"])
+    client.find_app.return_value = app
+    client.public_app_by_guid.return_value = app
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "DraftSplunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setenv("SPLUNKBASE_USER", "test-user")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "test-password")
+
+    assert MODULE.diagnose_item(SimpleNamespace(issue_number=916)) == (1 if releases is None else 0)
+
+    assert queue.method_calls == [call.get_item(916)]
+    assert client.method_calls == [call.find_app(item.appid), call.public_app_by_guid(item.appid)]
+    output = capsys.readouterr()
+    if releases is None:
+        assert "Splunkbase app detail is missing releases" in output.out
+        assert "release_for_version" in output.err
+    assert "test-password" not in output.out + output.err
+    assert "test-user" not in output.out + output.err
+
+
+def test_draft_api_deferral_reports_underlying_exception(tmp_path, monkeypatch, capsys):
+    queue, item, args, client = draft_queue_setup(tmp_path, monkeypatch)
+    client.find_app = Mock(
+        side_effect=MODULE.SplunkbaseAmbiguousUpload(
+            "Splunkbase GET returned HTTP 503", status_code=503, request_id="request-123"
+        )
+    )
+    assert MODULE.publish_draft_item(queue, item, args) == 0
+    output = capsys.readouterr()
+    assert '"error_type": "SplunkbaseAmbiguousUpload"' in output.out
+    assert '"status_code": 503' in output.out
+    assert '"request_id": "request-123"' in output.out
+    assert "Splunkbase GET returned HTTP 503" in output.out
+    queue.record_attempt.assert_not_called()
+    queue.complete.assert_not_called()
 
 
 def test_draft_queue_stays_open_until_the_release_is_public(tmp_path, monkeypatch):

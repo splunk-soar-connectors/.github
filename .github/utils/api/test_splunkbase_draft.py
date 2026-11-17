@@ -129,6 +129,25 @@ def test_submit_accepts_empty_success_response(client):
         assert client.submit_draft(11) == {}
 
 
+def test_response_diagnostics_exclude_headers_and_body(client, caplog):
+    session = Mock(headers={})
+    result = response(503, {"detail": "sensitive server text"})
+    result.headers["X-Request-ID"] = "request-123"
+    result.headers["Set-Cookie"] = "sensitive-cookie"
+    session.request.return_value = result
+    with (
+        caplog.at_level("INFO"),
+        patch("utils.api.splunkbase_draft._retrying_session", return_value=session),
+    ):
+        with pytest.raises(SplunkbaseAmbiguousUpload):
+            client.get_app(11)
+    assert "apps/11/" in caplog.text
+    assert "503" in caplog.text
+    assert "request-123" in caplog.text
+    assert "sensitive" not in caplog.text
+    assert "test-token" not in caplog.text
+
+
 def test_s3_upload_uses_only_presigned_fields_and_registers_filename(tmp_path, client):
     path = tmp_path / "example.tgz"
     path.write_bytes(b"package")

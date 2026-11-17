@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "0 * * * *"
   workflow_dispatch:
+    inputs:
+      diagnose_issue_number:
+        description: "Read-only app/release diagnostics for a queue issue; skips publishing"
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: splunkbase-publisher-soar-connectors-default
@@ -46,4 +52,10 @@ jobs:
           SLACK_INTERNAL_CHANNEL: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}
           SLACK_COMMUNITY_CHANNEL: ${{ vars.SLACK_COMMUNITY_CHANNEL_ID }}
           SEND_RELEASE_MESSAGE: ${{ vars.SEND_RELEASE_MESSAGE }}
-        run: uv run .github/scripts/drain_splunkbase_publish_queue_worker.py
+          DIAGNOSE_ISSUE_NUMBER: ${{ inputs.diagnose_issue_number }}
+        run: |
+          if [ -n "$DIAGNOSE_ISSUE_NUMBER" ]; then
+            uv run .github/scripts/drain_splunkbase_publish_queue.py diagnose --issue-number "$DIAGNOSE_ISSUE_NUMBER"
+          else
+            uv run .github/scripts/drain_splunkbase_publish_queue_worker.py
+          fi

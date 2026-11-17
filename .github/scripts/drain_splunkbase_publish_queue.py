@@ -15,11 +15,13 @@ from datetime import datetime, timedelta, UTC
 from email.utils import parsedate_to_datetime
 import importlib.util
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
+import traceback
 
 from packaging.version import parse
 
@@ -386,6 +388,64 @@ def uses_draft_flow(item):
     return os.getenv("SPLUNKBASE_DRAFT_FLOW_ENABLED", "false") == "true"
 
 
+def report_draft_error(exc):
+    # These exceptions contain publisher-authored messages, never response bodies.
+    print(
+        json.dumps(
+            {
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+                "status_code": getattr(exc, "status_code", None),
+                "request_id": getattr(exc, "request_id", None),
+            }
+        ),
+        flush=True,
+    )
+    # Exclude exception chains and local variables, which can hold credentials.
+    traceback.print_tb(exc.__traceback__)
+
+
+def diagnose_item(args):
+    """Reproduce app/release lookups without uploading or changing queue state."""
+    logging.basicConfig(level=logging.INFO)
+    item = queue_from_environment().get_item(args.issue_number)
+    try:
+        client = DraftSplunkbase(
+            os.environ["SPLUNKBASE_USER"],
+            os.environ["SPLUNKBASE_PASSWORD"],
+            environment=os.getenv("SPLUNKBASE_ENVIRONMENT", "PROD"),
+        )
+        app = client.find_app(item.appid)
+        public_app = client.public_app_by_guid(item.appid)
+        for name, value in (("editor", app), ("public", public_app)):
+            print(
+                json.dumps(
+                    {
+                        "lookup": name,
+                        "fields": sorted(value) if value else [],
+                        "releases_type": type(value.get("releases")).__name__ if value else None,
+                    }
+                ),
+                flush=True,
+            )
+        # Match the pre-upload checks; no artifact or mutation is needed.
+        if public_app and release_for_version(public_app, item.candidate_version):
+            print("Candidate is already public.")
+        elif app:
+            release_for_version(app, item.candidate_version)
+        print("Read-only app/release checks completed.")
+        return 0
+    except (
+        SplunkbaseResponseError,
+        SplunkbasePermissionDenied,
+        SplunkbaseValidationFailed,
+        SplunkbaseAmbiguousUpload,
+        SplunkbaseRateLimited,
+    ) as exc:
+        report_draft_error(exc)
+        return 1
+
+
 def publish_draft_item(queue, item, args):
     publisher = load_publisher_module()
     state = dict(item.verification or {})
@@ -506,7 +566,8 @@ def publish_draft_item(queue, item, args):
         )
         write_output("queue_status", "rate_limited")
         return 0
-    except (SplunkbaseAmbiguousUpload, SplunkbaseResponseError):
+    except (SplunkbaseAmbiguousUpload, SplunkbaseResponseError) as exc:
+        report_draft_error(exc)
         return defer_verification(
             queue,
             item,
@@ -691,6 +752,10 @@ def parse_args():
     select = subparsers.add_parser("select")
     select.add_argument("--publisher-alias", default="soar-connectors-default")
     select.set_defaults(func=select_item)
+
+    diagnose = subparsers.add_parser("diagnose")
+    diagnose.add_argument("--issue-number", type=int, required=True)
+    diagnose.set_defaults(func=diagnose_item)
 
     publish = subparsers.add_parser("publish")
     publish.add_argument("--issue-number", type=int, required=True)
