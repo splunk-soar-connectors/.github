@@ -169,6 +169,14 @@ for a new listing, obtains a presigned S3 POST, uploads the package without
 Splunkbase credentials, registers its filename and S3 key, and polls validation.
 For existing listings, it reuses the numeric app ID.
 
+Validation can return `Pass` with empty `details`. The worker resolves the saved
+app ID through the authenticated app endpoint and requires a matching numeric app
+ID, connector GUID, and candidate release version before updating metadata. It
+waits when the release is not yet listed, retains the saved package ID, and uses
+the release version as the PATCH identifier when editor metadata omits a numeric
+release ID. Conflicting validation identity fields still block publication.
+Public app lookups explicitly request `include=releases`.
+
 After validation passes, the worker updates app metadata and release notes. New
 drafts must have no missing `/required_fields/` before `/submit/`. Existing apps
 publish the validated release with a release PATCH. Both paths require the exact

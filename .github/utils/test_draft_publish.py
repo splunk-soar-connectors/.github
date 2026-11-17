@@ -5,7 +5,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from .api.splunkbase import SplunkbaseAmbiguousUpload, SplunkbaseValidationFailed
+from .api.splunkbase import (
+    SplunkbaseAmbiguousUpload,
+    SplunkbaseResponseError,
+    SplunkbaseValidationFailed,
+)
 from .draft_publish import advance_publication, package_metadata
 
 
@@ -119,10 +123,7 @@ class Client:
     def get_upload_status(self, package_id):
         if self.pending:
             return {"result": "Pending"}
-        return {
-            "result": "Pass",
-            "details": {"id": 11, "app_id": "guid", "release": {"id": 33, "name": "1.2.3"}},
-        }
+        return {"result": "Pass", "details": {}}
 
     def get_app(self, app_id):
         return {
@@ -272,6 +273,83 @@ def test_wrong_validated_version_cannot_publish():
         "details": {"id": 11, "app_id": "guid", "release": {"id": 33, "name": "9.9.9"}},
     }
     with pytest.raises(SplunkbaseValidationFailed, match="does not match"):
+        run(client, {"splunkbase_app_id": 11, "package_id": 22})
+    assert client.calls == []
+
+
+@pytest.mark.parametrize("validation", [{"result": "Pass"}, {"result": "Pass", "details": {}}])
+@pytest.mark.parametrize(
+    "release, expected_id",
+    [
+        ({"id": 33, "name": "1.2.3"}, 33),
+        ({"release_id": 33, "release_name": "1.2.3"}, 33),
+        ({"release_name": "1.2.3"}, "1.2.3"),
+    ],
+)
+def test_pass_without_identifiers_resumes_saved_package(validation, release, expected_id):
+    client = Client(draft=False)
+    client.get_upload_status = Mock(return_value=validation)
+    client.get_app = Mock(
+        return_value={
+            "id": 11,
+            "app_id": "guid",
+            "draft": False,
+            "releases": [release],
+        }
+    )
+    client.publish_release = Mock()
+    state = {"splunkbase_app_id": 11, "package_id": 22}
+    assert run(client, state) is False
+    assert state["release_id"] == expected_id
+    client.get_upload_status.assert_called_once_with(22)
+    client.publish_release.assert_called_once_with(11, expected_id, "* Fix", publish=True)
+    assert client.calls == ["metadata"]
+    client.visible = True
+    assert run(client, state) is True
+    client.publish_release.assert_called_once()
+    assert client.calls == ["metadata"]
+
+
+@pytest.mark.parametrize("field, value", [("id", 99), ("app_id", "different-guid")])
+def test_empty_validation_details_require_matching_editor_app_identity(field, value):
+    client = Client()
+    app = client.get_app(11)
+    app[field] = value
+    client.get_app = Mock(return_value=app)
+    with pytest.raises(SplunkbaseValidationFailed, match="identity differs"):
+        run(client, {"splunkbase_app_id": 11, "package_id": 22})
+    assert client.calls == []
+
+
+def test_pass_waits_for_candidate_release_without_reuploading():
+    client = Client()
+    app = client.get_app(11)
+    app["releases"] = [{"id": 99, "name": "9.9.9"}]
+    client.get_app = Mock(return_value=app)
+    state = {"splunkbase_app_id": 11, "package_id": 22}
+    assert run(client, state) is False
+    assert "release_id" not in state
+    assert client.calls == []
+    app["releases"] = [{"id": 33, "name": "1.2.3"}]
+    assert run(client, state) is False
+    assert client.calls == ["metadata", "release_notes", "submit"]
+
+
+@pytest.mark.parametrize(
+    "validation, error",
+    [
+        ({"result": "Fail", "details": {}}, SplunkbaseValidationFailed),
+        ({"result": "Pass", "details": []}, SplunkbaseResponseError),
+        ({"result": "Pass", "details": {"release": []}}, SplunkbaseResponseError),
+        ({"result": "Pass", "details": {"id": 99}}, SplunkbaseValidationFailed),
+        ({"result": "Pass", "details": {"app_id": "other-guid"}}, SplunkbaseValidationFailed),
+        ({"result": "Pass", "details": {"release": {"id": 99}}}, SplunkbaseValidationFailed),
+    ],
+)
+def test_failed_malformed_or_conflicting_validation_never_mutates(validation, error):
+    client = Client()
+    client.get_upload_status = Mock(return_value=validation)
+    with pytest.raises(error):
         run(client, {"splunkbase_app_id": 11, "package_id": 22})
     assert client.calls == []
 

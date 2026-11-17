@@ -38,7 +38,13 @@ from utils.api.splunkbase import (
     SplunkbaseValidationFailed,
 )
 from utils.api.splunkbase_draft import DraftSplunkbase
-from utils.draft_publish import FLOW, advance_publication, package_metadata, release_for_version
+from utils.draft_publish import (
+    FLOW,
+    advance_publication,
+    package_metadata,
+    release_for_version,
+    validated_release_id,
+)
 from utils.publish_queue import (
     MAX_ATTEMPTS_PER_HOUR,
     MIN_ATTEMPT_INTERVAL,
@@ -456,6 +462,14 @@ def diagnose_item(args):
                 ),
                 flush=True,
             )
+            release_id = validated_release_id(
+                client,
+                item.verification["splunkbase_app_id"],
+                item.appid,
+                item.candidate_version,
+                validation,
+            )
+            print(json.dumps({"validated_release_id": release_id}), flush=True)
         # Match the pre-upload checks; no artifact or mutation is needed.
         if public_app and release_for_version(public_app, item.candidate_version):
             print("Candidate is already public.")

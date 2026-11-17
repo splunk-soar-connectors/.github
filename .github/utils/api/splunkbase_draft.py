@@ -178,7 +178,10 @@ class DraftSplunkbase(Splunkbase):
 
     def public_app(self, app_id):
         response = self.request(
-            "GET", "apps/", authenticated=False, params={"ids": str(app_id), "skip_cache": "true"}
+            "GET",
+            "apps/",
+            authenticated=False,
+            params={"ids": str(app_id), "include": "releases", "skip_cache": "true"},
         )
         apps = response.get("results")
         if not isinstance(apps, list):
@@ -190,7 +193,12 @@ class DraftSplunkbase(Splunkbase):
             "GET",
             "apps/",
             authenticated=False,
-            params={"appid": app_guid, "product": "soar", "skip_cache": "true"},
+            params={
+                "appid": app_guid,
+                "product": "soar",
+                "include": "releases",
+                "skip_cache": "true",
+            },
         )
         apps = response.get("results")
         if not isinstance(apps, list) or len(apps) > 1:

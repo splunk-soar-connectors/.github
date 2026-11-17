@@ -109,6 +109,50 @@ def publicly_available(client, app_id, version, app_guid):
     return release_for_version(app, version) is not None
 
 
+def validated_release_id(client, app_id, app_guid, version, response):
+    """Resolve a passed package through authenticated app/release metadata.
+
+    Validation may return Pass with empty details. The app lookup establishes
+    identity and version before any release mutation; absent releases can lag.
+    """
+    if response.get("result") == "Fail":
+        raise SplunkbaseValidationFailed(
+            "Splunkbase package validation failed; inspect the validation report"
+        )
+    if response.get("result") != "Pass":
+        return None
+    details = response.get("details", {})
+    if not isinstance(details, dict):
+        raise SplunkbaseResponseError("Splunkbase returned malformed validation details")
+    validated_release = details.get("release", {})
+    if not isinstance(validated_release, dict):
+        raise SplunkbaseResponseError("Splunkbase returned malformed validation release metadata")
+    # Reject conflicting identity metadata when supplied by the validation API.
+    if (
+        ("id" in details and str(details["id"]) != str(app_id))
+        or ("app_id" in details and details["app_id"] != app_guid)
+        or ("name" in validated_release and validated_release["name"] != version)
+    ):
+        raise SplunkbaseValidationFailed(
+            "Validated package does not match the queued app and version"
+        )
+    app = client.get_app(app_id)
+    if str(app.get("id")) != str(app_id) or app.get("app_id") != app_guid:
+        raise SplunkbaseValidationFailed("Validated app identity differs from the queued connector")
+    release = release_for_version(app, version)
+    if release is None:
+        return None
+    release_id = release.get("id") or release.get("release_id")
+    if (
+        release_id
+        and validated_release.get("id")
+        and str(release_id) != str(validated_release["id"])
+    ):
+        raise SplunkbaseValidationFailed("Validated release differs from the app release ID")
+    # The release PATCH accepts a SemVer name when editor metadata omits its ID.
+    return release_id or version
+
+
 def advance_publication(client, artifact, manifest, metadata, release_notes, state, checkpoint):
     """Advance one publication; checkpoint every externally visible mutation.
 
@@ -167,39 +211,25 @@ def advance_publication(client, artifact, manifest, metadata, release_notes, sta
         )
 
     if not state.get("release_id"):
-        response = client.get_upload_status(state["package_id"])
-        if response.get("result") == "Fail":
-            raise SplunkbaseValidationFailed(
-                "Splunkbase package validation failed; inspect the validation report"
-            )
-        if response.get("result") != "Pass":
+        release_id = validated_release_id(
+            client,
+            app_id,
+            manifest["appid"],
+            version,
+            client.get_upload_status(state["package_id"]),
+        )
+        if release_id is None:
             return False
-        details = response.get("details", {})
-        if not isinstance(details, dict):
-            raise SplunkbaseResponseError("Splunkbase returned malformed validation details")
-        release = details.get("release", {})
-        if not isinstance(release, dict):
-            raise SplunkbaseResponseError(
-                "Splunkbase returned malformed validation release metadata"
-            )
-        if (
-            str(details.get("id")) != str(app_id)
-            or details.get("app_id") != manifest["appid"]
-            or release.get("name") != version
-            or not release.get("id")
-        ):
-            raise SplunkbaseValidationFailed(
-                "Validated package does not match the queued app, version, and release ID"
-            )
-        save(release_id=release["id"])
+        save(release_id=release_id)
 
     if state.get("publication_requested"):
         return publicly_available(client, app_id, version, manifest["appid"])
     app = client.get_app(app_id)
-    if app.get("app_id") != manifest["appid"]:
+    if str(app.get("id")) != str(app_id) or app.get("app_id") != manifest["appid"]:
         raise SplunkbaseValidationFailed("Validated app identity differs from the queued connector")
     release = release_for_version(app, version)
-    if not release or (release.get("id") and str(release["id"]) != str(state["release_id"])):
+    release_id = (release.get("id") or release.get("release_id")) if release else None
+    if not release or (release_id and str(state["release_id"]) not in {str(release_id), version}):
         raise SplunkbaseValidationFailed("Validated release differs from the persisted release ID")
     if state.get("pending_operation") == "submit_draft" and app.get("draft") is not False:
         raise SplunkbaseValidationFailed(

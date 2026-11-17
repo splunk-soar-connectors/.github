@@ -229,10 +229,11 @@ def test_diagnostics_only_read_queue_and_app_metadata(monkeypatch, capsys, relea
     item = verifying_item()
     item.verification = {"package_id": package_id, "splunkbase_app_id": 5758}
     queue.get_item.return_value = item
-    app = {"app_id": item.appid, "releases": releases}
-    client = Mock(spec=["find_app", "public_app_by_guid", "get_upload_status"])
+    app = {"id": 5758, "app_id": item.appid, "releases": releases}
+    client = Mock(spec=["find_app", "get_app", "public_app_by_guid", "get_upload_status"])
     client.find_app.return_value = app
     client.public_app_by_guid.return_value = app
+    client.get_app.return_value = app
     client.get_upload_status.return_value = {"result": "Pass", "details": {"id": 5758}}
     monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
     monkeypatch.setattr(MODULE, "DraftSplunkbase", lambda *args, **kwargs: client)
@@ -245,6 +246,7 @@ def test_diagnostics_only_read_queue_and_app_metadata(monkeypatch, capsys, relea
     expected_calls = [call.find_app(item.appid), call.public_app_by_guid(item.appid)]
     if package_id:
         expected_calls.append(call.get_upload_status(package_id))
+        expected_calls.append(call.get_app(5758))
     assert client.method_calls == expected_calls
     output = capsys.readouterr()
     if package_id:
