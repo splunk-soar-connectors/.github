@@ -16,6 +16,14 @@ The `drain-splunkbase-publish-queue.yml` workflow is the central worker. It runs
 schedule and can also be started manually with `workflow_dispatch`. A concurrency group
 allows only one worker to drain the queue at a time.
 
+For read-only troubleshooting, dispatch the same workflow with
+`diagnose_issue_number` set to the queue issue number. This mode authenticates,
+reads the queue item, app metadata, and any saved package validation result, and
+checks the release response shape. It
+skips the worker, package uploads, queue updates, and notifications. Logs contain
+the endpoint, HTTP status, request ID when available, response field names, and
+publisher exception details. Credentials and response bodies are excluded.
+
 ```mermaid
 flowchart TB
     A["Connector PR merges"] --> B["Semantic Release builds the new version<br/>and connector artifact"]
@@ -160,6 +168,14 @@ and refreshes once after an explicit authentication rejection. It creates a draf
 for a new listing, obtains a presigned S3 POST, uploads the package without
 Splunkbase credentials, registers its filename and S3 key, and polls validation.
 For existing listings, it reuses the numeric app ID.
+
+Validation can return `Pass` with empty `details`. The worker resolves the saved
+app ID through the authenticated app endpoint and requires a matching numeric app
+ID, connector GUID, and candidate release version before updating metadata. It
+waits when the release is not yet listed, retains the saved package ID, and uses
+the release version as the PATCH identifier when editor metadata omits a numeric
+release ID. Conflicting validation identity fields still block publication.
+Public app lookups explicitly request `include=releases`.
 
 After validation passes, the worker updates app metadata and release notes. New
 drafts must have no missing `/required_fields/` before `/submit/`. Existing apps

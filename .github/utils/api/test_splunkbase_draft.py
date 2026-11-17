@@ -129,6 +129,25 @@ def test_submit_accepts_empty_success_response(client):
         assert client.submit_draft(11) == {}
 
 
+def test_response_diagnostics_exclude_headers_and_body(client, caplog):
+    session = Mock(headers={})
+    result = response(503, {"detail": "sensitive server text"})
+    result.headers["X-Request-ID"] = "request-123"
+    result.headers["Set-Cookie"] = "sensitive-cookie"
+    session.request.return_value = result
+    with (
+        caplog.at_level("INFO"),
+        patch("utils.api.splunkbase_draft._retrying_session", return_value=session),
+    ):
+        with pytest.raises(SplunkbaseAmbiguousUpload):
+            client.get_app(11)
+    assert "apps/11/" in caplog.text
+    assert "503" in caplog.text
+    assert "request-123" in caplog.text
+    assert "sensitive" not in caplog.text
+    assert "test-token" not in caplog.text
+
+
 def test_s3_upload_uses_only_presigned_fields_and_registers_filename(tmp_path, client):
     path = tmp_path / "example.tgz"
     path.write_bytes(b"package")
@@ -193,12 +212,15 @@ def test_expired_s3_grant_never_registers_package(client, tmp_path):
     assert "secret" not in str(error.value)
 
 
-def test_public_visibility_check_sends_no_bearer_credentials(client):
+@pytest.mark.parametrize("by_guid", [False, True])
+def test_public_visibility_check_requests_releases_without_bearer_credentials(client, by_guid):
     session = Mock(headers={})
-    session.request.return_value = response(data={"results": [{"id": 11}]})
+    session.request.return_value = response(data={"results": [{"id": 11, "app_id": "guid"}]})
     with patch("utils.api.splunkbase_draft._retrying_session", return_value=session):
-        assert client.public_app(11)["id"] == 11
+        app = client.public_app_by_guid("guid") if by_guid else client.public_app(11)
+        assert app["id"] == 11
     assert session.request.call_args.kwargs["headers"] == {}
+    assert session.request.call_args.kwargs["params"]["include"] == "releases"
 
 
 def test_editor_lookup_reuses_a_private_listing(client):

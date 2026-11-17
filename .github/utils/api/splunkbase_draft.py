@@ -4,6 +4,7 @@ Contract: https://stage.splunkbase.splunk.com/api-docs-v2/
 """
 
 from datetime import datetime, timedelta, UTC
+import logging
 from pathlib import Path
 import re
 from urllib.parse import quote, urlsplit
@@ -116,6 +117,15 @@ class DraftSplunkbase(Splunkbase):
                 continue
             break
         request_id = _request_id(response)
+        logging.info(
+            "Splunkbase API response: %s",
+            {
+                "method": method,
+                "path": path,
+                "status_code": response.status_code,
+                "request_id": request_id,
+            },
+        )
         if response.status_code in (401, 403):
             raise SplunkbasePermissionDenied(
                 "Splunkbase denied access after authentication refresh",
@@ -168,7 +178,10 @@ class DraftSplunkbase(Splunkbase):
 
     def public_app(self, app_id):
         response = self.request(
-            "GET", "apps/", authenticated=False, params={"ids": str(app_id), "skip_cache": "true"}
+            "GET",
+            "apps/",
+            authenticated=False,
+            params={"ids": str(app_id), "include": "releases", "skip_cache": "true"},
         )
         apps = response.get("results")
         if not isinstance(apps, list):
@@ -180,7 +193,12 @@ class DraftSplunkbase(Splunkbase):
             "GET",
             "apps/",
             authenticated=False,
-            params={"appid": app_guid, "product": "soar", "skip_cache": "true"},
+            params={
+                "appid": app_guid,
+                "product": "soar",
+                "include": "releases",
+                "skip_cache": "true",
+            },
         )
         apps = response.get("results")
         if not isinstance(apps, list) or len(apps) > 1:
