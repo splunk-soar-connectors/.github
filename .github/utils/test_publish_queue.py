@@ -8,6 +8,7 @@ from .publish_queue import (
     MAX_ATTEMPTS_PER_HOUR,
     MIN_ATTEMPT_INTERVAL,
     GitHubIssuePublishQueue,
+    PublishAttempt,
     PublishQueueItem,
     _decode_body,
     _encode_body,
@@ -191,7 +192,15 @@ def test_active_item_is_recovered_only_after_its_lease_expires():
     queue = GitHubIssuePublishQueue(client, "splunk-soar-connectors/.github")
     now = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
     item = queue.enqueue(make_item())
-    queue.activate(item, now + timedelta(minutes=15))
+    queue.verify(
+        item, {"publication_flow": "draft_v2"}, now + timedelta(minutes=15), "Checkpoint saved."
+    )
+    queue.record_attempt(
+        item,
+        PublishAttempt(
+            started_at=format_datetime(now), outcome="started", app_existed_before_upload=True
+        ),
+    )
 
     assert queue.oldest_eligible(item.publisher_alias, now) is None
     assert (

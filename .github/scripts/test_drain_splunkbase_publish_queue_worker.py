@@ -132,8 +132,8 @@ def test_existing_sdk_release_metrics_use_package_and_previous_tag(tmp_path, mon
     get_app_json = Mock(return_value=current_data)
     monkeypatch.setattr(
         MODULE.DRAIN,
-        "load_publisher_module",
-        lambda: SimpleNamespace(get_app_json=get_app_json),
+        "publisher",
+        SimpleNamespace(get_app_json=get_app_json),
     )
 
     commands = []
@@ -177,8 +177,8 @@ def test_new_sdk_release_metrics_use_empty_previous_manifest(tmp_path, monkeypat
     get_app_json = Mock(return_value=current_data)
     monkeypatch.setattr(
         MODULE.DRAIN,
-        "load_publisher_module",
-        lambda: SimpleNamespace(get_app_json=get_app_json),
+        "publisher",
+        SimpleNamespace(get_app_json=get_app_json),
     )
     run_checked = Mock()
     monkeypatch.setattr(MODULE, "run_checked", run_checked)
@@ -217,8 +217,8 @@ def test_sdk_release_metrics_reject_ambiguous_package_manifests(tmp_path, monkey
     )
     monkeypatch.setattr(
         MODULE.DRAIN,
-        "load_publisher_module",
-        lambda: SimpleNamespace(get_app_json=get_app_json),
+        "publisher",
+        SimpleNamespace(get_app_json=get_app_json),
     )
 
     with pytest.raises(ValueError, match="multiple JSON files"):
@@ -236,8 +236,8 @@ def test_existing_sdk_release_metrics_require_previous_tag(tmp_path, monkeypatch
     (connector / "uv.lock").write_text("")
     monkeypatch.setattr(
         MODULE.DRAIN,
-        "load_publisher_module",
-        lambda: SimpleNamespace(get_app_json=Mock(return_value={})),
+        "publisher",
+        SimpleNamespace(get_app_json=Mock(return_value={})),
     )
     monkeypatch.setattr(
         MODULE,
@@ -260,8 +260,8 @@ def test_existing_sdk_release_metrics_require_previous_lock(tmp_path, monkeypatc
     (connector / "uv.lock").write_text("")
     monkeypatch.setattr(
         MODULE.DRAIN,
-        "load_publisher_module",
-        lambda: SimpleNamespace(get_app_json=Mock(return_value={})),
+        "publisher",
+        SimpleNamespace(get_app_json=Mock(return_value={})),
     )
 
     def run_checked(command, **_kwargs):
@@ -312,7 +312,7 @@ def test_reconcile_evicts_blocked_item_when_newer_release_exists(monkeypatch):
     splunkbase = Mock()
     monkeypatch.setenv("SPLUNKBASE_USER", "user")
     monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-    monkeypatch.setattr(MODULE.DRAIN, "Splunkbase", Mock(return_value=splunkbase))
+    monkeypatch.setattr(MODULE.DRAIN, "DraftSplunkbase", Mock(return_value=splunkbase))
     monkeypatch.setattr(MODULE.DRAIN, "newer_release_version", Mock(return_value="2.0.0"))
 
     assert MODULE.reconcile_superseded_blocked_items(queue, item.publisher_alias) == 1
@@ -327,7 +327,7 @@ def test_reconcile_preserves_blocked_item_without_newer_release(monkeypatch):
     queue.blocked_items.return_value = [item]
     monkeypatch.setenv("SPLUNKBASE_USER", "user")
     monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-    monkeypatch.setattr(MODULE.DRAIN, "Splunkbase", Mock(return_value=Mock()))
+    monkeypatch.setattr(MODULE.DRAIN, "DraftSplunkbase", Mock(return_value=Mock()))
     monkeypatch.setattr(MODULE.DRAIN, "newer_release_version", Mock(return_value=None))
 
     assert MODULE.reconcile_superseded_blocked_items(queue, item.publisher_alias) == 0

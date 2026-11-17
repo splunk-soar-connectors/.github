@@ -124,7 +124,7 @@ def _prepare_sdk_metric_manifests(
 ) -> tuple[Path, Path]:
     _sdk_project_root(connector)
     current_manifest = temporary / "current-app.json"
-    current_app = DRAIN.load_publisher_module().get_app_json(artifact)
+    current_app = DRAIN.publisher.get_app_json(artifact)
     current_manifest.write_text(json.dumps(current_app))
 
     previous_manifest = temporary / "old-app.json"
@@ -298,10 +298,11 @@ def reconcile_superseded_blocked_items(queue, publisher_alias: str) -> int:
     if not blocked_items:
         return 0
 
-    splunkbase = DRAIN.Splunkbase(
+    splunkbase = DRAIN.DraftSplunkbase(
         os.environ["SPLUNKBASE_USER"],
         os.environ["SPLUNKBASE_PASSWORD"],
         request_context={"repo": ".github"},
+        environment=os.getenv("SPLUNKBASE_ENVIRONMENT", "PROD"),
     )
     evicted = 0
     for item in blocked_items:
@@ -351,8 +352,6 @@ def process_item(queue, item, wait_until) -> ItemOutcome:
                     issue_number=item.issue_number,
                     artifact=str(artifact),
                     connector_workspace=str(connector),
-                    result_path=str(temporary / "publish-result.json"),
-                    publisher_output=str(temporary / "publisher-output"),
                     wait_for_budget_until=wait_until,
                 )
             )

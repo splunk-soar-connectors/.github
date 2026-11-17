@@ -36,8 +36,8 @@ def test_sdk_pytest_allows_only_no_tests_collected():
 
 def test_enqueue_uses_the_commit_that_created_the_artifact():
     workflow = WORKFLOW.read_text()
-    build = workflow.split("\n  build:\n", 1)[1].split("\n  publish:\n", 1)[0]
-    enqueue = workflow.split("\n  enqueue-publish:\n", 1)[1].split("\n  metrics:\n", 1)[0]
+    build = workflow.split("\n  build:\n", 1)[1].split("\n  enqueue-publish:\n", 1)[0]
+    enqueue = workflow.split("\n  enqueue-publish:\n", 1)[1]
 
     assert "commit_sha: ${{ steps.source.outputs.commit_sha }}" in build
     assert 'echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"' in build
@@ -100,12 +100,15 @@ def test_drain_runs_once_per_hour():
     assert 'cron: "0 * * * *"' in workflow
 
 
-def test_skipped_direct_publish_cannot_trigger_release_slack():
+def test_connector_releases_only_enqueue_publication():
     workflow = WORKFLOW.read_text()
-    notify = workflow.split("\n  notify-slack:\n", 1)[1]
-
-    assert "needs.publish.result != 'skipped'" in notify
-    assert "needs.publish.outputs.return_code != ''" in notify
+    enqueue = workflow.split("\n  enqueue-publish:\n", 1)[1]
+    assert "\n    if:" not in enqueue
+    assert "\n  publish:\n" not in workflow
+    assert "\n  metrics:\n" not in workflow
+    assert "\n  notify-slack:\n" not in workflow
+    assert "\n    if:" not in DRAIN_WORKFLOW.read_text().split("\n  drain:\n", 1)[1]
+    assert not (WORKFLOW.parent.parent / "actions" / "publish" / "action.yml").exists()
 
 
 def test_notify_action_uses_the_explicit_connector_workspace():
@@ -118,17 +121,7 @@ def test_notify_action_uses_the_explicit_connector_workspace():
     assert 'os.getenv("GITHUB_WORKSPACE"' in script
 
 
-def test_release_version_transition_reaches_both_notification_paths():
-    workflow = WORKFLOW.read_text()
-
-    assert (
-        "previous_release_version: ${{ steps.publish_action.outputs.previous_release_version }}"
-        in workflow
-    )
-    assert (
-        "previous_release_version: ${{ needs.publish.outputs.previous_release_version }}"
-        in workflow
-    )
+def test_release_version_transition_reaches_worker_notifications():
     assert (
         '"PREVIOUS_RELEASE_VERSION": outputs["previous_release_version"]'
         in QUEUE_WORKER.read_text()

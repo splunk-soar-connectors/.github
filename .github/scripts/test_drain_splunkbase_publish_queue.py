@@ -155,36 +155,6 @@ def verifying_item():
     )()
 
 
-@pytest.mark.parametrize(
-    ("verification", "attempts", "enabled", "expected"),
-    [
-        (None, [], None, False),
-        (None, [], "", False),
-        (None, [], "false", False),
-        (None, [], "true", True),
-        (None, [], "invalid", False),
-        ({"publication_flow": "draft_v2"}, [], "false", True),
-        ({"package_id": 22}, [], "true", False),
-        (None, [{"outcome": "started"}], "true", False),
-    ],
-)
-@pytest.mark.parametrize(
-    "repository", ["splunk-soar-connectors/example", "splunk-soar-connectors/other"]
-)
-def test_global_switch_preserves_the_flow_of_existing_queue_work(
-    monkeypatch, verification, attempts, enabled, expected, repository
-):
-    if enabled is None:
-        monkeypatch.delenv("SPLUNKBASE_DRAFT_FLOW_ENABLED", raising=False)
-    else:
-        monkeypatch.setenv("SPLUNKBASE_DRAFT_FLOW_ENABLED", enabled)
-    item = verifying_item()
-    item.repository = repository
-    item.verification = verification
-    item.attempts = attempts
-    assert MODULE.uses_draft_flow(item) is expected
-
-
 def draft_queue_setup(tmp_path, monkeypatch):
     item = verifying_item()
     item.appid = "guid"
@@ -220,6 +190,68 @@ def draft_queue_setup(tmp_path, monkeypatch):
     monkeypatch.setenv("SPLUNKBASE_PASSWORD", "test-password")
     args = SimpleNamespace(artifact=str(path), connector_workspace=str(tmp_path))
     return queue, item, args, client
+
+
+@pytest.mark.parametrize("verification", [None, {"publication_flow": "draft_v2", "package_id": 22}])
+def test_publish_item_always_selects_draft_publishing(monkeypatch, verification):
+    item = verifying_item()
+    item.verification = verification
+    item.attempts = []
+    queue = Mock()
+    queue.get_item.return_value = item
+    publish = Mock(return_value=0)
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "publish_draft_item", publish)
+    args = SimpleNamespace(issue_number=1)
+    assert MODULE.publish_item(args) == 0
+    publish.assert_called_once_with(queue, item, args)
+
+
+@pytest.mark.parametrize("verification", [None, {"package_id": 22}])
+def test_old_upload_checkpoints_block_without_another_upload(monkeypatch, verification):
+    item = verifying_item()
+    item.verification = verification
+    item.attempts = [{"outcome": "started"}]
+    queue = Mock()
+    queue.get_item.return_value = item
+    publish = Mock()
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "publish_draft_item", publish)
+    assert MODULE.publish_item(SimpleNamespace(issue_number=1)) == 1
+    publish.assert_not_called()
+    queue.reserve_attempt.assert_not_called()
+    queue.block.assert_called_once()
+
+
+def test_saved_draft_publication_finishes_without_another_upload(tmp_path, monkeypatch):
+    queue, item, args, client = draft_queue_setup(tmp_path, monkeypatch)
+    item.verification = {
+        "publication_flow": "draft_v2",
+        "splunkbase_app_id": 11,
+        "package_id": 22,
+        "release_id": 33,
+        "publication_requested": True,
+    }
+    queue.get_item.return_value = item
+    client.visible = True
+    args.issue_number = 1
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    assert MODULE.publish_item(args) == 0
+    queue.complete.assert_called_once()
+    queue.reserve_attempt.assert_not_called()
+    assert client.calls == []
+
+
+def test_draft_verification_rechecks_are_bounded_without_resubmitting(tmp_path, monkeypatch):
+    queue, item, args, client = draft_queue_setup(tmp_path, monkeypatch)
+    client.pending = True
+    for _ in range(2):
+        assert MODULE.publish_draft_item(queue, item, args) == 0
+    assert MODULE.publish_draft_item(queue, item, args) == 1
+    queue.block.assert_called_once()
+    queue.complete.assert_not_called()
+    assert item.verification_rechecks == 3
+    assert client.calls == ["create", "s3", "register"]
 
 
 @pytest.mark.parametrize("releases", [None, []])
@@ -314,501 +346,6 @@ def test_draft_queue_rate_limit_retains_app_identity_for_safe_retry(tmp_path, mo
     queue.complete.assert_called_once()
 
 
-def interrupted_item():
-    item = verifying_item()
-    item.verification = None
-    item.attempts = [
-        {
-            "started_at": "2026-07-29T12:00:00Z",
-            "outcome": "started",
-            "app_existed_before_upload": False,
-        }
-    ]
-    return item
-
-
-@pytest.mark.parametrize(
-    "validation_error",
-    [
-        TimeoutError("validation timed out"),
-        ConnectionError("validation connection failed"),
-        RuntimeError("validation GET exhausted 5xx retries"),
-        ValueError("validation response was not JSON"),
-    ],
-)
-def test_verification_get_failures_do_not_post_or_reserve(monkeypatch, validation_error):
-    queue = Mock()
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_upload_status.side_effect = validation_error
-    run_publisher = Mock()
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-
-    result = MODULE.reconcile_verification(
-        queue,
-        client,
-        verifying_item(),
-        object(),
-        MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-    )
-
-    assert result == 0
-    queue.verify.assert_called_once()
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-
-
-def test_verification_polls_every_ten_seconds_until_release_appears(monkeypatch):
-    queue = Mock()
-    client = Mock()
-    client.get_existing_releases.side_effect = [
-        [],
-        [],
-        [{"release_name": "1.2.3"}],
-        [{"release_name": "1.2.3"}],
-    ]
-    client.get_upload_status.return_value = {"message": "Package validation still in progress."}
-    client._is_retryable_response.return_value = True
-    client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
-    clock = [0]
-
-    def advance_clock(seconds):
-        assert seconds == 10
-        clock[0] += seconds
-
-    monkeypatch.setattr(MODULE, "VERIFICATION_POLL_TIMEOUT_SECONDS", 300)
-    monkeypatch.setattr(MODULE.time, "monotonic", lambda: clock[0])
-    sleep = Mock(side_effect=advance_clock)
-    monkeypatch.setattr(MODULE.time, "sleep", sleep)
-    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
-
-    result = MODULE.reconcile_verification(
-        queue,
-        client,
-        verifying_item(),
-        finalization_args(),
-        MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-    )
-
-    assert result == 0
-    assert sleep.call_args_list == [((10,),), ((10,),)]
-    assert client.get_upload_status.call_count == 2
-    queue.complete.assert_called_once()
-    queue.reserve_attempt.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    ("entry_path", "existed_before", "expected_new_app"),
-    [
-        ("preexisting", True, False),
-        ("recovered", True, False),
-        ("recovered", False, True),
-    ],
-)
-def test_recovery_paths_share_finalization_without_post_or_reserve(
-    monkeypatch,
-    entry_path,
-    existed_before,
-    expected_new_app,
-):
-    queue = Mock()
-    client = Mock()
-    client.get_existing_releases.return_value = [{"release_name": "1.2.3"}]
-    client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
-    run_publisher = Mock()
-    outputs = {}
-    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-    item = verifying_item()
-
-    if entry_path == "recovered":
-        item.verification["app_existed_before_upload"] = existed_before
-        result = MODULE.reconcile_verification(
-            queue,
-            client,
-            item,
-            finalization_args(),
-            MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-        )
-    else:
-        item.verification = None
-        queue.get_item.return_value = item
-        monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
-        monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
-        monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
-        monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-        result = MODULE.publish_item(finalization_args())
-
-    assert result == 0
-    client.get_upload_status.assert_not_called()
-    if expected_new_app:
-        client.ensure_app_editors.assert_called_once_with("app-123")
-    else:
-        client.ensure_app_editors.assert_not_called()
-    assert outputs["new_app"] is expected_new_app
-    assert outputs["support_tag"] == "splunk"
-    assert outputs["splunk_base_url"] == "https://splunkbase.splunk.com/app/app-123"
-    queue.complete.assert_called_once()
-    queue.delete_asset.assert_called_once_with(item)
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-
-
-def test_ambiguous_upload_is_finalized_when_version_appears_without_second_post(
-    monkeypatch,
-):
-    queue = Mock()
-    item = verifying_item()
-    item.verification = None
-    queue.get_item.return_value = item
-    queue.reserve_attempt.return_value = None
-    client = Mock()
-    client.get_existing_releases.side_effect = [
-        [],
-        [],
-        [{"release_name": "1.2.3"}],
-    ]
-    client.get_apps.side_effect = [
-        [],
-        [{"id": "app-123", "support": "splunk"}],
-    ]
-    run_publisher = Mock(
-        return_value=(
-            12,
-            {
-                "status": "ambiguous",
-                "app_existed_before_upload": False,
-                "request_id": "request-123",
-            },
-        )
-    )
-    outputs = {}
-    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
-    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
-    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
-    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-
-    assert MODULE.publish_item(finalization_args()) == 0
-
-    assert run_publisher.call_count == 1
-    assert queue.reserve_attempt.call_count == 1
-    assert outputs["new_app"] is True
-    assert outputs["publish_return_code"] == 2
-    assert outputs["support_tag"] == "splunk"
-    assert outputs["splunk_base_url"] == "https://splunkbase.splunk.com/app/app-123"
-    client.ensure_app_editors.assert_called_once_with("app-123")
-    queue.complete.assert_called_once()
-    queue.delete_asset.assert_called_once_with(item)
-
-
-def test_hard_exit_after_counted_attempt_recovers_new_app_without_second_post(
-    monkeypatch,
-):
-    queue = Mock()
-    item = interrupted_item()
-    queue.get_item.return_value = item
-    client = Mock()
-    client.get_existing_releases.side_effect = [
-        [],
-        [{"release_name": "1.2.3"}],
-    ]
-    client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
-    run_publisher = Mock()
-    outputs = {}
-    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
-    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
-    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
-    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-
-    assert MODULE.publish_item(finalization_args()) == 0
-    item.verification = queue.verify.call_args.args[1]
-    assert item.verification["app_existed_before_upload"] is False
-
-    assert MODULE.publish_item(finalization_args()) == 0
-
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-    client.ensure_app_editors.assert_called_once_with("app-123")
-    assert outputs["new_app"] is True
-    queue.complete.assert_called_once()
-
-
-def test_app_existence_snapshot_is_persisted_before_publisher_runs(monkeypatch):
-    queue = Mock()
-    item = interrupted_item()
-    item.attempts = []
-    queue.get_item.return_value = item
-    queue.reserve_attempt.return_value = None
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_apps.return_value = []
-    events = []
-
-    def record_attempt(recorded_item, attempt):
-        events.append("recorded")
-        recorded_item.attempts.append(
-            {
-                "started_at": attempt.started_at,
-                "outcome": attempt.outcome,
-                "app_existed_before_upload": attempt.app_existed_before_upload,
-            }
-        )
-
-    def run_publisher(args, published_item):
-        events.append("publisher")
-        return 14, {"status": "verifying"}
-
-    outputs = {}
-    queue.record_attempt.side_effect = record_attempt
-    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
-    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
-    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-
-    assert MODULE.publish_item(finalization_args()) == 0
-
-    assert events == ["recorded", "publisher"]
-    assert item.attempts[-1]["app_existed_before_upload"] is False
-    assert queue.verify.call_count == 2
-    assert outputs["queue_status"] == "verifying"
-
-
-def test_pre_upload_metadata_failure_blocks_without_reserving_or_posting(monkeypatch):
-    queue = Mock()
-    item = interrupted_item()
-    item.attempts = []
-    queue.get_item.return_value = item
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_apps.side_effect = RuntimeError("metadata unavailable")
-    run_publisher = Mock()
-    outputs = {}
-    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
-    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
-    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-
-    assert MODULE.publish_item(finalization_args()) == 1
-
-    queue.block.assert_called_once()
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-    assert outputs["queue_status"] == "blocked"
-    assert outputs["failure_reason"].startswith("Splunkbase app metadata")
-
-
-def test_terminal_publisher_diagnostic_is_preserved_in_issue_and_output(monkeypatch):
-    queue = Mock()
-    item = interrupted_item()
-    item.attempts = []
-    queue.get_item.return_value = item
-    queue.reserve_attempt.return_value = None
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_apps.return_value = []
-    reason = "Candidate version 1.0.0 must be greater than the latest released version 1.0.0."
-    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
-    monkeypatch.setattr(MODULE, "Splunkbase", lambda *args, **kwargs: client)
-    monkeypatch.setattr(
-        MODULE,
-        "run_publisher",
-        lambda args, item: (1, {"status": "failed", "failure_reason": reason}),
-    )
-    outputs = {}
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-    monkeypatch.setenv("SPLUNKBASE_USER", "publisher")
-    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "password")
-
-    assert MODULE.publish_item(finalization_args()) == 1
-
-    blocked_result = queue.block.call_args.args[1]
-    assert blocked_result["failure_reason"] == reason
-    assert outputs["failure_reason"] == reason
-
-
-def test_continued_pending_validation_does_not_post_or_reserve(monkeypatch):
-    queue = Mock()
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_upload_status.return_value = {"message": "Package validation still in progress."}
-    client._is_retryable_response.return_value = True
-    run_publisher = Mock()
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-
-    result = MODULE.reconcile_verification(
-        queue,
-        client,
-        verifying_item(),
-        object(),
-        MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-    )
-
-    assert result == 0
-    queue.verify.assert_called_once()
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-
-
-def test_three_unsuccessful_verification_rechecks_block_without_post(monkeypatch):
-    queue = Mock()
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_upload_status.return_value = {"message": "Package validation still in progress."}
-    client._is_retryable_response.return_value = True
-    run_publisher = Mock()
-    outputs = {}
-    item = verifying_item()
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-
-    for rechecks in (1, 2):
-        assert (
-            MODULE.reconcile_verification(
-                queue,
-                client,
-                item,
-                object(),
-                MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-            )
-            == 0
-        )
-        assert item.verification_rechecks == rechecks
-        queue.block.assert_not_called()
-
-    assert (
-        MODULE.reconcile_verification(
-            queue,
-            client,
-            item,
-            object(),
-            MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-        )
-        == 1
-    )
-
-    assert item.verification_rechecks == 3
-    assert queue.verify.call_count == 2
-    queue.block.assert_called_once()
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-    assert outputs["queue_status"] == "blocked"
-    assert outputs["verification_rechecks"] == 3
-    assert outputs["failure_reason"] == (
-        "Splunkbase publication remained unconfirmed after three GET-only verification "
-        "rechecks; no further upload was attempted."
-    )
-    assert client.get_upload_status.call_count == 3
-
-
-def test_definitive_rejection_blocks_without_post_or_reserve(monkeypatch):
-    queue = Mock()
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_upload_status.return_value = {"message": "Package failed validation."}
-    client._is_retryable_response.return_value = False
-    run_publisher = Mock()
-    outputs = {}
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-    monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
-
-    result = MODULE.reconcile_verification(
-        queue,
-        client,
-        verifying_item(),
-        object(),
-        MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-    )
-
-    assert result == 1
-    queue.block.assert_called_once()
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-    assert outputs["queue_status"] == "blocked"
-    assert outputs["package_id"] == "package-123"
-    assert outputs["failure_reason"].startswith("Splunkbase definitively rejected")
-
-
-@pytest.mark.parametrize("response", [{}, {"message": "unknown"}, ["malformed"]])
-def test_inconclusive_status_does_not_post_or_reserve(monkeypatch, response):
-    queue = Mock()
-    client = Mock()
-    client.get_existing_releases.return_value = []
-    client.get_upload_status.return_value = response
-    client._is_retryable_response.return_value = False
-    run_publisher = Mock()
-    monkeypatch.setattr(MODULE, "run_publisher", run_publisher)
-
-    result = MODULE.reconcile_verification(
-        queue,
-        client,
-        verifying_item(),
-        object(),
-        MODULE.parse_datetime("2026-07-29T12:00:00Z"),
-    )
-
-    assert result == 0
-    queue.verify.assert_called_once()
-    queue.block.assert_not_called()
-    queue.reserve_attempt.assert_not_called()
-    run_publisher.assert_not_called()
-
-
-def test_run_publisher_passes_queued_source_identity(tmp_path, monkeypatch):
-    captured = {}
-    result_path = tmp_path / "result.json"
-    publisher_output = tmp_path / "publisher-output"
-    connector_workspace = tmp_path / "connector"
-    connector_workspace.mkdir()
-    args = type(
-        "Args",
-        (),
-        {
-            "artifact": str(tmp_path / "example.tgz"),
-            "result_path": str(result_path),
-            "publisher_output": str(publisher_output),
-            "connector_workspace": str(connector_workspace),
-        },
-    )()
-    item = type(
-        "Item",
-        (),
-        {
-            "repository": "splunk-soar-connectors/example",
-            "run_id": 12345,
-            "run_attempt": 3,
-        },
-    )()
-
-    def fake_run(command, cwd, env, check):
-        captured.update(env)
-        result_path.write_text('{"status": "verifying"}')
-        return type("Completed", (), {"returncode": 14})()
-
-    monkeypatch.setattr(MODULE.subprocess, "run", fake_run)
-    monkeypatch.setenv("GITHUB_RUN_ID", "worker-run")
-    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "9")
-
-    return_code, result = MODULE.run_publisher(args, item)
-
-    assert return_code == 14
-    assert result == {"status": "verifying"}
-    assert captured["SOURCE_GITHUB_RUN_ID"] == "12345"
-    assert captured["SOURCE_GITHUB_RUN_ATTEMPT"] == "3"
-    assert captured["GITHUB_RUN_ID"] == "worker-run"
-    assert captured["GITHUB_RUN_ATTEMPT"] == "9"
-
-
 def finalization_args():
     return type(
         "Args",
@@ -854,7 +391,7 @@ def test_finalization_reconstructs_outputs_and_new_app_side_effects(
     client = Mock()
     client.get_apps.return_value = [{"id": "app-123", "support": "splunk"}]
     outputs = {}
-    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
+    monkeypatch.setattr(MODULE, "publisher", publisher_metadata())
     monkeypatch.setattr(MODULE, "write_output", outputs.__setitem__)
     item = verifying_item()
     result = {
@@ -898,7 +435,7 @@ def test_finalization_failure_retains_artifact_and_requeues(monkeypatch, failure
         client.get_apps.side_effect = RuntimeError("metadata unavailable")
     else:
         client.ensure_app_editors.side_effect = RuntimeError("editor unavailable")
-    monkeypatch.setattr(MODULE, "load_publisher_module", publisher_metadata)
+    monkeypatch.setattr(MODULE, "publisher", publisher_metadata())
     item = verifying_item()
 
     assert (

@@ -4,9 +4,9 @@ on:
   pull_request:
     paths:
       - '.github/utils/**'
-      - '.github/actions/publish/**'
       - '.github/scripts/**'
       - '.github/test_publish_workflow.py'
+      - '.github/workflows/publish.yml'
       - '.github/workflows/*splunkbase*.yml'
       - '.github/workflows/publishing-tests.yml'
       - '.pre-commit-config.yaml'
@@ -40,7 +40,7 @@ jobs:
           .github/utils/api/test_splunkbase_draft.py
           .github/utils/test_draft_publish.py
           .github/utils/test_publish_queue.py
-          .github/actions/publish/test_upload_to_splunkbase.py
+          .github/utils/test_publishing.py
           .github/scripts/test_drain_splunkbase_publish_queue.py
           .github/scripts/test_drain_splunkbase_publish_queue_worker.py
           .github/scripts/test_enqueue_splunkbase_publish.py

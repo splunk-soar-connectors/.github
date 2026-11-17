@@ -243,3 +243,24 @@ def test_draft_creation_uses_the_documented_json_content_type(client):
     client.request.assert_called_once_with(
         "POST", "apps/", json={"draft": "true", "name": "Example", "product": "soar"}
     )
+
+
+def test_editor_reconciliation_adds_only_missing_editors():
+    client = object.__new__(DraftSplunkbase)
+    client.auth = {"Authorization": "Bearer token"}
+    client._splunkbase_editor_url = "https://example.test/app/{sb_appid}/editors/"
+
+    with (
+        patch(
+            "utils.api.splunkbase_draft._get_request",
+            return_value={"editors": [{"username": "nastor_splunk"}]},
+        ),
+        patch("utils.api.splunkbase_draft._post_request", return_value={"ok": True}) as post,
+    ):
+        client.ensure_app_editors("app-123")
+
+    post.assert_called_once_with(
+        client.auth,
+        "https://example.test/app/app-123/editors/",
+        data={"username": "coh_splunk"},
+    )
