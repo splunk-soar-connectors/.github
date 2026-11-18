@@ -204,8 +204,13 @@ Section headings are matched without regard to case. Sections come from
 values are omitted, preserving curated listing content. Existing contact email and
 support are preserved when already set on the listing. Splunkbase manages
 `splunk`, `cisco`, and `premium` support; publishing never infers support from the
-connector's publisher name. A tab body longer than
-20,000 characters blocks publication with a request for a dedicated tab file.
+connector's publisher name. Explicit tab content longer than 20,000 characters
+blocks publication with a request for a shorter dedicated tab file. If the full
+README fallback exceeds this limit, the worker logs a warning and omits the Details
+update for an existing published listing, preserving its current content. For a new
+listing, it uses the connector manifest description and a link to the queued source
+commit's full `README.md`. The package and full documentation remain unchanged.
+These fallbacks also apply when resuming a publication from its saved checkpoint.
 Connector category strings are not converted to Splunkbase numeric category IDs.
 Missing categories, compatibility, contact information, or other required listing
 metadata are reported for the listing owner to complete before resuming.

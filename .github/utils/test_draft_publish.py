@@ -96,10 +96,83 @@ def test_sdk_readme_is_markdown_and_missing_content_is_omitted(tmp_path):
     assert "support" not in metadata
 
 
-def test_oversized_documentation_requires_dedicated_details(tmp_path):
-    path = artifact(tmp_path, {"README.md": "a" * 20001})
+@pytest.mark.parametrize("filename", ["README.md", "manual_readme_content.md"])
+@pytest.mark.parametrize("existing_listing", [False, True])
+def test_oversized_readme_fallback_does_not_block_publication(
+    tmp_path, caplog, filename, existing_listing
+):
+    path = artifact(tmp_path, {filename: "a" * 20001})
+    metadata = package_metadata(
+        path,
+        MANIFEST,
+        "splunk-soar-connectors/example",
+        "license",
+        "url",
+        existing_listing=existing_listing,
+        commit_sha="abc123",
+    )
+
+    if existing_listing:
+        assert "documentation_source" not in metadata
+        assert "preserving existing Details" in caplog.text
+    else:
+        assert metadata["documentation_source"] == (
+            MANIFEST["description"] + "\n\n[Full connector documentation]("
+            "https://github.com/splunk-soar-connectors/example/blob/abc123/README.md)"
+        )
+        assert len(metadata["documentation_source"]) <= 20000
+        assert "using a summary and documentation link" in caplog.text
+
+
+@pytest.mark.parametrize("length", [19999, 20000])
+def test_readme_fallback_within_limit_is_preserved(tmp_path, length):
+    readme = "a" * length
+    path = artifact(tmp_path, {"README.md": readme})
+    metadata = package_metadata(
+        path,
+        MANIFEST,
+        "splunk-soar-connectors/example",
+        "license",
+        "url",
+        existing_listing=True,
+    )
+    assert metadata["documentation_source"] == readme
+
+
+@pytest.mark.parametrize("existing_listing", [False, True])
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"details.md": "a" * 20001},
+        {"README.md": "## Details\n" + "a" * 20001},
+        {"manual_readme_content.md": "## Details\n" + "a" * 20001},
+    ],
+)
+def test_oversized_explicit_details_still_block(tmp_path, files, existing_listing):
+    path = artifact(tmp_path, files)
     with pytest.raises(SplunkbaseValidationFailed, match=r"details\.md"):
-        package_metadata(path, MANIFEST, "splunk-soar-connectors/example", "license", "url")
+        package_metadata(
+            path,
+            MANIFEST,
+            "splunk-soar-connectors/example",
+            "license",
+            "url",
+            existing_listing=existing_listing,
+        )
+
+
+def test_explicit_details_take_precedence_over_oversized_readme(tmp_path, caplog):
+    path = artifact(tmp_path, {"README.md": "a" * 20001, "details.md": "Curated Details"})
+    metadata = package_metadata(
+        path,
+        MANIFEST,
+        "splunk-soar-connectors/example",
+        "license",
+        "url",
+        existing_listing=True,
+    )
+    assert metadata["documentation_source"] == "Curated Details"
+    assert not caplog.records
 
 
 class Client:

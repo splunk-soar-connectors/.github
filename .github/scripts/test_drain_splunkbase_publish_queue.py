@@ -148,6 +148,7 @@ def verifying_item():
             "issue_number": 1,
             "publisher_alias": "soar-connectors-default",
             "repository": "splunk-soar-connectors/example",
+            "commit_sha": "abc123",
             "run_attempt": 2,
             "run_id": 123,
             "verification_rechecks": 0,
@@ -185,7 +186,7 @@ def test_global_switch_preserves_the_flow_of_existing_queue_work(
     assert MODULE.uses_draft_flow(item) is expected
 
 
-def draft_queue_setup(tmp_path, monkeypatch):
+def draft_queue_setup(tmp_path, monkeypatch, documentation=None):
     item = verifying_item()
     item.appid = "guid"
     item.verification = None
@@ -194,7 +195,7 @@ def draft_queue_setup(tmp_path, monkeypatch):
     with tarfile.open(path, "w:gz") as archive:
         for name, data in {
             "example.json": json.dumps({**MANIFEST, "logo": "logo.svg"}),
-            "details.md": "Details",
+            **({"details.md": "Details"} if documentation is None else documentation),
             "release_notes/1.2.3.md": "* Fix",
         }.items():
             member = tarfile.TarInfo("example/" + name)
@@ -295,6 +296,50 @@ def test_draft_queue_stays_open_until_the_release_is_public(tmp_path, monkeypatc
         == client.calls.count("submit")
         == 1
     )
+
+
+@pytest.mark.parametrize("existing_listing", [False, True])
+def test_draft_queue_publishes_oversized_readme_without_rebuilding(
+    tmp_path, monkeypatch, existing_listing
+):
+    queue, item, args, client = draft_queue_setup(
+        tmp_path, monkeypatch, documentation={"README.md": "a" * 68200}
+    )
+    client.patch_metadata = Mock()
+    client.create_draft = Mock(wraps=client.create_draft)
+    if existing_listing:
+        client.draft = False
+        client.find_app = lambda guid: {
+            "id": 11,
+            "app_id": guid,
+            "draft": False,
+            "releases": [],
+            "documentation_source": "Curated Details",
+        }
+        client.public_app_by_guid = lambda guid: {"releases": [{"release_name": "1.2.2"}]}
+    assert MODULE.publish_draft_item(queue, item, args) == 0
+
+    queue.block.assert_not_called()
+    queue.complete.assert_not_called()
+    assert item.verification["app_existed_before_upload"] is existing_listing
+    metadata = client.patch_metadata.call_args.args[1]
+    if existing_listing:
+        assert "documentation_source" not in metadata
+        client.create_draft.assert_not_called()
+        assert "publish_release" in client.calls
+    else:
+        details = metadata["documentation_source"]
+        assert MANIFEST["description"] in details
+        assert f"/blob/{item.commit_sha}/README.md" in details
+        assert len(details) <= 20000
+        assert client.create_draft.call_args.args[0]["documentation_source"] == details
+        assert "submit" in client.calls
+
+    client.visible = True
+    assert MODULE.publish_draft_item(queue, item, args) == 0
+    queue.complete.assert_called_once()
+    assert client.calls.count("s3") == client.calls.count("register") == 1
+    client.patch_metadata.assert_called_once()
 
 
 def test_draft_queue_rate_limit_retains_app_identity_for_safe_retry(tmp_path, monkeypatch):
