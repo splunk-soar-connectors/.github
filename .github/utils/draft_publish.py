@@ -6,6 +6,8 @@ import re
 import tarfile
 from urllib.parse import quote
 
+from packaging.version import parse
+
 from .api.splunkbase import SplunkbaseResponseError, SplunkbaseValidationFailed
 
 
@@ -132,13 +134,45 @@ def release_for_version(app, version):
     return matches[0] if matches else None
 
 
-def publicly_available(client, app_id, version, app_guid):
+def promote_public_release(client, app_id, version, app_guid, state, checkpoint):
+    """Promote a public candidate and verify the listing's default before completion."""
     app = client.public_app(app_id)
     if app is None:
         return False
     if app.get("app_id") != app_guid:
         raise SplunkbaseValidationFailed("Public listing does not match the queued connector appid")
-    return release_for_version(app, version) is not None
+    release = release_for_version(app, version)
+    if release is None:
+        return False
+    release_id = release.get("release_id") or release.get("id")
+    if not isinstance(release_id, int) or isinstance(release_id, bool) or release_id <= 0:
+        raise SplunkbaseResponseError("Public candidate is missing its numeric release ID")
+    expected = state.get("release_id")
+    if expected is not None and str(expected) not in {str(release_id), version}:
+        raise SplunkbaseValidationFailed("Public candidate differs from the persisted release ID")
+    detail = client.public_app_detail(app_id)
+    if str(detail.get("id")) != str(app_id) or detail.get("app_id") != app_guid:
+        raise SplunkbaseValidationFailed("Public default lookup returned a different connector")
+    current = detail.get("release") or {}
+    current_version = current.get("release_name")
+    if current_version == version:
+        return True
+    if (current_version and parse(current_version) > parse(version)) or any(
+        parse(r["release_name"]) > parse(version) for r in app.get("releases", [])
+    ):
+        raise SplunkbaseValidationFailed(
+            "A newer connector release exists; refusing default downgrade"
+        )
+    if release.get("passed_validation") is not True:
+        raise SplunkbaseValidationFailed("Public candidate has not passed validation")
+    if not state.get("default_release_requested"):
+        state["pending_operation"] = "default_release"
+        checkpoint(dict(state))
+        client.patch_metadata(app_id, {"latest_release": release_id})
+        state.update(pending_operation="", default_release_requested=True)
+        checkpoint(dict(state))
+    # Wait for an independent public read to show the new default.
+    return False
 
 
 def validated_release_id(client, app_id, app_guid, version, response):
@@ -255,7 +289,7 @@ def advance_publication(client, artifact, manifest, metadata, release_notes, sta
         save(release_id=release_id)
 
     if state.get("publication_requested"):
-        return publicly_available(client, app_id, version, manifest["appid"])
+        return promote_public_release(client, app_id, version, manifest["appid"], state, checkpoint)
     app = client.get_app(app_id)
     if str(app.get("id")) != str(app_id) or app.get("app_id") != manifest["appid"]:
         raise SplunkbaseValidationFailed("Validated app identity differs from the queued connector")
@@ -289,4 +323,4 @@ def advance_publication(client, artifact, manifest, metadata, release_notes, sta
     elif app.get("draft") is not False:
         raise SplunkbaseResponseError("App detail did not report its draft state")
     save(publication_requested=True)
-    return publicly_available(client, app_id, version, manifest["appid"])
+    return promote_public_release(client, app_id, version, manifest["appid"], state, checkpoint)

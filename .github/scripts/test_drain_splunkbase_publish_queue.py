@@ -964,3 +964,56 @@ def test_finalization_failure_retains_artifact_and_requeues(monkeypatch, failure
     queue.verify.assert_called_once()
     queue.complete.assert_not_called()
     queue.delete_asset.assert_not_called()
+
+
+def test_default_repair_uses_published_checkpoints_without_queue_mutations(monkeypatch, capsys):
+    item = SimpleNamespace(
+        verification={
+            "publication_flow": "draft_v2",
+            "publication_requested": True,
+            "splunkbase_app_id": 11,
+            "release_id": 33,
+        },
+        candidate_version="1.2.3",
+        appid="guid",
+        repository="owner/example",
+    )
+    queue = Mock()
+    queue.get_item.return_value = item
+    client = DraftClient(draft=False)
+    client.visible = True
+    client.default_version = "1.2.2"
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "DraftSplunkbase", lambda *args, **kwargs: client)
+    monkeypatch.setenv("SPLUNKBASE_USER", "test")
+    monkeypatch.setenv("SPLUNKBASE_PASSWORD", "test")
+    monkeypatch.setattr(MODULE, "VERIFICATION_POLL_TIMEOUT_SECONDS", 30)
+    monkeypatch.setattr(
+        MODULE.time, "sleep", lambda seconds: setattr(client, "default_version", "1.2.3")
+    )
+    assert MODULE.promote_default_items(SimpleNamespace(issue_numbers="923")) == 0
+    assert client.promotions == [(11, {"latest_release": 33})]
+    assert client.calls == []
+    assert item.verification.get("default_release_requested") is None
+    assert queue.mock_calls == [call.get_item(923)]
+    assert "Default version verified: owner/example v1.2.3" in capsys.readouterr().out
+
+
+def test_default_repair_rejects_unpublished_checkpoints_before_login(monkeypatch):
+    queue = Mock()
+    queue.get_item.return_value = SimpleNamespace(verification={"publication_flow": "draft_v2"})
+    client = Mock()
+    monkeypatch.setattr(MODULE, "queue_from_environment", lambda: queue)
+    monkeypatch.setattr(MODULE, "DraftSplunkbase", client)
+    with pytest.raises(MODULE.SplunkbaseValidationFailed, match="published draft-flow"):
+        MODULE.promote_default_items(SimpleNamespace(issue_numbers="923"))
+    client.assert_not_called()
+
+
+@pytest.mark.parametrize("numbers", ["", "bad", "923,923", "-1", "0"])
+def test_default_repair_rejects_invalid_issue_numbers_before_queue_access(monkeypatch, numbers):
+    queue = Mock()
+    monkeypatch.setattr(MODULE, "queue_from_environment", queue)
+    with pytest.raises(ValueError):
+        MODULE.promote_default_items(SimpleNamespace(issue_numbers=numbers))
+    queue.assert_not_called()

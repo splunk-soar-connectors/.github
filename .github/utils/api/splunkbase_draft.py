@@ -193,6 +193,15 @@ class DraftSplunkbase(Splunkbase):
             raise SplunkbaseResponseError("Public app listing is missing results")
         return next((app for app in apps if str(app.get("id")) == str(app_id)), None)
 
+    def public_app_detail(self, app_id):
+        """Read the public default-release pointer, which list responses omit."""
+        return self.request(
+            "GET",
+            f"apps/{path_id(app_id)}/",
+            authenticated=False,
+            params={"skip_cache": "true"},
+        )
+
     def public_app_by_guid(self, app_guid):
         response = self.request(
             "GET",

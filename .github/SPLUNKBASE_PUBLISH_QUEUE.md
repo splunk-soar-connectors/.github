@@ -311,3 +311,16 @@ Set `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=false` and wait for any active worker to f
 before resuming direct publication with the same Splunkbase identity.
 
 _This documentation was written by Codex._
+
+### Repair a published release that is not the default
+
+Public release visibility and the listing's default version are separate. After
+publishing, the draft worker sets `latest_release` to the candidate's numeric
+release ID and verifies the public app detail `release` pointer before completing
+the queue item. It refuses to promote an older candidate when a newer release exists.
+
+For an already published queue item, manually dispatch the queue workflow with
+`promote_issue_numbers` set to its issue number (or comma-separated issue numbers).
+This uses the persisted app/release identity, updates only the default pointer,
+and verifies the public result. It does not upload packages, reopen queue issues,
+or repeat release notifications. Leave `diagnose_issue_number` empty.
