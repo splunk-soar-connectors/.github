@@ -29,6 +29,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           path: head
           persist-credentials: false
+          allow-unsafe-pr-checkout: true
 
       - name: Check out contract checker
         uses: actions/checkout@v4
