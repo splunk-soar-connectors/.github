@@ -21,7 +21,6 @@ permissions:
 
 jobs:
   drain:
-    if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED == 'true'
     timeout-minutes: 60
     runs-on: >-
       ${{ inputs.diagnose_issue_number && fromJSON('["ubuntu-latest"]') ||
@@ -51,7 +50,6 @@ jobs:
           QUEUE_REPOSITORY: ${{ github.repository }}
           SPLUNKBASE_USER: ${{ secrets.SPLUNKBASE_USER }}
           SPLUNKBASE_PASSWORD: ${{ secrets.SPLUNKBASE_PASSWORD }}
-          SPLUNKBASE_DRAFT_FLOW_ENABLED: ${{ vars.SPLUNKBASE_DRAFT_FLOW_ENABLED }}
           SLACK_INTERNAL_TOKEN: ${{ secrets.SLACK_INTERNAL_TOKEN }}
           SLACK_COMMUNITY_TOKEN: ${{ secrets.SLACK_COMMUNITY_TOKEN }}
           SLACK_INTERNAL_CHANNEL: ${{ vars.SLACK_INTERNAL_CHANNEL_ID }}

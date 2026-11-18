@@ -419,10 +419,6 @@ class GitHubIssuePublishQueue:
             },
         )
 
-    def activate(self, item: PublishQueueItem, lease_until: datetime) -> None:
-        item.not_before = format_datetime(lease_until)
-        self._update(item, state="active", note="Selected by the central publisher.")
-
     def record_attempt(self, item: PublishQueueItem, attempt: PublishAttempt) -> None:
         item.attempts.append(asdict(attempt))
         self._update(
@@ -460,8 +456,6 @@ class GitHubIssuePublishQueue:
         item.not_before = format_datetime(not_before)
         if item.attempts:
             item.attempts[-1].update(public_result)
-        elif public_result.get("publication_flow") != "draft_v2":
-            item.attempts.append(public_result)
         self._update(item, state="verifying", note=reason)
 
     def complete(self, item: PublishQueueItem, result: dict[str, Any]) -> None:

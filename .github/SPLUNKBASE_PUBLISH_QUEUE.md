@@ -7,8 +7,7 @@ prevents an uncertain upload result from causing a duplicate submission.
 
 ## Publishing flow
 
-When the queue is enabled for a connector repository, its release workflow stores the
-immutable connector artifact and sends a `repository_dispatch` event to the central
+Each connector release workflow stores the immutable connector artifact and sends a `repository_dispatch` event to the central
 repository. The `enqueue-splunkbase-publish.yml` workflow handles the event and creates
 or updates the GitHub issue that represents the publication.
 
@@ -26,48 +25,21 @@ publisher exception details. Credentials and response bodies are excluded.
 
 ```mermaid
 flowchart TB
-    A["Connector PR merges"] --> B["Semantic Release builds the new version<br/>and connector artifact"]
-    B --> C{"Publish queue enabled<br/>for this repository?"}
-
-    C -- "No" --> Z["Publish directly to Splunkbase"]
-    C -- "Yes" --> D["Store the immutable artifact"]
-    D --> E["Send repository_dispatch<br/>to splunk-soar-connectors/.github"]
-    E --> F["Enqueue workflow creates or updates<br/>the GitHub queue issue"]
-
-    F --> G["Central drain workflow<br/>• Runs on a schedule<br/>• Supports manual dispatch<br/>• Allows one active worker"]
-    G --> H["Select queued or expired-active work first;<br/>then verification work"]
-
-    P["Persistent per-user budget<br/>≤ 1 POST start every 3 minutes<br/>≤ 20 POSTs per rolling hour"] -.-> I
-    H --> I{"Queue state?"}
-    I -- "Verifying" --> U
-    I -- "Queued or expired active" --> J{"Upload slot available?"}
-    J -- "No" --> K["Leave the issue queued"] --> G
-    J -- "Yes" --> L["Persist the attempt and reserve<br/>the upload slot before the POST"]
-    L --> M["Send one multipart upload POST<br/>with User-Agent and trace metadata"]
-
-    M --> N{"Splunkbase response"}
-
-    N -- "Accepted" --> O["Persist package ID and request ID"]
-    N -- "Ambiguous timeout / 5xx" --> P2["Enter GET-only reconciliation<br/>No duplicate POST"]
-    N -- "429" --> Q["Requeue after Retry-After + 30 seconds"] --> G
-    N -- "401 / 403 / definitive rejection" --> R["Mark queue issue blocked"]
-
-    R --> S["Record the failure on the issue<br/>and warn internal Slack"]
-    S --> T["Human review"]
-
-    O --> U["Check for the release immediately"]
-    P2 --> U
-    U --> V{"Release confirmed?"}
-
-    V -- "Yes" --> W["Close queue issue as published"]
-    W --> X["Send release metrics"]
-    X --> Y["Send release announcement to Slack"]
-
-    V -- "No, under 5 minutes" --> AA["Wait 10 seconds"] --> U
-    V -- "No, 5 minutes elapsed" --> AB["Persist one scheduled recheck"]
-    AB --> AC{"Three unsuccessful rechecks?"}
-    AC -- "No" --> AD["Next scheduled drain performs<br/>GET-only reconciliation"] --> U
-    AC -- "Yes" --> R
+    A["Connector release builds an immutable package"] --> B["Store artifact and enqueue publication"]
+    B --> C["Central worker selects eligible work"]
+    C --> D["Read saved draft checkpoint"]
+    D --> E{"Package already registered?"}
+    E -- "No" --> F["Reserve upload budget and checkpoint mutations"]
+    F --> G["Create or reuse app, upload to S3, register package"]
+    E -- "Yes" --> H["Poll saved package validation"]
+    G --> H
+    H --> I["Verify authenticated app identity and candidate version"]
+    I --> J["Update metadata and publish release or submit draft"]
+    J --> K{"Exact version publicly visible?"}
+    K -- "Yes" --> L["Close queue item and send metrics and announcements"]
+    K -- "No" --> M["Retain checkpoint for a later verification window"]
+    M --> D
+    F -. "Unknown draft creation or registration outcome" .-> N["Hold for operator reconciliation"]
 ```
 
 ## Queue model
@@ -90,19 +62,19 @@ assets.
 ## Upload budget
 
 Splunkbase permits 20 upload attempts per hour for each publishing user, and every
-multipart upload attempt counts. The queue starts at most one upload every three
+package upload attempt counts. The queue starts at most one upload every three
 minutes and no more than 20 during the preceding hour.
 
 Each worker run drains eligible work for at most 50 minutes or 20 started upload
 attempts, whichever comes first. The workflow has a separate 60-minute hard timeout;
 the internal deadline leaves margin for cleanup and notification. It records an upload
 slot before making the POST, so a restart cannot reset the budget. Read-only Splunkbase
-requests retain bounded retries, but multipart upload POSTs have no automatic retries.
+requests retain bounded retries, but package upload POSTs have no automatic retries.
 HTTP 429 responses schedule another queue attempt after `Retry-After` plus 30 seconds.
-Ambiguous transport results enter GET-only reconciliation and do not authorize another
-POST.
+Ambiguous results retain the draft checkpoint. Unknown draft creation or package
+registration outcomes require operator reconciliation before either operation repeats.
 
-Manual uploads must not use the same publishing identity while the queue is enabled
+Manual uploads must not use the same publishing identity outside the queue
 because they are not represented in the persisted budget.
 
 ## Publication verification
@@ -110,10 +82,11 @@ because they are not represented in the persisted budget.
 After Splunkbase accepts an upload, the queue persists the package and request IDs and
 checks for the release immediately. It checks every 10 seconds for up to five minutes.
 If publication is still not confirmed, the issue remains in verification and a later
-worker continues with GET requests only. Each completed five-minute GET-only window
+worker resumes from the saved checkpoint. After publication is requested, visibility
+checks use GET requests only. Each completed five-minute verification window
 increments the persisted `verification_rechecks` counter. The first two unsuccessful
 rechecks remain non-terminal; the third blocks the issue with a sanitized reason. The
-escalation never authorizes another multipart upload.
+escalation never authorizes another package upload.
 
 Release metrics and the standard Slack release announcement are sent only after the
 connector version is confirmed on Splunkbase.
@@ -127,7 +100,7 @@ notifications are attempted independently so one failure does not suppress the o
 | Condition | Queue behavior | Notification |
 | --- | --- | --- |
 | HTTP 429 | Requeue after `Retry-After` plus 30 seconds | None |
-| Ambiguous timeout or server response | Continue GET-only reconciliation | None |
+| Ambiguous timeout or server response | Retain checkpoint; hold unknown creation/registration outcomes | None |
 | Validation still pending or response unreadable, before three rechecks | Keep the issue in verification | None |
 | Three unsuccessful five-minute verification rechecks | Block the issue for human review | Internal Slack warning |
 | HTTP 401 or 403 | Block the issue for human review | Internal Slack warning |
@@ -136,9 +109,8 @@ notifications are attempted independently so one failure does not suppress the o
 | Unexpected worker exception | Workflow fails | Internal Slack warning with the worker run |
 | Cancelled or timed-out drain workflow | No queue mutation | Internal Slack warning with the worker run |
 
-An active publication has a 15-minute lease. If the worker stops after recording an
-attempt, the next eligible worker treats its result as ambiguous and performs GET-only
-reconciliation.
+Publication checkpoints delay another worker for 15 minutes while work is active.
+If a worker stops, the next eligible worker resumes the saved operation and identifiers.
 
 The queue issue and internal blocked-publication warning include the connector, version,
 specific failure reason, and worker-run link. Request and package IDs are included only
@@ -151,19 +123,16 @@ get a chance to run its own exception handler.
 Blocked issues remain open until an operator resolves the cause and explicitly
 authorizes another queue attempt, unless a later drain finds a newer connector version
 on Splunkbase and evicts the stale item automatically. An operator must not retry the
-multipart POST directly.
+package upload directly.
 
 ## Configuration
 
-### Splunkbase v2 draft migration (PAPP-38509)
+### Splunkbase v2 draft publishing (PAPP-38509)
 
-The central worker uses the `SPLUNKBASE_DRAFT_FLOW_ENABLED` Actions variable in
-`splunk-soar-connectors/.github` as a global switch for new queued publications.
-Set it to `true` to use the draft flow and POST login for every connector in the
-queue. Set it to `false`, or leave it unset, to use the existing publishing flow.
-Direct publishing still uses the existing flow.
+All connector publications use the central queue and the v2 draft API. Publishing
+has one path and requires no feature flags.
 
-The new flow logs in with a JSON-encoded POST, caches the JWT until its expiry,
+The publisher logs in with a JSON-encoded POST, caches the JWT until its expiry,
 and refreshes once after an explicit authentication rejection. It creates a draft
 for a new listing, obtains a presigned S3 POST, uploads the package without
 Splunkbase credentials, registers its filename and S3 key, and polls validation.
@@ -175,7 +144,7 @@ ID, connector GUID, and candidate release version before updating metadata. It
 waits when the release is not yet listed, retains the saved package ID, and uses
 the release version as the PATCH identifier when editor metadata omits a numeric
 release ID. Conflicting validation identity fields still block publication.
-Public app lookups explicitly request `include=releases`.
+Public app lookups explicitly request `product=soar` and `include=releases`.
 
 After validation passes, the worker updates app metadata and release notes. New
 drafts must have no missing `/required_fields/` before `/submit/`. Existing apps
@@ -232,8 +201,7 @@ HTTP 429 retains identifiers and schedules a retry after `Retry-After` plus
 or expired S3 grant never triggers registration. HTTP 409, permanent permission
 denial, validation failure, and incomplete metadata block the item for review.
 The existing upload budget is reserved before each S3 attempt; the API's monthly
-byte quota is also respected through HTTP 429. Confirm production quota accounting
-with App Hosting before expanding the rollout.
+byte quota is also respected through HTTP 429.
 
 To resume a held item, reconcile its IDs with App Hosting, update the queue issue's
 `verification` checkpoint with the confirmed app or package ID, and clear the
@@ -241,36 +209,29 @@ resolved `pending_operation`. Preserve the immutable artifact and flow marker.
 Return the item to verification only after confirming the failed operation's outcome.
 Do not delete a draft or retry a registration to bypass an uncertain result.
 
-Setting the global switch to `false` stops new work from selecting this flow.
-Items with a saved `draft_v2` checkpoint continue through it. Existing legacy
-verification items and interrupted legacy uploads finish through their original path.
+Checkpoints from the removed publishing implementation are blocked for operator
+reconciliation. They cannot be replayed as draft uploads. CrowdSec queue item #545
+is currently held with such a checkpoint; preserve its history and verify any prior
+upload outcome before preparing new work.
 
-#### Validation and rollout
+#### Validation
 
 The [Publishing tests workflow](workflows/publishing-tests.yml) runs repository
 hooks and publisher/queue tests on the PR revision using a read-only token.
 Its tests cover request formats, authentication refresh, S3 credential isolation,
 validation versus publication, durable checkpoints, quota handling, and recovery.
 
-Before enabling the global switch, App Hosting and the connector team
-must provide a staging publishing identity and test listings for a new app and an
-existing release. The API client supports `SPLUNKBASE_ENVIRONMENT=STAGE` with matching
-staging API and login hosts; use an isolated staging queue. Verify legacy and SDK
-packages, all available listing tabs, restart recovery, and the final public version.
-Attach that evidence and confirm quota behavior on PAPP-38509, then set
-`SPLUNKBASE_DRAFT_FLOW_ENABLED=true` and inspect the first publications. Set it back
-to `false` to return new queued publications to the existing flow.
-Keep `draft: "true"` until App Hosting confirms that the flag can be retired.
+The API client supports `SPLUNKBASE_ENVIRONMENT=STAGE` with matching staging API
+and login hosts. Staging validation requires a publishing identity, test listings,
+and an isolated staging queue. Exercise BaseConnector and SDK packages, listing
+tabs, restart recovery, and final public visibility. No staging publishing account
+or test listing is currently configured.
+New listings are created with `draft: "true"` as required by the API.
 
 Contract references: [migration guide](https://cisco-my.sharepoint.com/:w:/p/jramatow/IQBsArEQiaYvTY9ZkeDc_26RAZtnZyX7zQ_krNuKjGM73Dk?e=e8rxGb),
 [v2 API documentation](https://stage.splunkbase.splunk.com/api-docs-v2/),
 [OpenAPI schema](https://stage.splunkbase.splunk.com/schema/), and
 [MP-510 metadata mapping](https://splunk.atlassian.net/browse/MP-510?focusedCommentId=20905715).
-
-The queue path is selected when `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=true` is available to
-both the connector repository and `splunk-soar-connectors/.github`. If the variable is
-unset or `false`, the connector uses direct publication. Direct publication and queued
-publication must not run simultaneously under the same Splunkbase identity.
 
 The central repository uses the following Actions secrets:
 
@@ -291,8 +252,9 @@ enqueue event. The GitHub App requires `contents:write` on
 `splunk-soar-connectors/.github`. The central workflows use their repository-scoped
 `GITHUB_TOKEN` with `issues:write` to manage queue issues.
 
-CrowdSec remains excluded until its Splunkbase publishing-user invitation is accepted.
-Microsoft OneDrive v2 remains excluded from queued publication.
+Existing callers may continue passing the reusable release workflow’s Splunkbase
+and Slack secrets, but they are optional and unused there. The central worker owns
+publishing credentials, metrics, and release notifications.
 
 ## Tracing
 
@@ -300,9 +262,10 @@ Splunkbase uploads use the `Splunk-SOAR-Connector-Publisher/1.0` User-Agent and 
 the connector repository, version, source workflow run, and source attempt. The queue
 issue records package and request IDs when Splunkbase provides them.
 
-## Disabling the queue
+## Pausing publishing
 
-Set `SPLUNKBASE_PUBLISH_QUEUE_ENABLED=false` and wait for any active worker to finish
-before resuming direct publication with the same Splunkbase identity.
+Disable the **Drain Splunkbase publish queue** workflow in GitHub Actions and let any
+active run finish. Connector releases continue enqueueing immutable artifacts.
+Re-enable the workflow to resume; direct publication is no longer supported.
 
 _This documentation was written by Codex._

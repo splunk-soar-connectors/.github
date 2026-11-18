@@ -13,7 +13,9 @@ import requests
 
 from .splunkbase import (
     REQUEST_TIMEOUT,
-    Splunkbase,
+    SPLUNKBASE_SOAR_APP_EDITORS,
+    _get_request,
+    _post_request,
     SplunkbaseAmbiguousUpload,
     SplunkbasePermissionDenied,
     SplunkbaseRateLimited,
@@ -30,7 +32,7 @@ def path_id(value):
     return quote(str(value), safe="")
 
 
-class DraftSplunkbase(Splunkbase):
+class DraftSplunkbase:
     def __init__(self, user, password, request_context=None, environment="PROD"):
         hosts = {
             "PROD": ("splunkbase.splunk.com", "api.splunk.com"),
@@ -39,7 +41,6 @@ class DraftSplunkbase(Splunkbase):
         api_host, login_host = hosts[environment]
         self.env = environment
         self.api_url = f"https://{api_host}/api/v2"
-        self._apps_base_url = f"{self.api_url}/apps"
         self._splunkbase_editor_url = f"https://{api_host}/api/v0.1/app/{{sb_appid}}/editors/"
         self.login_url = f"https://{login_host}/2.0/rest/login/splunk"
         self.splunkbase_user = user
@@ -337,3 +338,43 @@ class DraftSplunkbase(Splunkbase):
 
     def submit_draft(self, app_id):
         return self.request("POST", f"apps/{path_id(app_id)}/submit/", json={})
+
+    def get_app_editors(self, sb_appid):
+        editor_url = self._splunkbase_editor_url.replace("{sb_appid}", str(sb_appid))
+        response = _get_request(editor_url, headers=self.auth)
+        if isinstance(response, dict):
+            editors = next(
+                (
+                    response[key]
+                    for key in ("results", "editors", "data")
+                    if isinstance(response.get(key), list)
+                ),
+                [],
+            )
+        elif isinstance(response, list):
+            editors = response
+        else:
+            raise SplunkbaseResponseError("Splunkbase returned malformed editor metadata")
+
+        normalized = set()
+        for editor in editors:
+            if isinstance(editor, str):
+                normalized.add(editor)
+            elif isinstance(editor, dict):
+                username = editor.get("username") or editor.get("name") or editor.get("user")
+                if username:
+                    normalized.add(str(username))
+        return normalized
+
+    def ensure_app_editors(self, sb_appid):
+        if not self.auth:
+            raise ValueError("Authentication must be configured for POST requests")
+
+        existing_editors = self.get_app_editors(sb_appid)
+        for user in set(SPLUNKBASE_SOAR_APP_EDITORS) - existing_editors:
+            data = {"username": user}
+            editor_url = self._splunkbase_editor_url.replace("{sb_appid}", str(sb_appid))
+            logging.info(editor_url)
+            logging.info(f"Adding editor {user} to splunkbase appid {sb_appid}")
+            response = _post_request(self.auth, editor_url, data=data)
+            logging.info(response)
