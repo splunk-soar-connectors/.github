@@ -184,7 +184,7 @@ class DraftSplunkbase(Splunkbase):
             params={
                 "ids": str(app_id),
                 "product": "soar",
-                "include": "releases",
+                "include": "release,releases",
                 "skip_cache": "true",
             },
         )

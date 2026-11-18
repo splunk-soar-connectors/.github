@@ -11,6 +11,12 @@ on:
         required: false
         default: ""
 
+      promote_issue_numbers:
+        description: "Comma-separated published queue issues to promote as defaults; no uploads"
+        type: string
+        required: false
+        default: ""
+
 concurrency:
   group: splunkbase-publisher-soar-connectors-default
   cancel-in-progress: false
@@ -24,7 +30,7 @@ jobs:
     if: vars.SPLUNKBASE_PUBLISH_QUEUE_ENABLED == 'true'
     timeout-minutes: 60
     runs-on: >-
-      ${{ inputs.diagnose_issue_number && fromJSON('["ubuntu-latest"]') ||
+      ${{ (inputs.diagnose_issue_number || inputs.promote_issue_numbers) && fromJSON('["ubuntu-latest"]') ||
       fromJSON(format('["codebuild-integration-tests-{0}-{1}","image:custom-linux-875003031410.dkr.ecr.us-west-2.amazonaws.com/soar-connectors/pytest:f7150dbb7f347d35f8f4bb285d36985ecd4cf231"]', github.run_id, github.run_attempt)) }}
     steps:
       - name: Check out queue implementation
@@ -33,9 +39,10 @@ jobs:
       - name: Install worker dependencies
         env:
           DIAGNOSE_ISSUE_NUMBER: ${{ inputs.diagnose_issue_number }}
+          PROMOTE_ISSUE_NUMBERS: ${{ inputs.promote_issue_numbers }}
         run: |
           python -m pip install "uv==0.12.0"
-          if [ -n "$DIAGNOSE_ISSUE_NUMBER" ]; then
+          if [ -n "$DIAGNOSE_ISSUE_NUMBER" ] || [ -n "$PROMOTE_ISSUE_NUMBERS" ]; then
             exit 0
           fi
           if command -v yum >/dev/null 2>&1; then
@@ -58,8 +65,15 @@ jobs:
           SLACK_COMMUNITY_CHANNEL: ${{ vars.SLACK_COMMUNITY_CHANNEL_ID }}
           SEND_RELEASE_MESSAGE: ${{ vars.SEND_RELEASE_MESSAGE }}
           DIAGNOSE_ISSUE_NUMBER: ${{ inputs.diagnose_issue_number }}
+          PROMOTE_ISSUE_NUMBERS: ${{ inputs.promote_issue_numbers }}
         run: |
-          if [ -n "$DIAGNOSE_ISSUE_NUMBER" ]; then
+          if [ -n "$DIAGNOSE_ISSUE_NUMBER" ] && [ -n "$PROMOTE_ISSUE_NUMBERS" ]; then
+            echo "Choose diagnostics or default promotion, not both."
+            exit 1
+          fi
+          if [ -n "$PROMOTE_ISSUE_NUMBERS" ]; then
+            uv run .github/scripts/drain_splunkbase_publish_queue.py promote-default --issue-numbers "$PROMOTE_ISSUE_NUMBERS"
+          elif [ -n "$DIAGNOSE_ISSUE_NUMBER" ]; then
             uv run .github/scripts/drain_splunkbase_publish_queue.py diagnose --issue-number "$DIAGNOSE_ISSUE_NUMBER"
           else
             uv run .github/scripts/drain_splunkbase_publish_queue_worker.py

@@ -42,6 +42,7 @@ from utils.draft_publish import (
     FLOW,
     advance_publication,
     package_metadata,
+    promote_public_release,
     release_for_version,
     validated_release_id,
 )
@@ -409,6 +410,59 @@ def report_draft_error(exc):
     )
     # Exclude exception chains and local variables, which can hold credentials.
     traceback.print_tb(exc.__traceback__)
+
+
+def promote_default_items(args):
+    """Repair published defaults without uploading, reopening issues, or notifying again."""
+    logging.basicConfig(level=logging.INFO)
+    numbers = [int(value.strip()) for value in args.issue_numbers.split(",")]
+    if not numbers or any(number <= 0 for number in numbers) or len(set(numbers)) != len(numbers):
+        raise ValueError("Provide unique positive queue issue numbers")
+    queue = queue_from_environment()
+    items = [queue.get_item(number) for number in numbers]
+    for item in items:
+        state = item.verification or {}
+        if (
+            state.get("publication_flow") != FLOW
+            or state.get("publication_requested") is not True
+            or not state.get("splunkbase_app_id")
+            or not state.get("release_id")
+        ):
+            raise SplunkbaseValidationFailed(
+                "Default repair requires a published draft-flow checkpoint"
+            )
+    client = DraftSplunkbase(
+        os.environ["SPLUNKBASE_USER"],
+        os.environ["SPLUNKBASE_PASSWORD"],
+        environment=os.getenv("SPLUNKBASE_ENVIRONMENT", "PROD"),
+    )
+    deadline = time.monotonic() + VERIFICATION_POLL_TIMEOUT_SECONDS
+    pending = [(item, dict(item.verification)) for item in items]
+    while pending:
+        remaining = []
+        for item, state in pending:
+            if promote_public_release(
+                client,
+                state["splunkbase_app_id"],
+                item.candidate_version,
+                item.appid,
+                state,
+                lambda value: None,
+            ):
+                print(
+                    f"Default version verified: {item.repository} v{item.candidate_version}",
+                    flush=True,
+                )
+            else:
+                remaining.append((item, state))
+        pending = remaining
+        if pending:
+            if time.monotonic() >= deadline:
+                raise SplunkbaseResponseError(
+                    "Public default version did not update within five minutes"
+                )
+            time.sleep(VERIFICATION_POLL_INTERVAL_SECONDS)
+    return 0
 
 
 def diagnose_item(args):
@@ -800,6 +854,10 @@ def parse_args():
     select = subparsers.add_parser("select")
     select.add_argument("--publisher-alias", default="soar-connectors-default")
     select.set_defaults(func=select_item)
+
+    promote = subparsers.add_parser("promote-default")
+    promote.add_argument("--issue-numbers", required=True)
+    promote.set_defaults(func=promote_default_items)
 
     diagnose = subparsers.add_parser("diagnose")
     diagnose.add_argument("--issue-number", type=int, required=True)

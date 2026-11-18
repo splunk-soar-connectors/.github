@@ -10,7 +10,7 @@ from .api.splunkbase import (
     SplunkbaseResponseError,
     SplunkbaseValidationFailed,
 )
-from .draft_publish import advance_publication, package_metadata
+from .draft_publish import advance_publication, package_metadata, promote_public_release
 
 
 MANIFEST = {
@@ -182,6 +182,8 @@ class Client:
         self.visible = False
         self.missing = []
         self.calls = []
+        self.default_version = "1.2.3"
+        self.promotions = []
 
     def create_draft(self, metadata):
         self.calls.append("create")
@@ -207,7 +209,10 @@ class Client:
         }
 
     def patch_metadata(self, app_id, metadata):
-        self.calls.append("metadata")
+        if "latest_release" in metadata:
+            self.promotions.append((app_id, metadata))
+        else:
+            self.calls.append("metadata")
 
     def publish_release(self, app_id, release_id, notes, *, publish):
         self.calls.append("publish_release" if publish else "release_notes")
@@ -221,7 +226,14 @@ class Client:
 
     def public_app(self, app_id):
         if self.visible:
-            return {"id": 11, "app_id": "guid", "releases": [{"release_name": "1.2.3"}]}
+            return {
+                "id": 11,
+                "app_id": "guid",
+                "release": {"release_name": self.default_version},
+                "releases": [
+                    {"release_name": "1.2.3", "release_id": 33, "passed_validation": True}
+                ],
+            }
         return None
 
 
@@ -466,3 +478,77 @@ def test_existing_contact_and_support_are_preserved(support):
         lambda value: None,
     )
     client.patch_metadata.assert_called_once_with(11, {"documentation_source": "Docs"})
+
+
+def test_public_candidate_is_promoted_once_and_waits_for_public_default():
+    client = Client(draft=False)
+    client.visible = True
+    client.default_version = "1.2.2"
+    state = {"splunkbase_app_id": 11, "release_id": 33, "publication_requested": True}
+    checkpoints = []
+    assert run(client, state, lambda value: checkpoints.append(deepcopy(value))) is False
+    assert client.promotions == [(11, {"latest_release": 33})]
+    assert checkpoints[0]["pending_operation"] == "default_release"
+    assert checkpoints[-1]["default_release_requested"] is True
+    assert run(client, state) is False
+    assert len(client.promotions) == 1
+    client.default_version = "1.2.3"
+    assert run(client, state) is True
+    assert client.calls == []
+
+
+@pytest.mark.parametrize(
+    "reason", ["newer_default", "newer_public", "wrong_release", "unvalidated", "wrong_app"]
+)
+def test_default_promotion_refuses_unsafe_candidates(reason):
+    client = Client(draft=False)
+    client.visible = True
+    client.default_version = "1.2.2"
+    app = client.public_app(11)
+    state = {"release_id": 33}
+    if reason == "newer_default":
+        app["release"]["release_name"] = "2.0.0"
+    elif reason == "newer_public":
+        app["releases"].append({"release_name": "2.0.0"})
+    elif reason == "wrong_release":
+        state["release_id"] = 99
+    elif reason == "unvalidated":
+        app["releases"][0]["passed_validation"] = False
+    elif reason == "wrong_app":
+        app["id"] = 99
+        app["app_id"] = "other"
+    client.public_app = Mock(return_value=app)
+    with pytest.raises(SplunkbaseValidationFailed):
+        promote_public_release(client, 11, "1.2.3", "guid", state, lambda value: None)
+    assert client.promotions == []
+
+
+def test_default_promotion_checkpoint_failure_prevents_patch():
+    client = Client(draft=False)
+    client.visible = True
+    client.default_version = "1.2.2"
+    with pytest.raises(RuntimeError, match="storage"):
+        promote_public_release(
+            client,
+            11,
+            "1.2.3",
+            "guid",
+            {},
+            lambda value: (_ for _ in ()).throw(RuntimeError("storage failed")),
+        )
+    assert client.promotions == []
+
+
+def test_default_promotion_with_unknown_patch_outcome_can_resume_safely():
+    client = Client(draft=False)
+    client.visible = True
+    client.default_version = "1.2.2"
+    original = client.patch_metadata
+    client.patch_metadata = Mock(side_effect=SplunkbaseAmbiguousUpload("unknown"))
+    state = {}
+    with pytest.raises(SplunkbaseAmbiguousUpload):
+        promote_public_release(client, 11, "1.2.3", "guid", state, lambda value: None)
+    assert state["pending_operation"] == "default_release"
+    client.patch_metadata = original
+    assert promote_public_release(client, 11, "1.2.3", "guid", state, lambda value: None) is False
+    assert client.promotions == [(11, {"latest_release": 33})]

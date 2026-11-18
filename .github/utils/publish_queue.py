@@ -44,6 +44,7 @@ PUBLIC_RESULT_FIELDS = {
     "publication_flow",
     "pending_operation",
     "publication_requested",
+    "default_release_requested",
     "release_id",
     "s3_key",
     "previous_release_version",
