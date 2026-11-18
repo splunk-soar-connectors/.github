@@ -229,14 +229,12 @@ class Client:
             return {
                 "id": 11,
                 "app_id": "guid",
+                "release": {"release_name": self.default_version},
                 "releases": [
                     {"release_name": "1.2.3", "release_id": 33, "passed_validation": True}
                 ],
             }
         return None
-
-    def public_app_detail(self, app_id):
-        return {"id": 11, "app_id": "guid", "release": {"release_name": self.default_version}}
 
 
 def run(client, state, checkpoint=lambda state: None):
@@ -509,7 +507,7 @@ def test_default_promotion_refuses_unsafe_candidates(reason):
     app = client.public_app(11)
     state = {"release_id": 33}
     if reason == "newer_default":
-        client.default_version = "2.0.0"
+        app["release"]["release_name"] = "2.0.0"
     elif reason == "newer_public":
         app["releases"].append({"release_name": "2.0.0"})
     elif reason == "wrong_release":
@@ -517,7 +515,8 @@ def test_default_promotion_refuses_unsafe_candidates(reason):
     elif reason == "unvalidated":
         app["releases"][0]["passed_validation"] = False
     elif reason == "wrong_app":
-        client.public_app_detail = Mock(return_value={"id": 99, "app_id": "other"})
+        app["id"] = 99
+        app["app_id"] = "other"
     client.public_app = Mock(return_value=app)
     with pytest.raises(SplunkbaseValidationFailed):
         promote_public_release(client, 11, "1.2.3", "guid", state, lambda value: None)

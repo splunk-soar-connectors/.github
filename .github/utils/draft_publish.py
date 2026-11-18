@@ -139,7 +139,7 @@ def promote_public_release(client, app_id, version, app_guid, state, checkpoint)
     app = client.public_app(app_id)
     if app is None:
         return False
-    if app.get("app_id") != app_guid:
+    if str(app.get("id")) != str(app_id) or app.get("app_id") != app_guid:
         raise SplunkbaseValidationFailed("Public listing does not match the queued connector appid")
     release = release_for_version(app, version)
     if release is None:
@@ -150,10 +150,8 @@ def promote_public_release(client, app_id, version, app_guid, state, checkpoint)
     expected = state.get("release_id")
     if expected is not None and str(expected) not in {str(release_id), version}:
         raise SplunkbaseValidationFailed("Public candidate differs from the persisted release ID")
-    detail = client.public_app_detail(app_id)
-    if str(detail.get("id")) != str(app_id) or detail.get("app_id") != app_guid:
-        raise SplunkbaseValidationFailed("Public default lookup returned a different connector")
-    current = detail.get("release") or {}
+    # The list endpoint supports skip_cache; app detail responses can remain stale.
+    current = app.get("release") or {}
     current_version = current.get("release_name")
     if current_version == version:
         return True

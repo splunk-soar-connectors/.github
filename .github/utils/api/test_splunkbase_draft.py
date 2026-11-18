@@ -220,7 +220,9 @@ def test_public_visibility_check_requests_releases_without_bearer_credentials(cl
         app = client.public_app_by_guid("guid") if by_guid else client.public_app(11)
         assert app["id"] == 11
     assert session.request.call_args.kwargs["headers"] == {}
-    assert session.request.call_args.kwargs["params"]["include"] == "releases"
+    assert session.request.call_args.kwargs["params"]["include"] == (
+        "releases" if by_guid else "release,releases"
+    )
     assert session.request.call_args.kwargs["params"]["product"] == "soar"
 
 
@@ -245,14 +247,17 @@ def test_draft_creation_uses_the_documented_json_content_type(client):
     )
 
 
-def test_public_default_lookup_does_not_send_publisher_credentials(client):
+def test_public_default_lookup_requests_fresh_listing_data(client):
     session = Mock(headers={})
-    session.request.return_value = response(data={"id": 11, "release": {"release_name": "1.2.3"}})
+    session.request.return_value = response(
+        data={"results": [{"id": 11, "app_id": "guid", "release": {"release_name": "1.2.3"}}]}
+    )
     with patch("utils.api.splunkbase_draft._retrying_session", return_value=session):
-        assert client.public_app_detail(11)["release"]["release_name"] == "1.2.3"
+        assert client.public_app(11)["release"]["release_name"] == "1.2.3"
     assert session.request.call_args.args == (
         "GET",
-        "https://stage.splunkbase.splunk.com/api/v2/apps/11/",
+        "https://stage.splunkbase.splunk.com/api/v2/apps/",
     )
     assert session.request.call_args.kwargs["headers"] == {}
-    assert session.request.call_args.kwargs["params"] == {"skip_cache": "true"}
+    assert session.request.call_args.kwargs["params"]["include"] == "release,releases"
+    assert session.request.call_args.kwargs["params"]["skip_cache"] == "true"

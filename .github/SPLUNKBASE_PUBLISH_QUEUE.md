@@ -316,8 +316,10 @@ _This documentation was written by Codex._
 
 Public release visibility and the listing's default version are separate. After
 publishing, the draft worker sets `latest_release` to the candidate's numeric
-release ID and verifies the public app detail `release` pointer before completing
-the queue item. It refuses to promote an older candidate when a newer release exists.
+release ID and verifies the public app list `release` pointer before completing
+the queue item. The lookup requests `include=release,releases&skip_cache=true`;
+app detail responses can lag behind the listing. It refuses to promote an older
+candidate when a newer release exists.
 
 For an already published queue item, manually dispatch the queue workflow with
 `promote_issue_numbers` set to its issue number (or comma-separated issue numbers).
