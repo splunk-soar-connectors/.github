@@ -521,9 +521,6 @@ def publish_draft_item(queue, item, args):
         )
         if not release_notes:
             raise SplunkbaseValidationFailed("Queued package is missing candidate release notes")
-        metadata = package_metadata(
-            args.artifact, manifest, item.repository, *publisher.get_license_info(manifest)
-        )
         if not item.verification:
             # Public search excludes draft/private listings. Resolve editor
             # metadata by GUID before deciding that creation is necessary.
@@ -557,6 +554,15 @@ def publish_draft_item(queue, item, args):
                         "A private candidate release already exists; reconcile its package ID before uploading"
                     )
             checkpoint(state)
+
+        metadata = package_metadata(
+            args.artifact,
+            manifest,
+            item.repository,
+            *publisher.get_license_info(manifest),
+            existing_listing=state.get("app_existed_before_upload", False),
+            commit_sha=item.commit_sha,
+        )
 
         if (
             not state.get("package_id")

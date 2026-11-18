@@ -1,8 +1,10 @@
 """Resume draft publication from a durable queue checkpoint."""
 
+import logging
 from pathlib import PurePosixPath
 import re
 import tarfile
+from urllib.parse import quote
 
 from .api.splunkbase import SplunkbaseResponseError, SplunkbaseValidationFailed
 
@@ -15,13 +17,25 @@ TAB_FIELDS = {
     "Contact": "contact_notes_source",
 }
 MAX_MARKDOWN_BYTES = 80_000
+MAX_TAB_CHARACTERS = 20_000
 
 
-def package_metadata(artifact, manifest, repository, license_name, license_url):
+def package_metadata(
+    artifact,
+    manifest,
+    repository,
+    license_name,
+    license_url,
+    *,
+    existing_listing=False,
+    commit_sha=None,
+):
     """Read Markdown without extracting or following links in the package.
 
     Dedicated tab files take precedence over matching README sections. Details
-    defaults to manual_readme_content.md (legacy) or README.md (SDK).
+    defaults to manual_readme_content.md (legacy) or README.md (SDK). Oversized
+    full-README fallbacks preserve existing Details; new listings get a summary
+    and a link to the full documentation. Explicit tab content remains validated.
     """
     markdown = {}
     with tarfile.open(artifact, "r:*") as archive:
@@ -67,8 +81,26 @@ def package_metadata(artifact, manifest, repository, license_name, license_url):
         value = markdown.get(f"{tab.lower()}.md") or sections.get(tab.lower())
         if tab == "Details" and not value:
             value = readme
+            if len(value) > MAX_TAB_CHARACTERS:
+                action = (
+                    "preserving existing Details"
+                    if existing_listing
+                    else "using a summary and documentation link"
+                )
+                logging.warning(
+                    "README fallback exceeds Splunkbase's 20000-character limit; %s.", action
+                )
+                if existing_listing:
+                    continue
+                documentation_url = (
+                    f"https://github.com/{repository}/blob/{quote(commit_sha, safe='')}/README.md"
+                    if commit_sha
+                    else f"https://github.com/{repository}#readme"
+                )
+                summary = manifest.get("description") or manifest["name"]
+                value = f"{summary}\n\n[Full connector documentation]({documentation_url})"
         if value:
-            if len(value) > 20_000:
+            if len(value) > MAX_TAB_CHARACTERS:
                 raise SplunkbaseValidationFailed(
                     f"{field} exceeds Splunkbase's 20000-character limit; provide {tab.lower()}.md"
                 )
