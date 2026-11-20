@@ -186,8 +186,8 @@ Private validation success alone does not establish public availability.
 
 #### Listing content
 
-All documentation is read from the immutable package as Markdown. Only regular
-files at the package root are read; the worker does not extract links or paths.
+The worker reads listing metadata from Markdown in the immutable package.
+It reads only regular files at the package root.
 
 | Splunkbase field | Package source, in priority order |
 | --- | --- |
@@ -204,13 +204,16 @@ Section headings are matched without regard to case. Sections come from
 values are omitted, preserving curated listing content. Existing contact email and
 support are preserved when already set on the listing. Splunkbase manages
 `splunk`, `cisco`, and `premium` support; publishing never infers support from the
-connector's publisher name. Explicit tab content longer than 20,000 characters
-blocks publication with a request for a shorter dedicated tab file. If the full
-README fallback exceeds this limit, the worker logs a warning and omits the Details
-update for an existing published listing, preserving its current content. For a new
-listing, it uses the connector manifest description and a link to the queued source
-commit's full `README.md`. The package and full documentation remain unchanged.
-These fallbacks also apply when resuming a publication from its saved checkpoint.
+connector's publisher name. The worker skips README files larger than 80,000 bytes
+when reading listing metadata and uses any available dedicated tab files and
+readable README. Duplicate documentation filenames and dedicated tab files
+larger than 80,000 bytes block publication. Explicit tab content longer than
+20,000 characters requires a shorter dedicated tab file. When the full README
+fallback exceeds 20,000 characters or the read limit leaves no README text, the
+worker logs a warning and preserves the Details of an existing published listing.
+For a new listing, it uses the connector manifest description and a link to the
+queued source commit's full `README.md`. These fallbacks also apply when resuming
+a publication from its saved checkpoint.
 Connector category strings are not converted to Splunkbase numeric category IDs.
 Missing categories, compatibility, contact information, or other required listing
 metadata are reported for the listing owner to complete before resuming.
