@@ -299,11 +299,12 @@ def test_draft_queue_stays_open_until_the_release_is_public(tmp_path, monkeypatc
 
 
 @pytest.mark.parametrize("existing_listing", [False, True])
+@pytest.mark.parametrize("length", [68200, 128418])
 def test_draft_queue_publishes_oversized_readme_without_rebuilding(
-    tmp_path, monkeypatch, existing_listing
+    tmp_path, monkeypatch, existing_listing, length
 ):
     queue, item, args, client = draft_queue_setup(
-        tmp_path, monkeypatch, documentation={"README.md": "a" * 68200}
+        tmp_path, monkeypatch, documentation={"README.md": "a" * length}
     )
     client.patch_metadata = Mock()
     client.create_draft = Mock(wraps=client.create_draft)

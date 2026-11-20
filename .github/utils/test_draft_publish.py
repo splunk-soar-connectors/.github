@@ -98,10 +98,11 @@ def test_sdk_readme_is_markdown_and_missing_content_is_omitted(tmp_path):
 
 @pytest.mark.parametrize("filename", ["README.md", "manual_readme_content.md"])
 @pytest.mark.parametrize("existing_listing", [False, True])
+@pytest.mark.parametrize("length", [20001, 128418])
 def test_oversized_readme_fallback_does_not_block_publication(
-    tmp_path, caplog, filename, existing_listing
+    tmp_path, caplog, filename, existing_listing, length
 ):
-    path = artifact(tmp_path, {filename: "a" * 20001})
+    path = artifact(tmp_path, {filename: "a" * length})
     metadata = package_metadata(
         path,
         MANIFEST,
@@ -144,6 +145,7 @@ def test_readme_fallback_within_limit_is_preserved(tmp_path, length):
     "files",
     [
         {"details.md": "a" * 20001},
+        {"details.md": "a" * 80001},
         {"README.md": "## Details\n" + "a" * 20001},
         {"manual_readme_content.md": "## Details\n" + "a" * 20001},
     ],
@@ -161,8 +163,9 @@ def test_oversized_explicit_details_still_block(tmp_path, files, existing_listin
         )
 
 
-def test_explicit_details_take_precedence_over_oversized_readme(tmp_path, caplog):
-    path = artifact(tmp_path, {"README.md": "a" * 20001, "details.md": "Curated Details"})
+@pytest.mark.parametrize("length", [20001, 128418])
+def test_explicit_details_take_precedence_over_oversized_readme(tmp_path, length):
+    path = artifact(tmp_path, {"README.md": "a" * length, "details.md": "Curated Details"})
     metadata = package_metadata(
         path,
         MANIFEST,
@@ -172,7 +175,21 @@ def test_explicit_details_take_precedence_over_oversized_readme(tmp_path, caplog
         existing_listing=True,
     )
     assert metadata["documentation_source"] == "Curated Details"
-    assert not caplog.records
+
+
+def test_duplicate_readme_is_rejected_even_if_first_entry_is_skipped(tmp_path):
+    path = artifact(tmp_path, {"README.md": "a" * 80001, "readme.md": "Duplicate"})
+    with pytest.raises(SplunkbaseValidationFailed, match=r"Duplicate.*readme\.md"):
+        package_metadata(path, MANIFEST, "splunk-soar-connectors/example", "license", "url")
+
+
+def test_readable_readme_supplies_sections_when_legacy_readme_is_skipped(tmp_path):
+    path = artifact(
+        tmp_path,
+        {"manual_readme_content.md": "a" * 80001, "README.md": "## Details\nCurated Details"},
+    )
+    metadata = package_metadata(path, MANIFEST, "splunk-soar-connectors/example", "license", "url")
+    assert metadata["documentation_source"] == "Curated Details"
 
 
 class Client:

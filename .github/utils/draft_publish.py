@@ -20,6 +20,8 @@ TAB_FIELDS = {
 }
 MAX_MARKDOWN_BYTES = 80_000
 MAX_TAB_CHARACTERS = 20_000
+README_NAMES = {"readme.md", "manual_readme_content.md"}
+DOCUMENTATION_NAMES = README_NAMES | {f"{tab.lower()}.md" for tab in TAB_FIELDS}
 
 
 def package_metadata(
@@ -40,24 +42,31 @@ def package_metadata(
     and a link to the full documentation. Explicit tab content remains validated.
     """
     markdown = {}
+    seen_names = set()
+    skipped_readme = False
     with tarfile.open(artifact, "r:*") as archive:
         for member in archive.getmembers():
             path = PurePosixPath(member.name)
             if not member.isfile() or len(path.parts) != 2 or ".." in path.parts:
                 continue
             name = path.name.lower()
-            if name not in {
-                "readme.md",
-                "manual_readme_content.md",
-                "details.md",
-                "installation.md",
-                "troubleshooting.md",
-                "contact.md",
-            }:
+            if name not in DOCUMENTATION_NAMES:
                 continue
-            if member.size > MAX_MARKDOWN_BYTES or name in markdown:
+            if name in seen_names:
+                raise SplunkbaseValidationFailed(f"Duplicate package documentation: {name}")
+            seen_names.add(name)
+            if member.size > MAX_MARKDOWN_BYTES:
+                if name in README_NAMES:
+                    logging.warning(
+                        "Skipping %s for listing metadata: %d bytes exceeds the %d-byte read limit.",
+                        name,
+                        member.size,
+                        MAX_MARKDOWN_BYTES,
+                    )
+                    skipped_readme = True
+                    continue
                 raise SplunkbaseValidationFailed(
-                    f"Package documentation is oversized or duplicated: {name}"
+                    f"Package documentation exceeds the {MAX_MARKDOWN_BYTES}-byte read limit: {name}"
                 )
             try:
                 markdown[name] = archive.extractfile(member).read().decode("utf-8").strip()
@@ -83,15 +92,13 @@ def package_metadata(
         value = markdown.get(f"{tab.lower()}.md") or sections.get(tab.lower())
         if tab == "Details" and not value:
             value = readme
-            if len(value) > MAX_TAB_CHARACTERS:
+            if len(value) > MAX_TAB_CHARACTERS or (not value and skipped_readme):
                 action = (
                     "preserving existing Details"
                     if existing_listing
                     else "using a summary and documentation link"
                 )
-                logging.warning(
-                    "README fallback exceeds Splunkbase's 20000-character limit; %s.", action
-                )
+                logging.warning("README cannot be used as Splunkbase Details; %s.", action)
                 if existing_listing:
                     continue
                 documentation_url = (
