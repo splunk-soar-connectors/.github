@@ -12,7 +12,7 @@ class AppIdRegistryTest(unittest.TestCase):
             "0e4f8ac8-af3d-4fbd-802f-fd06607fe0b9": "Discord",
             "48ce45b2-0de5-474f-be52-8266350325cd": "Cisco Secure Access",
             "88e88f59-5c78-457b-9d81-1f41f9fd2096": "Doppel",
-            "ebdef3dd-f65d-4c50-898f-f26d60c36390": "googlealertcenter",
+            "ebdef3dd-f65d-4c50-898f-f26d60c36390": "Google Alert Center",
         }
 
         for app_id, app_name in expected_mappings.items():
