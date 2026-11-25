@@ -4,6 +4,7 @@ Contract: https://stage.splunkbase.splunk.com/api-docs-v2/
 """
 
 from datetime import datetime, timedelta, UTC
+import json
 import logging
 from pathlib import Path
 import re
@@ -28,6 +29,40 @@ from .splunkbase import (
 
 def path_id(value):
     return quote(str(value), safe="")
+
+
+def _safe_error_summary(response):
+    """Extract bounded, non-secret fields from a failed JSON API response."""
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    sensitive_key = re.compile(r"password|token|secret|authorization|cookie|credential", re.I)
+
+    def sanitize(value):
+        if isinstance(value, dict):
+            return {
+                key: sanitize(item)
+                for key, item in value.items()
+                if isinstance(key, str) and not sensitive_key.search(key)
+            }
+        if isinstance(value, list):
+            return [sanitize(item) for item in value]
+        if isinstance(value, str):
+            return value[:1000]
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        return str(value)[:1000]
+
+    keys = ("result", "message", "error", "errors", "detail", "validation_errors", "details")
+    summary = {key: sanitize(payload[key]) for key in keys if key in payload}
+    if not summary:
+        return None
+    return json.dumps(summary, ensure_ascii=False, separators=(",", ":"))[:2000]
 
 
 class DraftSplunkbase(Splunkbase):
@@ -145,8 +180,20 @@ class DraftSplunkbase(Splunkbase):
                 if response.status_code >= 500 or 300 <= response.status_code < 400
                 else SplunkbaseValidationFailed
             )
+            response_summary = _safe_error_summary(response)
+            if response_summary:
+                logging.error(
+                    "Splunkbase API error response: method=%s path=%s status_code=%s "
+                    "request_id=%s response=%s",
+                    method,
+                    path,
+                    response.status_code,
+                    request_id,
+                    response_summary,
+                )
             raise error(
-                f"Splunkbase {method} returned HTTP {response.status_code}",
+                f"Splunkbase {method} returned HTTP {response.status_code}"
+                + (f": {response_summary}" if response_summary else ""),
                 status_code=response.status_code,
                 request_id=request_id,
             )

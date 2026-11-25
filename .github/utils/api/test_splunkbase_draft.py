@@ -129,6 +129,32 @@ def test_submit_accepts_empty_success_response(client):
         assert client.submit_draft(11) == {}
 
 
+def test_submit_failure_logs_safe_splunkbase_error_details(client, caplog):
+    session = Mock(headers={})
+    result = response(
+        400,
+        {
+            "result": "Fail",
+            "details": {"message": "Missing required publisher information"},
+            "access_token": "sensitive-token",
+        },
+    )
+    result.headers["X-Request-ID"] = "submit-request-123"
+    session.request.return_value = result
+    with (
+        caplog.at_level("ERROR"),
+        patch("utils.api.splunkbase_draft._single_attempt_session", return_value=session),
+    ):
+        with pytest.raises(SplunkbaseValidationFailed) as error:
+            client.submit_draft(11)
+
+    assert '"result":"Fail"' in caplog.text
+    assert "Missing required publisher information" in caplog.text
+    assert "submit-request-123" in caplog.text
+    assert "sensitive-token" not in caplog.text
+    assert "Missing required publisher information" in str(error.value)
+
+
 def test_response_diagnostics_exclude_headers_and_body(client, caplog):
     session = Mock(headers={})
     result = response(503, {"detail": "sensitive server text"})
