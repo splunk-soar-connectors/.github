@@ -180,7 +180,9 @@ class DraftSplunkbase(Splunkbase):
                 if response.status_code >= 500 or 300 <= response.status_code < 400
                 else SplunkbaseValidationFailed
             )
-            response_summary = _safe_error_summary(response)
+            # Read failures keep their existing body-free diagnostics. The
+            # response summary is needed for rejected mutations such as submit.
+            response_summary = _safe_error_summary(response) if method != "GET" else None
             if response_summary:
                 logging.error(
                     "Splunkbase API error response: method=%s path=%s status_code=%s "
