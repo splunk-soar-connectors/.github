@@ -31,17 +31,26 @@ def path_id(value):
     return quote(str(value), safe="")
 
 
+def _is_draft_submit(method, path):
+    return method.upper() == "POST" and re.fullmatch(r"apps/[^/]+/submit/?", path) is not None
+
+
 def _safe_error_summary(response):
-    """Extract bounded, non-secret fields from a failed JSON API response."""
+    """Extract bounded error details while redacting common secret fields."""
 
     try:
         payload = response.json()
     except ValueError:
-        return None
-    if not isinstance(payload, dict):
-        return None
+        payload = None
 
     sensitive_key = re.compile(r"password|token|secret|authorization|cookie|credential", re.I)
+    sensitive_text_value = re.compile(
+        r"""(?ix)
+        (["']?(?:password|token|secret|authorization|cookie|credential)["']?\s*[:=]\s*)
+        ("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,}\s]+)
+        """
+    )
+    bearer_token = re.compile(r"(?i)(\bbearer\s+)[A-Za-z0-9._~+/-]+=*")
 
     def sanitize(value):
         if isinstance(value, dict):
@@ -58,11 +67,19 @@ def _safe_error_summary(response):
             return value
         return str(value)[:1000]
 
-    keys = ("result", "message", "error", "errors", "detail", "validation_errors", "details")
-    summary = {key: sanitize(payload[key]) for key in keys if key in payload}
-    if not summary:
-        return None
-    return json.dumps(summary, ensure_ascii=False, separators=(",", ":"))[:2000]
+    if isinstance(payload, dict):
+        keys = ("result", "message", "error", "errors", "detail", "validation_errors", "details")
+        summary = {key: sanitize(payload[key]) for key in keys if key in payload}
+        if summary:
+            return json.dumps(summary, ensure_ascii=False, separators=(",", ":"))[:2000]
+
+    # Some submit failures are plain text or use a response schema outside the
+    # known error keys. This fallback is only called for the draft submit route.
+    body = response.text[:4000]
+    body = sensitive_text_value.sub(r'\1"[REDACTED]"', body)
+    body = bearer_token.sub(r"\1[REDACTED]", body)
+    body = " ".join(body.split())
+    return body[:2000] or None
 
 
 class DraftSplunkbase(Splunkbase):
@@ -180,9 +197,11 @@ class DraftSplunkbase(Splunkbase):
                 if response.status_code >= 500 or 300 <= response.status_code < 400
                 else SplunkbaseValidationFailed
             )
-            # Read failures keep their existing body-free diagnostics. The
-            # response summary is needed for rejected mutations such as submit.
-            response_summary = _safe_error_summary(response) if method != "GET" else None
+            # Only failed draft submission responses may contain publisher
+            # validation details worth logging; other endpoints stay body-free.
+            response_summary = (
+                _safe_error_summary(response) if _is_draft_submit(method, path) else None
+            )
             if response_summary:
                 logging.error(
                     "Splunkbase API error response: method=%s path=%s status_code=%s "
